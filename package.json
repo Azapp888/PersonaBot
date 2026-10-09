@@ -1,0 +1,22 @@
+{
+  "name": "personabot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PersonaBot - 轻量级角色扮演 QQ Bot 管理系统",
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "dev:server": "pnpm --filter @personabot/server dev",
+    "dev:admin": "pnpm --filter @personabot/admin dev",
+    "build": "pnpm -r build",
+    "build:server": "pnpm --filter @personabot/server build",
+    "build:admin": "pnpm --filter @personabot/admin build",
+    "start": "pnpm --filter @personabot/server start",
+    "migrate": "pnpm --filter @personabot/server migrate",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

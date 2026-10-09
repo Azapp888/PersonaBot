@@ -1,0 +1,178 @@
+import type Database from "better-sqlite3";
+import { getDb } from "./index";
+import { logger } from "../logger";
+
+interface Migration {
+  id: string;
+  sql: string;
+}
+
+/**
+ * 迁移脚本按顺序执行，已执行的记录在 _migrations 表，保证幂等。
+ */
+const migrations: Migration[] = [
+  {
+    id: "001_init",
+    sql: `
+CREATE TABLE IF NOT EXISTS bots (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  app_id TEXT NOT NULL,
+  client_secret TEXT NOT NULL,
+  access_token TEXT,
+  token_expires_at INTEGER,
+  persona_id TEXT,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS personas (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  avatar TEXT,
+  description TEXT NOT NULL DEFAULT '',
+  system_prompt TEXT NOT NULL DEFAULT '',
+  personality TEXT NOT NULL DEFAULT '{}',
+  skills TEXT NOT NULL DEFAULT '[]',
+  commands TEXT NOT NULL DEFAULT '[]',
+  painting_config TEXT NOT NULL DEFAULT '{}',
+  model_config TEXT NOT NULL DEFAULT '{}',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS models (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  api_key TEXT,
+  api_base TEXT,
+  model_id TEXT NOT NULL,
+  temperature REAL NOT NULL DEFAULT 0.8,
+  max_tokens INTEGER NOT NULL DEFAULT 2048,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS memories (
+  id TEXT PRIMARY KEY,
+  persona_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  content TEXT NOT NULL,
+  source_date TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_memories_lookup ON memories(persona_id, user_id, type, created_at);
+
+CREATE TABLE IF NOT EXISTS conversations (
+  id TEXT PRIMARY KEY,
+  persona_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  messages TEXT NOT NULL DEFAULT '[]',
+  updated_at INTEGER NOT NULL,
+  UNIQUE(persona_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS user_profiles (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  persona_id TEXT NOT NULL,
+  habits TEXT NOT NULL DEFAULT '{}',
+  last_interaction_at INTEGER,
+  last_proactive_at INTEGER,
+  UNIQUE(user_id, persona_id)
+);
+
+CREATE TABLE IF NOT EXISTS stats (
+  date TEXT NOT NULL,
+  persona_id TEXT NOT NULL,
+  token_consumed INTEGER NOT NULL DEFAULT 0,
+  cache_hit_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_miss_tokens INTEGER NOT NULL DEFAULT 0,
+  images_generated INTEGER NOT NULL DEFAULT 0,
+  messages INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (date, persona_id)
+);
+
+CREATE TABLE IF NOT EXISTS message_logs (
+  id TEXT PRIMARY KEY,
+  persona_id TEXT,
+  bot_id TEXT,
+  user_id TEXT NOT NULL,
+  direction TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_message_logs_user ON message_logs(persona_id, user_id, created_at);
+
+CREATE TABLE IF NOT EXISTS token_usage (
+  id TEXT PRIMARY KEY,
+  model_id TEXT,
+  persona_id TEXT,
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_hit_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_miss_tokens INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS painting_logs (
+  id TEXT PRIMARY KEY,
+  persona_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  image_url TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_painting_lookup ON painting_logs(persona_id, created_at);
+
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS skills (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  type TEXT NOT NULL DEFAULT 'custom',
+  version TEXT NOT NULL DEFAULT '1.0.0',
+  source TEXT,
+  content TEXT NOT NULL DEFAULT '',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  updated_at INTEGER NOT NULL
+);
+`,
+  },
+  {
+    id: "002_bot_persona_fk",
+    sql: `
+CREATE INDEX IF NOT EXISTS idx_bots_persona ON bots(persona_id);
+CREATE INDEX IF NOT EXISTS idx_stats_persona ON stats(persona_id, date);
+`,
+  },
+];
+
+export function runMigrations(database?: Database.Database): void {
+  const db = database ?? getDb();
+  db.exec(`CREATE TABLE IF NOT EXISTS _migrations (id TEXT PRIMARY KEY, applied_at INTEGER NOT NULL);`);
+  const applied = new Set(
+    db.prepare(`SELECT id FROM _migrations`).all().map((r: any) => r.id as string),
+  );
+  for (const migration of migrations) {
+    if (applied.has(migration.id)) continue;
+    const tx = db.transaction(() => {
+      db.exec(migration.sql);
+      db.prepare(`INSERT INTO _migrations (id, applied_at) VALUES (?, ?)`).run(migration.id, Date.now());
+    });
+    tx();
+    logger.info({ migration: migration.id }, "migration applied");
+  }
+  logger.info({ count: migrations.length }, "migrations up to date");
+}
+
+export const migrationList = migrations;

@@ -1,0 +1,18 @@
+services:
+  personabot:
+    build: .
+    container_name: personabot
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - NODE_ENV=production
+      - HOST=0.0.0.0
+      - PORT=3000
+      - DATA_DIR=/app/data
+      - LOG_DIR=/app/logs

@@ -1,0 +1,120 @@
+import cron, { type ScheduledTask } from "node-cron";
+import { personaRepo } from "../db/repos/personas";
+import { memoryRepo } from "../db/repos/memories";
+import { conversationRepo } from "../db/repos/conversations";
+import { statsRepo } from "../db/repos/stats";
+import { refreshExpiringTokens } from "../qq/token";
+import { syncSkillsFromGithub } from "../skills/manager";
+import { settingsService } from "../settings/service";
+import { logger } from "../logger";
+import { formatDate, addDays } from "../utils/id";
+import {
+  generateBiweeklyMemory,
+  generateDailyMemory,
+  generateMonthlyMemory,
+  generateThreeDayMemory,
+} from "../memory/summarizer";
+import { runProactiveCycle } from "../proactive/service";
+import { botManager } from "../qq/manager";
+
+const tasks: ScheduledTask[] = [];
+
+async function forEachUser(personaId: string, fn: (personaId: string, userId: string) => Promise<void>): Promise<void> {
+  const persona = personaRepo.find(personaId);
+  if (!persona) return;
+  const userIds = new Set(memoryRepo.distinctUsers(personaId));
+  for (const conv of conversationRepo.listByPersona(personaId)) {
+    userIds.add(conv.userId);
+  }
+  for (const userId of userIds) {
+    try {
+      await fn(personaId, userId);
+    } catch (err) {
+      logger.warn({ personaId, userId, err: (err as Error).message }, "scheduled memory task failed");
+    }
+  }
+}
+
+async function runDailyMemories(): Promise<void> {
+  for (const persona of personaRepo.listEnabled()) {
+    await forEachUser(persona.id, (pid, uid) => generateDailyMemory(personaRepo.find(pid)!, uid, addDays(new Date(), -1)).then(() => undefined));
+  }
+  logger.info("daily memory task finished");
+}
+
+async function runThreeDayMemories(): Promise<void> {
+  for (const persona of personaRepo.listEnabled()) {
+    await forEachUser(persona.id, (pid, uid) => generateThreeDayMemory(personaRepo.find(pid)!, uid).then(() => undefined));
+  }
+  logger.info("three-day memory task finished");
+}
+
+async function runBiweeklyMemories(): Promise<void> {
+  for (const persona of personaRepo.listEnabled()) {
+    await forEachUser(persona.id, (pid, uid) => generateBiweeklyMemory(personaRepo.find(pid)!, uid).then(() => undefined));
+  }
+  logger.info("biweekly memory task finished");
+}
+
+async function runMonthlyMemories(): Promise<void> {
+  for (const persona of personaRepo.listEnabled()) {
+    await forEachUser(persona.id, (pid, uid) => generateMonthlyMemory(personaRepo.find(pid)!, uid).then(() => undefined));
+  }
+  logger.info("monthly memory task finished");
+}
+
+let skillTask: ScheduledTask | null = null;
+
+function scheduleSkillUpdate(): void {
+  if (skillTask) {
+    skillTask.stop();
+    skillTask = null;
+  }
+  const expr = settingsService.get().skillUpdateCron;
+  if (!cron.validate(expr)) {
+    logger.warn({ expr }, "invalid skill update cron expression, skip");
+    return;
+  }
+  skillTask = cron.schedule(expr, () => {
+    void syncSkillsFromGithub().catch((err) => logger.warn({ err: err.message }, "scheduled skill sync failed"));
+  });
+}
+
+export function startScheduler(): void {
+  // 日记忆：每天 00:00
+  tasks.push(cron.schedule("0 0 * * *", () => void runDailyMemories()));
+  // 统计重置：每天 00:05（新的一天从零开始）
+  tasks.push(
+    cron.schedule("5 0 * * *", () => {
+      statsRepo.resetDate(formatDate());
+      logger.info("stats reset for new day");
+    }),
+  );
+  // 三日记忆：每 3 天 01:00
+  tasks.push(cron.schedule("0 1 */3 * *", () => void runThreeDayMemories()));
+  // 精简记忆：每 2 周 02:00
+  tasks.push(cron.schedule("0 2 */14 * *", () => void runBiweeklyMemories()));
+  // 月记忆：每月 1 日 03:00
+  tasks.push(cron.schedule("0 3 1 * *", () => void runMonthlyMemories()));
+  // Token 刷新：每天 04:00
+  tasks.push(cron.schedule("0 4 * * *", () => void refreshExpiringTokens()));
+  // 主动消息：每 30 分钟一次
+  tasks.push(cron.schedule("*/30 * * * *", () => void runProactiveCycle()));
+  // Bot 网关状态同步：每 5 分钟
+  tasks.push(cron.schedule("*/5 * * * *", () => void botManager.reload()));
+  // Skill 自动更新：可配置
+  scheduleSkillUpdate();
+
+  logger.info({ count: tasks.length }, "scheduler started");
+}
+
+export function stopScheduler(): void {
+  for (const t of tasks) t.stop();
+  tasks.length = 0;
+  skillTask?.stop();
+  skillTask = null;
+}
+
+export function rescheduleSkillUpdate(): void {
+  scheduleSkillUpdate();
+}
