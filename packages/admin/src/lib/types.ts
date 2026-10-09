@@ -122,6 +122,8 @@ export interface AppSettings {
   githubTokenSet?: boolean;
   skillUpdateCron: string;
   messageDebounceMs: number;
+  splitMessages: boolean;
+  splitMaxMessages: number;
 }
 
 export interface DashboardData {

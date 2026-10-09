@@ -87,6 +87,21 @@ export function SettingsPage() {
             <Switch checked={settings.cacheEnabled} onCheckedChange={(v) => set({ cacheEnabled: v })} />
             <span className="text-sm">启用缓存优化（前缀稳定 + 只追加会话）</span>
           </div>
+          <div className="flex items-end gap-2">
+            <Switch checked={settings.splitMessages} onCheckedChange={(v) => set({ splitMessages: v })} />
+            <span className="text-sm">多行回复分条发送（同一 msg_id + 递增 msg_seq）</span>
+          </div>
+          <div>
+            <Label>单次最多分条数</Label>
+            <Input
+              type="number"
+              value={settings.splitMaxMessages}
+              onChange={(e) => set({ splitMaxMessages: Number(e.target.value) })}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              被动回复上限：单聊 4 次、群聊 5 次，超出部分自动合并进最后一条
+            </p>
+          </div>
           <div className="md:col-span-2">
             <Label>Bot 服务说明</Label>
             <Input value={settings.botServiceNote} onChange={(e) => set({ botServiceNote: e.target.value })} />

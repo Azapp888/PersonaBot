@@ -169,6 +169,8 @@ export interface AppSettings {
   githubToken: string;
   skillUpdateCron: string;
   messageDebounceMs: number;
+  splitMessages: boolean;
+  splitMaxMessages: number;
 }
 
 // LLM 相关

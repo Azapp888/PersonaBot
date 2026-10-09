@@ -14,7 +14,8 @@ import { QQApiClient } from "../qq/client";
 import { settingsService } from "../settings/service";
 import { logger } from "../logger";
 import type { Bot, ChatMessage, LLMUsage, Persona, QQMessageEvent } from "../types";
-import { formatDate } from "../utils/id";
+import { formatDate, sleep } from "../utils/id";
+import { splitReply } from "../utils/text";
 
 const PAINT_KEYWORDS = ["画一张", "画个", "画幅", "画画", "画一下", "帮我画", "给我画", "作画", "绘一张", "来张图"];
 
@@ -207,6 +208,7 @@ class MessagePipeline {
   private async send(batch: Batch, reply: string, painting?: PaintingResult): Promise<void> {
     const client = new QQApiClient(batch.bot);
     const event = batch.lastEvent;
+    const settings = settingsService.get();
     try {
       if (painting?.ok && (painting.imageUrl || painting.imageBase64)) {
         const scope =
@@ -224,14 +226,26 @@ class MessagePipeline {
         }
       }
 
-      if (event.type === "c2c") {
-        await client.sendC2C(event.authorId, reply, event.msgId);
-      } else if (event.type === "group") {
-        await client.sendGroup(event.groupOpenid!, reply, event.msgId);
-      } else if (event.type === "guild") {
-        await client.sendGuildChannel(event.channelId!, reply, event.msgId);
-      } else if (event.type === "direct") {
-        await client.sendDirect(event.guildId!, reply, event.msgId);
+      // 多行回复拆分为多条消息，携带同一 msg_id 与递增 msg_seq。
+      // 被动回复上限：单聊 4 次 / 群聊 5 次，超出部分合并进最后一条。
+      const sceneCap = event.type === "c2c" ? 4 : event.type === "group" ? 5 : settings.splitMaxMessages;
+      const maxParts = Math.max(1, Math.min(settings.splitMaxMessages, sceneCap));
+      const segments = settings.splitMessages ? splitReply(reply, maxParts) : [reply];
+      if (!segments.length) return;
+
+      for (let i = 0; i < segments.length; i++) {
+        const msgSeq = i + 1;
+        const segment = segments[i];
+        if (event.type === "c2c") {
+          await client.sendC2C(event.authorId, segment, event.msgId, msgSeq);
+        } else if (event.type === "group") {
+          await client.sendGroup(event.groupOpenid!, segment, event.msgId, msgSeq);
+        } else if (event.type === "guild") {
+          await client.sendGuildChannel(event.channelId!, segment, event.msgId);
+        } else if (event.type === "direct") {
+          await client.sendDirect(event.guildId!, segment, event.msgId);
+        }
+        if (i < segments.length - 1) await sleep(300);
       }
     } catch (err) {
       logger.error({ botId: batch.bot.id, err: (err as Error).message }, "send reply failed");

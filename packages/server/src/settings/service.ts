@@ -23,6 +23,8 @@ function defaultSettings(): AppSettings {
     githubToken: "",
     skillUpdateCron: config.defaults.skillUpdateCron,
     messageDebounceMs: config.defaults.messageDebounceMs,
+    splitMessages: config.defaults.splitMessages,
+    splitMaxMessages: config.defaults.splitMaxMessages,
   };
 }
 

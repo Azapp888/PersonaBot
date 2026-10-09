@@ -71,6 +71,8 @@ export const config = {
     skillUpdateCron: "0 */6 * * *",
     messageDebounceMs: 1200,
     memoryInjectConversationLimit: 40,
+    splitMessages: true,
+    splitMaxMessages: 4,
   },
 };
 
