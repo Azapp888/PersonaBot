@@ -26,6 +26,7 @@ function defaultSettings(): AppSettings {
     splitMessages: config.defaults.splitMessages,
     splitMaxMessages: config.defaults.splitMaxMessages,
     injectSystemTime: config.defaults.injectSystemTime,
+    timezone: config.defaults.timezone,
   };
 }
 

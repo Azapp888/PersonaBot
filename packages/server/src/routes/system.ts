@@ -5,10 +5,12 @@ import { botManager } from "../qq/manager";
 import { messagePipeline } from "../pipeline/message-pipeline";
 import { logger } from "../logger";
 import { systemClock } from "../utils/clock";
+import { settingsService } from "../settings/service";
 
 export async function systemRoutes(app: FastifyInstance): Promise<void> {
-  app.get("/api/system/time", { preHandler: [app.authenticate] }, async () => {
-    return systemClock.snapshot();
+  app.get("/api/system/time", { preHandler: [app.authenticate] }, async (request) => {
+    const { tz } = request.query as { tz?: string };
+    return systemClock.snapshot(tz || settingsService.get().timezone);
   });
 
   app.post("/api/system/proactive/run", { preHandler: [app.authenticate] }, async () => {

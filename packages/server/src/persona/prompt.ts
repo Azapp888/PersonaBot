@@ -14,6 +14,7 @@ export interface PromptContext {
   userHabits?: UserHabits | null;
   now?: number;
   includeTime?: boolean;
+  timezone?: string;
 }
 
 /**
@@ -60,9 +61,9 @@ export function buildDynamicSuffix(persona: Persona, ctx: PromptContext = {}): s
   const now = ctx.now ?? systemClock.now();
   const includeTime = ctx.includeTime ?? true;
   if (includeTime) {
-    const snap = systemClock.snapshot();
+    const snap = systemClock.snapshot(ctx.timezone);
     lines.push("", "# 当前上下文");
-    lines.push(`当前系统时间：${systemClock.format(now)}（${snap.timezone}）`);
+    lines.push(`当前系统时间：${systemClock.format(now, ctx.timezone)}（时区 ${snap.timezone}，UTC${snap.utcOffsetMinutes >= 0 ? "+" : "-"}${String(Math.floor(Math.abs(snap.utcOffsetMinutes) / 60)).padStart(2, "0")}:${String(Math.abs(snap.utcOffsetMinutes) % 60).padStart(2, "0")}）`);
   }
 
   const mem = ctx.memory;

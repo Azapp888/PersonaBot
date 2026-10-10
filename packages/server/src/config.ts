@@ -74,6 +74,7 @@ export const config = {
     splitMessages: true,
     splitMaxMessages: 4,
     injectSystemTime: true,
+    timezone: str("TIMEZONE", "Asia/Shanghai"),
   },
 };
 

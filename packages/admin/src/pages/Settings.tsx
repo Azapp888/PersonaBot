@@ -10,6 +10,7 @@ import {
   CardTitle,
   Input,
   Label,
+  Select,
   Switch,
 } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
@@ -49,12 +50,59 @@ function ToggleRow({
 
 const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
-function formatClock(ts: number): string {
+const TIMEZONE_OPTIONS: { value: string; label: string }[] = [
+  { value: "Asia/Shanghai", label: "Asia/Shanghai（中国 · UTC+8）" },
+  { value: "Asia/Hong_Kong", label: "Asia/Hong_Kong（香港 · UTC+8）" },
+  { value: "Asia/Taipei", label: "Asia/Taipei（台北 · UTC+8）" },
+  { value: "Asia/Tokyo", label: "Asia/Tokyo（日本 · UTC+9）" },
+  { value: "Asia/Seoul", label: "Asia/Seoul（韩国 · UTC+9）" },
+  { value: "Asia/Singapore", label: "Asia/Singapore（新加坡 · UTC+8）" },
+  { value: "Europe/London", label: "Europe/London（伦敦）" },
+  { value: "Europe/Paris", label: "Europe/Paris（巴黎）" },
+  { value: "America/New_York", label: "America/New_York（纽约）" },
+  { value: "America/Los_Angeles", label: "America/Los_Angeles（洛杉矶）" },
+  { value: "UTC", label: "UTC（协调世界时）" },
+];
+
+function tzLabel(tz: string): string {
+  return TIMEZONE_OPTIONS.find((o) => o.value === tz)?.label ?? tz;
+}
+
+function formatClock(ts: number, tz?: string): string {
   const d = new Date(ts);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(
-    d.getMinutes(),
-  )}:${pad(d.getSeconds())} ${WEEKDAYS[d.getDay()]}`;
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz || undefined,
+      hourCycle: "h23",
+      hour12: false,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }).formatToParts(d);
+    const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+    const wd = new Intl.DateTimeFormat("zh-CN", { timeZone: tz || undefined, weekday: "short" }).format(d);
+    return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")} ${wd}`;
+  } catch {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(
+      d.getSeconds(),
+    )} ${WEEKDAYS[d.getDay()]}`;
+  }
+}
+
+function offsetLabel(ts: number, tz?: string): string {
+  try {
+    const name =
+      new Intl.DateTimeFormat("en-US", { timeZone: tz || undefined, timeZoneName: "longOffset" })
+        .formatToParts(new Date(ts))
+        .find((p) => p.type === "timeZoneName")?.value ?? "";
+    return name.replace("GMT", "UTC");
+  } catch {
+    return "";
+  }
 }
 
 export function SettingsPage() {
@@ -66,13 +114,11 @@ export function SettingsPage() {
   const [githubToken, setGithubToken] = useState("");
   const [snapshot, setSnapshot] = useState("");
   const [serverOffset, setServerOffset] = useState(0);
-  const [serverTz, setServerTz] = useState("");
   const [tick, setTick] = useState(Date.now());
 
   const refreshServerTime = async () => {
     const t = await api.systemTime();
     setServerOffset(t.now - Date.now());
-    setServerTz(t.timezone);
   };
 
   const load = async () => {
@@ -189,22 +235,38 @@ export function SettingsPage() {
             checked={settings.injectSystemTime}
             onChange={(v) => set({ injectSystemTime: v })}
           />
+          <Field label="时区" hint="注入给模型的时间按此时区显示（服务器为 UTC 容器时务必设置）">
+            <Select value={settings.timezone} onChange={(e) => set({ timezone: e.target.value })}>
+              {TIMEZONE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+              {!TIMEZONE_OPTIONS.some((o) => o.value === settings.timezone) && (
+                <option value={settings.timezone}>{settings.timezone}</option>
+              )}
+            </Select>
+          </Field>
           <div className="rounded-xl border border-border bg-muted/40 p-3.5 md:col-span-2 dark:border-slate-800 dark:bg-slate-900/40">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-xs text-muted-foreground">
-                  服务器当前系统时间{serverTz ? `（${serverTz}）` : ""}
+                  当前系统时间{tick + serverOffset ? `（${tzLabel(settings.timezone)} · ${offsetLabel(tick + serverOffset, settings.timezone)}）` : ""}
                 </div>
                 <div className="mt-0.5 font-mono text-lg font-semibold tabular-nums">
-                  {formatClock(tick + serverOffset)}
+                  {formatClock(tick + serverOffset, settings.timezone)}
                 </div>
               </div>
-              <Button variant="outline" size="sm" onClick={() => refreshServerTime().then(() => push("已重新拉取服务器时间"))}>
-                <RefreshCw className="h-4 w-4" /> 重新拉取
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refreshServerTime().then(() => push("已按服务器时间校准"))}
+              >
+                <RefreshCw className="h-4 w-4" /> 重新校准
               </Button>
             </div>
             <div className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-              每次向网关发起请求（收到 QQ 消息）时都会重新拉取一次当前时间，注入的时间以服务器实时时间为准。
+              以服务器实时时间校准，并按上方时区显示；每次向网关发起请求（收到 QQ 消息）时都会重新拉取一次当前时间注入模型。
             </div>
           </div>
           <Field label="单次最多分条数" hint="被动回复上限：单聊 4 次、群聊 5 次，超出合并进最后一条">

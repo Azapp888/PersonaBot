@@ -148,6 +148,7 @@ export interface AppSettings {
   splitMessages: boolean;
   splitMaxMessages: number;
   injectSystemTime: boolean;
+  timezone: string;
 }
 
 export interface DashboardData {

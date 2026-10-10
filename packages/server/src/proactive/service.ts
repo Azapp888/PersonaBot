@@ -74,6 +74,7 @@ async function proactiveReply(persona: Persona, userId: string): Promise<string 
     memory,
     userHabits: profile.habits,
     includeTime: settings.injectSystemTime,
+    timezone: settings.timezone,
     now: systemClock.now(),
   });
   const conv = conversationRepo.ensure(persona.id, userId);

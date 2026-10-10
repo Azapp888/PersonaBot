@@ -49,7 +49,7 @@ export async function generateReply(persona: Persona, userId: string, userText: 
   const settings = settingsService.get();
   const profile = profileRepo.ensure(persona.id, userId);
   const memory = buildMemoryInjection(persona.id, userId);
-  const { prefix, full } = assembleSystemPrompt(persona, { memory, userHabits: profile.habits, includeTime: settings.injectSystemTime, now });
+  const { prefix, full } = assembleSystemPrompt(persona, { memory, userHabits: profile.habits, includeTime: settings.injectSystemTime, timezone: settings.timezone, now });
 
   const conv = conversationRepo.ensure(persona.id, userId);
   const history = conv.messages.slice(-settings.memoryInjectConversationLimit);

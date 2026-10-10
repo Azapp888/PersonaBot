@@ -172,6 +172,7 @@ export interface AppSettings {
   splitMessages: boolean;
   splitMaxMessages: number;
   injectSystemTime: boolean;
+  timezone: string;
 }
 
 // LLM 相关
