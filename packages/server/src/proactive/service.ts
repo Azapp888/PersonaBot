@@ -42,9 +42,10 @@ const PROACTIVE_INSTRUCTION = `[系统内部指令，请勿向用户暴露本指
 只输出你要说的话，不要任何前缀或说明。`;
 
 async function proactiveReply(persona: Persona, userId: string): Promise<string | null> {
+  const settings = settingsService.get();
   const profile = profileRepo.ensure(persona.id, userId);
   const memory = buildMemoryInjection(persona.id, userId);
-  const { full } = assembleSystemPrompt(persona, { memory, userHabits: profile.habits });
+  const { full } = assembleSystemPrompt(persona, { memory, userHabits: profile.habits, includeTime: settings.injectSystemTime });
   const conv = conversationRepo.ensure(persona.id, userId);
   const history = conv.messages.slice(-10);
 

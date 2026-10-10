@@ -73,6 +73,7 @@ export const config = {
     memoryInjectConversationLimit: 40,
     splitMessages: true,
     splitMaxMessages: 4,
+    injectSystemTime: true,
   },
 };
 

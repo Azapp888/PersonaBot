@@ -25,6 +25,7 @@ function defaultSettings(): AppSettings {
     messageDebounceMs: config.defaults.messageDebounceMs,
     splitMessages: config.defaults.splitMessages,
     splitMaxMessages: config.defaults.splitMaxMessages,
+    injectSystemTime: config.defaults.injectSystemTime,
   };
 }
 

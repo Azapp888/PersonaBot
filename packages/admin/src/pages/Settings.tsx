@@ -91,6 +91,10 @@ export function SettingsPage() {
             <Switch checked={settings.splitMessages} onCheckedChange={(v) => set({ splitMessages: v })} />
             <span className="text-sm">多行回复分条发送（同一 msg_id + 递增 msg_seq）</span>
           </div>
+          <div className="flex items-end gap-2">
+            <Switch checked={settings.injectSystemTime} onCheckedChange={(v) => set({ injectSystemTime: v })} />
+            <span className="text-sm">向模型注入当前系统时间（关闭可提升 prompt cache 命中）</span>
+          </div>
           <div>
             <Label>单次最多分条数</Label>
             <Input

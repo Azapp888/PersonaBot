@@ -12,6 +12,7 @@ export interface PromptContext {
   memory?: PromptMemory;
   userHabits?: UserHabits | null;
   now?: number;
+  includeTime?: boolean;
 }
 
 /**
@@ -56,8 +57,11 @@ export function buildStablePrefix(persona: Persona): string {
 export function buildDynamicSuffix(persona: Persona, ctx: PromptContext = {}): string {
   const lines: string[] = [];
   const now = ctx.now ?? Date.now();
-  lines.push("", "# 当前上下文");
-  lines.push(`当前系统时间：${formatDateTime(now)}`);
+  const includeTime = ctx.includeTime ?? true;
+  if (includeTime) {
+    lines.push("", "# 当前上下文");
+    lines.push(`当前系统时间：${formatDateTime(now)}`);
+  }
 
   const mem = ctx.memory;
   if (mem && (mem.daily || mem.threeDay || mem.monthly)) {

@@ -171,6 +171,7 @@ export interface AppSettings {
   messageDebounceMs: number;
   splitMessages: boolean;
   splitMaxMessages: number;
+  injectSystemTime: boolean;
 }
 
 // LLM 相关
