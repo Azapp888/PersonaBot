@@ -90,6 +90,23 @@ export function SettingsPage() {
     }
   };
 
+  const runProactive = async () => {
+    try {
+      const res = await api.runProactive();
+      if (res.sent > 0) {
+        push(`已发送 ${res.sent} 条主动消息${res.errors.length ? `，${res.errors.length} 条失败` : ""}`, "success");
+      } else if (res.errors.length) {
+        push(`发送失败：${res.errors[0]}`, "error");
+      } else if (res.skipped.length) {
+        push(`未发送：${res.skipped[0].reason}`, "info");
+      } else {
+        push("没有可发送的目标（请确认角色与 Bot 已启用、且用户有过对话）", "info");
+      }
+    } catch (err) {
+      push((err as Error).message, "error");
+    }
+  };
+
   if (!settings) return <div className="text-sm text-muted-foreground">加载中...</div>;
 
   const dirty = snapshot !== "" && JSON.stringify(settings) !== snapshot;
@@ -284,7 +301,7 @@ export function SettingsPage() {
             </div>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <Button variant="outline" className="w-full sm:w-auto" onClick={() => api.runProactive().then(() => push("已触发主动消息周期"))}>
+            <Button variant="outline" className="w-full sm:w-auto" onClick={runProactive}>
               <Play className="h-4 w-4" /> 立即执行主动消息
             </Button>
             <Button variant="outline" className="w-full sm:w-auto" onClick={() => api.refreshTokens().then(() => push("已刷新 Token"))}>

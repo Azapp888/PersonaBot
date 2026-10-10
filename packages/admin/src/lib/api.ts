@@ -5,6 +5,7 @@ import type {
   Memory,
   ModelRecord,
   Persona,
+  ProactiveRunResult,
   Skill,
   TrendPoint,
 } from "./types";
@@ -109,6 +110,12 @@ export const api = {
       "GET",
       `/api/memories/file?personaId=${personaId}&userId=${encodeURIComponent(userId)}&name=${encodeURIComponent(name)}`,
     ),
+  importMemory: (personaId: string, userId: string, filename: string, content: string) =>
+    request<{ ok: boolean; created: number; entries: { sourceDate: string; content: string }[]; message?: string }>(
+      "POST",
+      "/api/memories/import",
+      { personaId, userId, filename, content },
+    ),
 
   // settings
   settings: () => request<AppSettings>("GET", "/api/settings"),
@@ -124,7 +131,7 @@ export const api = {
     request<{ updated: number; errors: string[] }>("POST", "/api/skills/sync", { repoUrl, token }),
 
   // system actions
-  runProactive: () => request<{ ok: boolean }>("POST", "/api/system/proactive/run"),
+  runProactive: () => request<ProactiveRunResult>("POST", "/api/system/proactive/run"),
   refreshTokens: () => request<{ ok: boolean }>("POST", "/api/system/tokens/refresh"),
   reloadBots: () => request<{ ok: boolean }>("POST", "/api/system/bots/reload"),
 };

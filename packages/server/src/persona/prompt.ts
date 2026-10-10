@@ -6,6 +6,7 @@ export interface PromptMemory {
   daily?: string;
   threeDay?: string;
   monthly?: string;
+  imported?: string;
 }
 
 export interface PromptContext {
@@ -64,8 +65,9 @@ export function buildDynamicSuffix(persona: Persona, ctx: PromptContext = {}): s
   }
 
   const mem = ctx.memory;
-  if (mem && (mem.daily || mem.threeDay || mem.monthly)) {
+  if (mem && (mem.daily || mem.threeDay || mem.monthly || mem.imported)) {
     lines.push("", "# 相关记忆");
+    if (mem.imported) lines.push(`## 导入的历史记忆\n${mem.imported}`);
     if (mem.daily) lines.push(`## 最近的记忆\n${mem.daily}`);
     if (mem.threeDay) lines.push(`## 中期记忆\n${mem.threeDay}`);
     if (mem.monthly) lines.push(`## 长期记忆\n${mem.monthly}`);

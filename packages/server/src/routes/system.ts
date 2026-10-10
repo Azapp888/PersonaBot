@@ -7,8 +7,8 @@ import { logger } from "../logger";
 
 export async function systemRoutes(app: FastifyInstance): Promise<void> {
   app.post("/api/system/proactive/run", { preHandler: [app.authenticate] }, async () => {
-    await runProactiveCycle();
-    return { ok: true };
+    const result = await runProactiveCycle(true);
+    return { ok: true, ...result };
   });
 
   app.post("/api/system/tokens/refresh", { preHandler: [app.authenticate] }, async () => {

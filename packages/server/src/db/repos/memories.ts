@@ -55,8 +55,7 @@ export const memoryRepo = {
       .all(personaId, userId, type, since)
       .map(map);
   },
-  upsert(input: MemoryInput): Memory {
-    const existing = this.db()
+  upsert(input: MemoryInput): Memory {    const existing = this.db()
       .prepare(
         `SELECT * FROM memories WHERE persona_id = ? AND user_id = ? AND type = ? AND source_date = ?`,
       )
@@ -67,6 +66,15 @@ export const memoryRepo = {
         .run(input.content, now(), existing.id);
       return map(this.db().prepare(`SELECT * FROM memories WHERE id = ?`).get(existing.id));
     }
+    const id = newId("mem_");
+    this.db()
+      .prepare(
+        `INSERT INTO memories (id, persona_id, user_id, type, content, source_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(id, input.personaId, input.userId, input.type, input.content, input.sourceDate, now());
+    return map(this.db().prepare(`SELECT * FROM memories WHERE id = ?`).get(id));
+  },
+  create(input: MemoryInput): Memory {
     const id = newId("mem_");
     this.db()
       .prepare(

@@ -16,6 +16,30 @@ import { formatDate, sleep } from "../utils/id";
 const sentSinceReply = new Map<string, number>();
 const HOUR = 60 * 60 * 1000;
 
+export interface ProactiveSendDetail {
+  personaId: string;
+  personaName: string;
+  userId: string;
+  content: string;
+}
+
+export interface ProactiveSkip {
+  persona: string;
+  userId: string;
+  reason: string;
+}
+
+export interface ProactiveRunResult {
+  enabled: boolean;
+  forced: boolean;
+  personas: number;
+  profiles: number;
+  sent: number;
+  details: ProactiveSendDetail[];
+  skipped: ProactiveSkip[];
+  errors: string[];
+}
+
 function key(personaId: string, userId: string): string {
   return `${personaId}:${userId}`;
 }
@@ -65,29 +89,70 @@ async function proactiveReply(persona: Persona, userId: string): Promise<string 
 /**
  * 主动消息周期任务：依据用户活跃时段与角色性格，判断是否主动发起。
  * 每次最多发 maxMessages 条，用户回复后计数刷新。发送前遵循 10/qps 频控。
+ *
+ * force=true 时用于后台「立即执行」按钮：跳过冷却与活跃时段判断，直接尝试发送，
+ * 并把每个目标的跳过原因 / 发送结果返回给调用方，便于排查。
  */
-export async function runProactiveCycle(): Promise<void> {
+export async function runProactiveCycle(force = false): Promise<ProactiveRunResult> {
   const settings = settingsService.get();
-  if (!settings.proactiveEnabled) return;
+  const result: ProactiveRunResult = {
+    enabled: settings.proactiveEnabled,
+    forced: force,
+    personas: 0,
+    profiles: 0,
+    sent: 0,
+    details: [],
+    skipped: [],
+    errors: [],
+  };
+  if (!settings.proactiveEnabled && !force) return result;
   const maxMessages = settings.proactiveMaxMessages;
 
   for (const persona of personaRepo.listEnabled()) {
+    result.personas++;
     const bot = botRepo.listEnabled().find((b) => b.personaId === persona.id);
-    if (!bot) continue;
+    if (!bot) {
+      result.skipped.push({ persona: persona.name, userId: "-", reason: "该角色没有绑定已启用的 Bot" });
+      continue;
+    }
     const client = new QQApiClient(bot);
 
-    for (const profile of profileRepo.listByPersona(persona.id)) {
+    const profiles = profileRepo.listByPersona(persona.id);
+    if (!profiles.length) {
+      result.skipped.push({ persona: persona.name, userId: "-", reason: "该角色还没有对话过的用户" });
+      continue;
+    }
+
+    for (const profile of profiles) {
+      result.profiles++;
       const k = key(persona.id, profile.userId);
       const sent = sentSinceReply.get(k) ?? 0;
-      if (sent >= maxMessages) continue;
-
       const now = Date.now();
-      if (profile.lastInteractionAt && now - profile.lastInteractionAt < 6 * HOUR) continue;
-      if (profile.lastProactiveAt && now - profile.lastProactiveAt < 12 * HOUR) continue;
-      if (!inActiveHours(profile.habits.activeHours)) continue;
+
+      if (!force) {
+        if (sent >= maxMessages) {
+          result.skipped.push({ persona: persona.name, userId: profile.userId, reason: `已达本周期上限（${maxMessages} 条）` });
+          continue;
+        }
+        if (profile.lastInteractionAt && now - profile.lastInteractionAt < 6 * HOUR) {
+          result.skipped.push({ persona: persona.name, userId: profile.userId, reason: "用户 6 小时内刚互动，暂不打扰" });
+          continue;
+        }
+        if (profile.lastProactiveAt && now - profile.lastProactiveAt < 12 * HOUR) {
+          result.skipped.push({ persona: persona.name, userId: profile.userId, reason: "距离上次主动消息不足 12 小时" });
+          continue;
+        }
+        if (!inActiveHours(profile.habits.activeHours)) {
+          result.skipped.push({ persona: persona.name, userId: profile.userId, reason: "当前不在用户活跃时段" });
+          continue;
+        }
+      }
 
       const reply = await proactiveReply(persona, profile.userId);
-      if (!reply) continue;
+      if (!reply) {
+        result.errors.push(`${persona.name} → ${profile.userId}：生成主动消息失败`);
+        continue;
+      }
 
       try {
         await client.sendC2C(profile.userId, reply);
@@ -97,13 +162,16 @@ export async function runProactiveCycle(): Promise<void> {
         logRepo.message({ personaId: persona.id, botId: bot.id, userId: profile.userId, direction: "out", content: reply });
         statsRepo.increment(formatDate(), persona.id, { messages: 1 });
         profileRepo.touchProactive(persona.id, profile.userId);
-        sentSinceReply.set(k, sent + 1);
+        if (!force) sentSinceReply.set(k, sent + 1);
+        result.sent++;
+        result.details.push({ personaId: persona.id, personaName: persona.name, userId: profile.userId, content: reply });
       } catch (err) {
-        logger.warn({ personaId: persona.id, userId: profile.userId, err: (err as Error).message }, "proactive send failed");
+        result.errors.push(`${persona.name} → ${profile.userId}：${(err as Error).message}`);
       }
       await sleep(120); // 频控：主动消息 10/qps
     }
   }
+  return result;
 }
 
 export const proactiveService = { runProactiveCycle, notifyUserReplied };

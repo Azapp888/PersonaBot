@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { FileText, RefreshCw, Save, Wand2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { FileText, RefreshCw, Save, Upload, Wand2 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Memory, MemoryType, Persona } from "@/lib/types";
 import {
@@ -9,6 +9,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  Input,
   Label,
   Select,
   Textarea,
@@ -21,6 +22,7 @@ const typeLabels: Record<MemoryType, string> = {
   three_day: "三日记忆",
   biweekly: "精简记忆（两周）",
   monthly: "月记忆",
+  imported: "导入记忆",
 };
 
 export function MemoriesPage() {
@@ -33,6 +35,15 @@ export function MemoriesPage() {
   const [files, setFiles] = useState<string[]>([]);
   const [fileContent, setFileContent] = useState<{ name: string; content: string } | null>(null);
   const [editing, setEditing] = useState<Record<string, string>>({});
+  const [importUserId, setImportUserId] = useState("");
+  const [importText, setImportText] = useState("");
+  const [importFiles, setImportFiles] = useState<File[]>([]);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (userId) setImportUserId(userId);
+  }, [userId]);
 
   useEffect(() => {
     api.personas().then((p) => {
@@ -70,6 +81,45 @@ export function MemoriesPage() {
   const openFile = async (name: string) => {
     const res = await api.memoryFile(personaId, userId, name);
     setFileContent(res);
+  };
+
+  const runImport = async () => {
+    if (!personaId) return push("请先选择角色", "error");
+    const uid = importUserId.trim() || userId;
+    if (!uid) return push("请填写归属用户 ID", "error");
+
+    let content = importText.trim();
+    const parts: string[] = [];
+    for (const f of importFiles) {
+      try {
+        parts.push(`\n\n----- 文件：${f.name} -----\n${await f.text()}`);
+      } catch {
+        push(`读取文件 ${f.name} 失败`, "error");
+      }
+    }
+    if (parts.length) content = (content + parts.join("")).trim();
+    if (content.length < 10) return push("请上传文件或粘贴至少一小段文本", "error");
+
+    const filename = importFiles.map((f) => f.name).join(",") || "pasted.txt";
+    setImporting(true);
+    try {
+      const res = await api.importMemory(personaId, uid, filename, content);
+      if (res.ok) {
+        push(`AI 已解析并新增 ${res.created} 条记忆`, "success");
+        setImportText("");
+        setImportFiles([]);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        setUsers(await api.memoryUsers(personaId));
+        if (uid !== userId) setUserId(uid);
+        else await reload();
+      } else {
+        push(res.message ?? "未解析出有效记忆", "error");
+      }
+    } catch (err) {
+      push((err as Error).message, "error");
+    } finally {
+      setImporting(false);
+    }
   };
 
   return (
@@ -110,11 +160,63 @@ export function MemoriesPage() {
       </Card>
 
       <Card>
+        <CardHeader>
+          <CardTitle>导入历史记忆</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            上传你与「{personas.find((p) => p.id === personaId)?.name ?? "角色"}」过往的聊天记录或记忆文件（.txt / .md / .json / .csv），AI
+            会自动识别关键信息并整理为记忆条目。
+          </p>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <Label>归属用户 ID</Label>
+              <Input
+                value={importUserId}
+                onChange={(e) => setImportUserId(e.target.value)}
+                placeholder="如 QQ openid，可填任意标识"
+              />
+            </div>
+            <div>
+              <Label>选择文件（可多选）</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".txt,.md,.markdown,.json,.csv,.log,text/*"
+                onChange={(e) => setImportFiles(Array.from(e.target.files ?? []))}
+                className="block w-full cursor-pointer rounded-md border border-border bg-background text-sm file:mr-3 file:cursor-pointer file:rounded-l-md file:border-0 file:bg-muted file:px-3 file:py-2.5 file:text-sm file:font-medium dark:border-slate-700 dark:bg-slate-900"
+              />
+              {importFiles.length > 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  已选 {importFiles.length} 个文件：{importFiles.map((f) => f.name).join("、")}
+                </p>
+              )}
+            </div>
+          </div>
+          <div>
+            <Label>或直接粘贴文本</Label>
+            <Textarea
+              className="min-h-[120px]"
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder="将过往聊天 / 记忆内容粘贴到这里，AI 会自动整理..."
+            />
+          </div>
+          <div className="flex justify-end">
+            <Button onClick={runImport} disabled={importing}>
+              <Upload className="h-4 w-4" /> {importing ? "AI 解析中..." : "AI 解析并导入"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>手动触发总结</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          {(Object.keys(typeLabels) as MemoryType[]).map((t) => (
+          {(["daily", "three_day", "biweekly", "monthly"] as MemoryType[]).map((t) => (
             <Button key={t} variant="outline" size="sm" onClick={() => trigger(t)}>
               <Wand2 className="h-4 w-4" /> 生成{typeLabels[t]}
             </Button>

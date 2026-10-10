@@ -1,5 +1,17 @@
 export type ModelProvider = "openai" | "deepseek" | "anthropic" | "mock" | "custom";
-export type MemoryType = "daily" | "three_day" | "biweekly" | "monthly";
+export type MemoryType = "daily" | "three_day" | "biweekly" | "monthly" | "imported";
+
+export interface ProactiveRunResult {
+  ok: boolean;
+  enabled: boolean;
+  forced: boolean;
+  personas: number;
+  profiles: number;
+  sent: number;
+  details: { personaId: string; personaName: string; userId: string; content: string }[];
+  skipped: { persona: string; userId: string; reason: string }[];
+  errors: string[];
+}
 
 export interface Personality {
   traits: string[];

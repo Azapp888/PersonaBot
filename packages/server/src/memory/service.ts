@@ -38,6 +38,14 @@ export function buildMemoryInjection(personaId: string, userId: string, now = Da
   const monthly = memoryRepo.latest(personaId, userId, "monthly");
   if (monthly && monthly.content) result.monthly = monthly.content;
 
+  const imported = memoryRepo
+    .listByUser(personaId, userId)
+    .filter((m) => m.type === "imported")
+    .slice(0, 3);
+  if (imported.length) {
+    result.imported = imported.map((m) => `- (${m.sourceDate}) ${m.content}`).join("\n");
+  }
+
   return result;
 }
 
@@ -65,6 +73,9 @@ export function syncMemoryFiles(persona: Persona, userId: string): void {
     "",
     "## 近期记忆（日）",
     ...byType("daily").map((m) => `### ${m.sourceDate}\n${m.content}`),
+    "",
+    "## 导入的历史记忆",
+    ...byType("imported").map((m) => `### ${m.sourceDate}\n${m.content}`),
     "",
   ].join("\n");
 

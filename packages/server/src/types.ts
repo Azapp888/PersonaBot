@@ -78,7 +78,7 @@ export interface ModelRecord {
   updatedAt: number;
 }
 
-export type MemoryType = "daily" | "three_day" | "biweekly" | "monthly";
+export type MemoryType = "daily" | "three_day" | "biweekly" | "monthly" | "imported";
 
 export interface Memory {
   id: string;

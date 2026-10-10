@@ -9,6 +9,7 @@ import {
   generateThreeDayMemory,
 } from "../memory/summarizer";
 import { listMemoryFiles, readMemoryFile, syncMemoryFiles } from "../memory/service";
+import { analyzeImportedText, persistImported } from "../memory/importer";
 import type { MemoryType } from "../types";
 
 export async function memoryRoutes(app: FastifyInstance): Promise<void> {
@@ -43,6 +44,21 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
     syncMemoryFiles(persona, body.userId);
     if (content === null) return { ok: false, message: "没有可总结的聊天记录" };
     return { ok: true, type, content };
+  });
+
+  app.post("/api/memories/import", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const body = request.body as { personaId?: string; userId?: string; filename?: string; content?: string } | undefined;
+    if (!body?.personaId || !body?.userId || !body?.content?.trim()) {
+      return reply.code(400).send({ error: "bad_request", message: "personaId / userId / content 必填" });
+    }
+    const persona = personaRepo.find(body.personaId);
+    if (!persona) return reply.code(404).send({ error: "not_found", message: "角色不存在" });
+    const filename = (body.filename ?? "memory.txt").slice(0, 120);
+    const entries = await analyzeImportedText(persona, body.userId, filename, body.content);
+    if (!entries.length) return { ok: false, created: 0, entries: [], message: "未解析出有效记忆" };
+    const created = persistImported(persona.id, body.userId, entries);
+    syncMemoryFiles(persona, body.userId);
+    return { ok: true, created, entries };
   });
 
   app.put("/api/memories/:id", { preHandler: [app.authenticate] }, async (request, reply) => {
