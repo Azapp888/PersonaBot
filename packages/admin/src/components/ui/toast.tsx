@@ -30,15 +30,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ push }}>
       {children}
-      <div className="fixed bottom-4 right-4 z-[100] flex w-80 flex-col gap-2">
+      <div className="fixed inset-x-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[100] flex flex-col gap-2 sm:inset-x-auto sm:bottom-4 sm:right-4 sm:w-80">
         {toasts.map((t) => (
           <div
             key={t.id}
             className={cn(
-              "rounded-lg border px-4 py-3 text-sm shadow-lg",
-              t.type === "success" && "border-emerald-300 bg-emerald-50 text-emerald-800",
-              t.type === "error" && "border-red-300 bg-red-50 text-red-800",
-              t.type === "info" && "border-border bg-background",
+              "animate-in rounded-xl border px-4 py-3 text-sm shadow-lg backdrop-blur",
+              t.type === "success" && "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/90 dark:text-emerald-200",
+              t.type === "error" && "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/90 dark:text-red-200",
+              t.type === "info" && "border-border bg-background text-foreground dark:border-slate-700 dark:bg-slate-900",
             )}
           >
             {t.message}

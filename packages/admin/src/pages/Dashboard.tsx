@@ -33,14 +33,14 @@ function StatCard({
   hint?: string;
 }) {
   return (
-    <Card>
-      <CardContent className="flex items-center justify-between">
-        <div>
+    <Card className="transition-shadow hover:shadow-md">
+      <CardContent className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <p className="text-sm text-muted-foreground">{title}</p>
-          <p className="mt-1 text-2xl font-semibold">{value}</p>
-          {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+          <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
+          {hint && <p className="mt-1 truncate text-xs text-muted-foreground">{hint}</p>}
         </div>
-        <div className="rounded-lg bg-primary/10 p-3 text-primary">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 text-primary ring-1 ring-primary/20">
           <Icon className="h-5 w-5" />
         </div>
       </CardContent>
@@ -58,7 +58,7 @@ export function DashboardPage() {
   }, []);
 
   return (
-    <div className="space-y-6">
+    <div className="animate-in space-y-4 lg:space-y-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard title="今日 Token 消耗" value={formatNumber(data?.tokenConsumed ?? 0)} icon={Activity} hint={`输入+输出`} />
         <StatCard
