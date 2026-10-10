@@ -47,6 +47,16 @@ function ToggleRow({
   );
 }
 
+const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+
+function formatClock(ts: number): string {
+  const d = new Date(ts);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(
+    d.getMinutes(),
+  )}:${pad(d.getSeconds())} ${WEEKDAYS[d.getDay()]}`;
+}
+
 export function SettingsPage() {
   const { push } = useToast();
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -55,16 +65,31 @@ export function SettingsPage() {
   const [paintingApiKey, setPaintingApiKey] = useState("");
   const [githubToken, setGithubToken] = useState("");
   const [snapshot, setSnapshot] = useState("");
+  const [serverOffset, setServerOffset] = useState(0);
+  const [serverTz, setServerTz] = useState("");
+  const [tick, setTick] = useState(Date.now());
+
+  const refreshServerTime = async () => {
+    const t = await api.systemTime();
+    setServerOffset(t.now - Date.now());
+    setServerTz(t.timezone);
+  };
 
   const load = async () => {
     const s = await api.settings();
     setSettings(s);
     setSnapshot(JSON.stringify(s));
     setInfo(await api.systemInfo());
+    await refreshServerTime();
   };
 
   useEffect(() => {
     load().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => setTick(Date.now()), 1000);
+    return () => clearInterval(id);
   }, []);
 
   const set = (patch: Partial<AppSettings>) => setSettings((s) => (s ? { ...s, ...patch } : s));
@@ -164,6 +189,24 @@ export function SettingsPage() {
             checked={settings.injectSystemTime}
             onChange={(v) => set({ injectSystemTime: v })}
           />
+          <div className="rounded-xl border border-border bg-muted/40 p-3.5 md:col-span-2 dark:border-slate-800 dark:bg-slate-900/40">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-xs text-muted-foreground">
+                  服务器当前系统时间{serverTz ? `（${serverTz}）` : ""}
+                </div>
+                <div className="mt-0.5 font-mono text-lg font-semibold tabular-nums">
+                  {formatClock(tick + serverOffset)}
+                </div>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => refreshServerTime().then(() => push("已重新拉取服务器时间"))}>
+                <RefreshCw className="h-4 w-4" /> 重新拉取
+              </Button>
+            </div>
+            <div className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+              每次向网关发起请求（收到 QQ 消息）时都会重新拉取一次当前时间，注入的时间以服务器实时时间为准。
+            </div>
+          </div>
           <Field label="单次最多分条数" hint="被动回复上限：单聊 4 次、群聊 5 次，超出合并进最后一条">
             <Input
               type="number"

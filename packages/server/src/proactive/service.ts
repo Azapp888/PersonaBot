@@ -12,6 +12,7 @@ import { settingsService } from "../settings/service";
 import { logger } from "../logger";
 import type { Persona } from "../types";
 import { formatDate, sleep } from "../utils/id";
+import { systemClock } from "../utils/clock";
 
 const sentSinceReply = new Map<string, number>();
 const HOUR = 60 * 60 * 1000;
@@ -69,7 +70,12 @@ async function proactiveReply(persona: Persona, userId: string): Promise<string 
   const settings = settingsService.get();
   const profile = profileRepo.ensure(persona.id, userId);
   const memory = buildMemoryInjection(persona.id, userId);
-  const { full } = assembleSystemPrompt(persona, { memory, userHabits: profile.habits, includeTime: settings.injectSystemTime });
+  const { full } = assembleSystemPrompt(persona, {
+    memory,
+    userHabits: profile.habits,
+    includeTime: settings.injectSystemTime,
+    now: systemClock.now(),
+  });
   const conv = conversationRepo.ensure(persona.id, userId);
   const history = conv.messages.slice(-10);
 

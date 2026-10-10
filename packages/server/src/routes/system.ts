@@ -4,8 +4,13 @@ import { refreshExpiringTokens } from "../qq/token";
 import { botManager } from "../qq/manager";
 import { messagePipeline } from "../pipeline/message-pipeline";
 import { logger } from "../logger";
+import { systemClock } from "../utils/clock";
 
 export async function systemRoutes(app: FastifyInstance): Promise<void> {
+  app.get("/api/system/time", { preHandler: [app.authenticate] }, async () => {
+    return systemClock.snapshot();
+  });
+
   app.post("/api/system/proactive/run", { preHandler: [app.authenticate] }, async () => {
     const result = await runProactiveCycle(true);
     return { ok: true, ...result };

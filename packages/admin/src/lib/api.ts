@@ -7,6 +7,7 @@ import type {
   Persona,
   ProactiveRunResult,
   Skill,
+  SystemTime,
   TrendPoint,
 } from "./types";
 
@@ -121,6 +122,7 @@ export const api = {
   settings: () => request<AppSettings>("GET", "/api/settings"),
   updateSettings: (data: Partial<AppSettings>) => request<AppSettings>("PUT", "/api/settings", data),
   systemInfo: () => request<any>("GET", "/api/system/info"),
+  systemTime: () => request<SystemTime>("GET", "/api/system/time"),
 
   // skills
   skills: () => request<Skill[]>("GET", "/api/skills"),

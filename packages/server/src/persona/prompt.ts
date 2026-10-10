@@ -1,6 +1,6 @@
 import type { Persona, UserHabits } from "../types";
 import { getSkillContent } from "../skills/manager";
-import { formatDateTime } from "../utils/id";
+import { systemClock } from "../utils/clock";
 
 export interface PromptMemory {
   daily?: string;
@@ -57,11 +57,12 @@ export function buildStablePrefix(persona: Persona): string {
  */
 export function buildDynamicSuffix(persona: Persona, ctx: PromptContext = {}): string {
   const lines: string[] = [];
-  const now = ctx.now ?? Date.now();
+  const now = ctx.now ?? systemClock.now();
   const includeTime = ctx.includeTime ?? true;
   if (includeTime) {
+    const snap = systemClock.snapshot();
     lines.push("", "# 当前上下文");
-    lines.push(`当前系统时间：${formatDateTime(now)}`);
+    lines.push(`当前系统时间：${systemClock.format(now)}（${snap.timezone}）`);
   }
 
   const mem = ctx.memory;

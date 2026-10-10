@@ -16,6 +16,7 @@ import { logger } from "../logger";
 import type { Bot, ChatMessage, LLMUsage, Persona, QQMessageEvent } from "../types";
 import { formatDate, sleep } from "../utils/id";
 import { splitReply } from "../utils/text";
+import { systemClock } from "../utils/clock";
 
 const PAINT_KEYWORDS = ["画一张", "画个", "画幅", "画画", "画一下", "帮我画", "给我画", "作画", "绘一张", "来张图"];
 
@@ -44,10 +45,11 @@ function wantsPainting(text: string): boolean {
  * 同时用于 QQ 消息、主动消息与本地模拟。
  */
 export async function generateReply(persona: Persona, userId: string, userText: string, botId?: string): Promise<GenerateResult> {
+  const now = systemClock.now();
   const settings = settingsService.get();
   const profile = profileRepo.ensure(persona.id, userId);
   const memory = buildMemoryInjection(persona.id, userId);
-  const { prefix, full } = assembleSystemPrompt(persona, { memory, userHabits: profile.habits, includeTime: settings.injectSystemTime });
+  const { prefix, full } = assembleSystemPrompt(persona, { memory, userHabits: profile.habits, includeTime: settings.injectSystemTime, now });
 
   const conv = conversationRepo.ensure(persona.id, userId);
   const history = conv.messages.slice(-settings.memoryInjectConversationLimit);

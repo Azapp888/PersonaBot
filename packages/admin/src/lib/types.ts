@@ -13,6 +13,17 @@ export interface ProactiveRunResult {
   errors: string[];
 }
 
+export interface SystemTime {
+  now: number;
+  iso: string;
+  formatted: string;
+  date: string;
+  time: string;
+  weekday: string;
+  timezone: string;
+  utcOffsetMinutes: number;
+}
+
 export interface Personality {
   traits: string[];
   speakingStyle: string;
