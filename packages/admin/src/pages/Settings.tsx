@@ -51,7 +51,8 @@ function ToggleRow({
 const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
 const TIMEZONE_OPTIONS: { value: string; label: string }[] = [
-  { value: "Asia/Shanghai", label: "Asia/Shanghai（中国 · UTC+8）" },
+  { value: "Asia/Shanghai", label: "北京时间（Asia/Shanghai · UTC+8）" },
+  { value: "server", label: "服务器时间（跟随系统时区）" },
   { value: "Asia/Hong_Kong", label: "Asia/Hong_Kong（香港 · UTC+8）" },
   { value: "Asia/Taipei", label: "Asia/Taipei（台北 · UTC+8）" },
   { value: "Asia/Tokyo", label: "Asia/Tokyo（日本 · UTC+9）" },
@@ -64,15 +65,24 @@ const TIMEZONE_OPTIONS: { value: string; label: string }[] = [
   { value: "UTC", label: "UTC（协调世界时）" },
 ];
 
+function effectiveTz(tz: string): string | undefined {
+  return !tz || tz === "server" ? undefined : tz;
+}
+
 function tzLabel(tz: string): string {
+  if (!tz || tz === "server") {
+    const resolved = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return `服务器时间（${resolved}）`;
+  }
   return TIMEZONE_OPTIONS.find((o) => o.value === tz)?.label ?? tz;
 }
 
 function formatClock(ts: number, tz?: string): string {
   const d = new Date(ts);
+  const zone = effectiveTz(tz ?? "");
   try {
     const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: tz || undefined,
+      timeZone: zone,
       hourCycle: "h23",
       hour12: false,
       year: "numeric",
@@ -83,7 +93,7 @@ function formatClock(ts: number, tz?: string): string {
       second: "2-digit",
     }).formatToParts(d);
     const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-    const wd = new Intl.DateTimeFormat("zh-CN", { timeZone: tz || undefined, weekday: "short" }).format(d);
+    const wd = new Intl.DateTimeFormat("zh-CN", { timeZone: zone, weekday: "short" }).format(d);
     return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")} ${wd}`;
   } catch {
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -96,7 +106,7 @@ function formatClock(ts: number, tz?: string): string {
 function offsetLabel(ts: number, tz?: string): string {
   try {
     const name =
-      new Intl.DateTimeFormat("en-US", { timeZone: tz || undefined, timeZoneName: "longOffset" })
+      new Intl.DateTimeFormat("en-US", { timeZone: effectiveTz(tz ?? ""), timeZoneName: "longOffset" })
         .formatToParts(new Date(ts))
         .find((p) => p.type === "timeZoneName")?.value ?? "";
     return name.replace("GMT", "UTC");
@@ -235,7 +245,7 @@ export function SettingsPage() {
             checked={settings.injectSystemTime}
             onChange={(v) => set({ injectSystemTime: v })}
           />
-          <Field label="时区" hint="注入给模型的时间按此时区显示（服务器为 UTC 容器时务必设置）">
+          <Field label="时区" hint="注入模型的时间按此时区显示，可选北京时间或服务器时间">
             <Select value={settings.timezone} onChange={(e) => set({ timezone: e.target.value })}>
               {TIMEZONE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>

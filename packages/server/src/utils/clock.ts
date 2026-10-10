@@ -30,9 +30,20 @@ function pick(parts: Intl.DateTimeFormatPart[], type: string): string {
   return parts.find((p) => p.type === type)?.value ?? "";
 }
 
+/**
+ * 归一化时区：特殊值 "server"/"system"/空 表示跟随服务器操作系统时区；
+ * 其余按 IANA 时区名处理（如 Asia/Shanghai 表示北京时间）。
+ */
+function normalizeTz(timeZone?: string): string | undefined {
+  if (!timeZone) return undefined;
+  const t = timeZone.trim();
+  if (!t || t === "server" || t === "system" || t === "local") return undefined;
+  return t;
+}
+
 function offsetMinutes(ts: number, timeZone?: string): number {
   try {
-    const dtf = new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "longOffset" });
+    const dtf = new Intl.DateTimeFormat("en-US", { timeZone: normalizeTz(timeZone), timeZoneName: "longOffset" });
     const name = dtf.formatToParts(new Date(ts)).find((p) => p.type === "timeZoneName")?.value ?? "GMT";
     const m = /GMT([+-])(\d{1,2})(?::?(\d{2}))?/.exec(name);
     if (!m) return 0;
@@ -45,7 +56,7 @@ function offsetMinutes(ts: number, timeZone?: string): number {
 /** 在指定 IANA 时区格式化时间；时区无效时回退到服务器本地时区。 */
 function zoned(ts: number, timeZone?: string): { formatted: string; date: string; time: string; weekday: string; resolvedTz: string } {
   const d = new Date(ts);
-  let tz = timeZone;
+  let tz = normalizeTz(timeZone);
   let parts: Intl.DateTimeFormatPart[];
   try {
     parts = DATE_TIME_FMT(tz).formatToParts(d);
