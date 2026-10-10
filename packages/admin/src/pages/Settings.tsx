@@ -291,6 +291,33 @@ export function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>上下文与记忆</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <ToggleRow
+            label="启用上下文摘要"
+            hint="超出窗口的更早对话压缩成摘要，强制保留未完成任务 / 情绪 / 长期记忆点"
+            checked={settings.contextSummaryEnabled}
+            onChange={(v) => set({ contextSummaryEnabled: v })}
+          />
+          <ToggleRow
+            label="启用状态校验（防催睡）"
+            hint="作业未完成时强制任务拆解；拦截并重试“去睡吧/早点休息”类回复"
+            checked={settings.guardrailEnabled}
+            onChange={(v) => set({ guardrailEnabled: v })}
+          />
+          <Field label="滑动窗口保留轮数" hint="始终保留最近 N 轮的原始对话，保证短期语气连贯">
+            <Input
+              type="number"
+              value={settings.contextRecentRounds}
+              onChange={(e) => set({ contextRecentRounds: Number(e.target.value) })}
+            />
+          </Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>主动消息</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">

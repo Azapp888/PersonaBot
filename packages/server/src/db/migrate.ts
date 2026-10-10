@@ -155,6 +155,20 @@ CREATE INDEX IF NOT EXISTS idx_bots_persona ON bots(persona_id);
 CREATE INDEX IF NOT EXISTS idx_stats_persona ON stats(persona_id, date);
 `,
   },
+  {
+    id: "003_conversation_context",
+    sql: `
+CREATE TABLE IF NOT EXISTS conversation_context (
+  persona_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  summary TEXT NOT NULL DEFAULT '',
+  summarized_upto INTEGER NOT NULL DEFAULT 0,
+  state TEXT NOT NULL DEFAULT '{}',
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (persona_id, user_id)
+);
+`,
+  },
 ];
 
 export function runMigrations(database?: Database.Database): void {

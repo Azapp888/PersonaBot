@@ -27,6 +27,9 @@ function defaultSettings(): AppSettings {
     splitMaxMessages: config.defaults.splitMaxMessages,
     injectSystemTime: config.defaults.injectSystemTime,
     timezone: config.defaults.timezone,
+    contextRecentRounds: config.defaults.contextRecentRounds,
+    contextSummaryEnabled: config.defaults.contextSummaryEnabled,
+    guardrailEnabled: config.defaults.guardrailEnabled,
   };
 }
 

@@ -1,12 +1,14 @@
 import type { Persona, UserHabits } from "../types";
 import { getSkillContent } from "../skills/manager";
 import { systemClock } from "../utils/clock";
+import { renderState, type ConversationState } from "../context/state";
 
 export interface PromptMemory {
   daily?: string;
   threeDay?: string;
   monthly?: string;
   imported?: string;
+  relevant?: string;
 }
 
 export interface PromptContext {
@@ -15,6 +17,8 @@ export interface PromptContext {
   now?: number;
   includeTime?: boolean;
   timezone?: string;
+  contextSummary?: string;
+  conversationState?: ConversationState;
 }
 
 /**
@@ -67,12 +71,18 @@ export function buildDynamicSuffix(persona: Persona, ctx: PromptContext = {}): s
   }
 
   const mem = ctx.memory;
-  if (mem && (mem.daily || mem.threeDay || mem.monthly || mem.imported)) {
+  if (mem && (mem.daily || mem.threeDay || mem.monthly || mem.imported || mem.relevant)) {
     lines.push("", "# 相关记忆");
     if (mem.imported) lines.push(`## 导入的历史记忆\n${mem.imported}`);
+    if (mem.relevant) lines.push(`## 与当前话题相关的记忆片段\n${mem.relevant}`);
     if (mem.daily) lines.push(`## 最近的记忆\n${mem.daily}`);
     if (mem.threeDay) lines.push(`## 中期记忆\n${mem.threeDay}`);
     if (mem.monthly) lines.push(`## 长期记忆\n${mem.monthly}`);
+  }
+
+  // 滚动摘要（更早对话的压缩，含用户画像 / 当前状态 / 未完成任务 / 长期记忆点）
+  if (ctx.contextSummary) {
+    lines.push("", "# 对话上下文摘要（更早对话的长期记录）", ctx.contextSummary);
   }
 
   const habits = ctx.userHabits;
@@ -83,6 +93,14 @@ export function buildDynamicSuffix(persona: Persona, ctx: PromptContext = {}): s
     if (habits.interests?.length) lines.push(`兴趣爱好：${habits.interests.join("、")}`);
     if (habits.expressions?.length) lines.push(`常用表达：${habits.expressions.join("、")}`);
     if (habits.emotionTriggers?.length) lines.push(`情绪触发点：${habits.emotionTriggers.join("、")}`);
+  }
+
+  // 当前状态放最后，利用近因效应强化对“未完成任务/情绪”的遵守
+  if (ctx.conversationState) {
+    const rendered = renderState(ctx.conversationState);
+    if (rendered) {
+      lines.push("", "# 当前状态（务必遵守，不得与其矛盾）", rendered);
+    }
   }
 
   return lines.join("\n");

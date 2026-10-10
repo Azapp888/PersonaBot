@@ -75,6 +75,9 @@ export const config = {
     splitMaxMessages: 4,
     injectSystemTime: true,
     timezone: str("TIMEZONE", "Asia/Shanghai"),
+    contextRecentRounds: num("CONTEXT_RECENT_ROUNDS", 10),
+    contextSummaryEnabled: true,
+    guardrailEnabled: true,
   },
 };
 

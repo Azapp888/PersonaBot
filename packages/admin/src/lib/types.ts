@@ -149,6 +149,9 @@ export interface AppSettings {
   splitMaxMessages: number;
   injectSystemTime: boolean;
   timezone: string;
+  contextRecentRounds: number;
+  contextSummaryEnabled: boolean;
+  guardrailEnabled: boolean;
 }
 
 export interface DashboardData {

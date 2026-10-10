@@ -17,6 +17,8 @@ import type { Bot, ChatMessage, LLMUsage, Persona, QQMessageEvent } from "../typ
 import { formatDate, sleep } from "../utils/id";
 import { splitReply } from "../utils/text";
 import { systemClock } from "../utils/clock";
+import { buildConversationContext } from "../context/manager";
+import { buildGuardrail, violatesGuardrail, sanitizeReply } from "../context/state";
 
 const PAINT_KEYWORDS = ["画一张", "画个", "画幅", "画画", "画一下", "帮我画", "给我画", "作画", "绘一张", "来张图"];
 
@@ -48,18 +50,34 @@ export async function generateReply(persona: Persona, userId: string, userText: 
   const now = systemClock.now();
   const settings = settingsService.get();
   const profile = profileRepo.ensure(persona.id, userId);
-  const memory = buildMemoryInjection(persona.id, userId);
-  const { prefix, full } = assembleSystemPrompt(persona, { memory, userHabits: profile.habits, includeTime: settings.injectSystemTime, timezone: settings.timezone, now });
 
-  const conv = conversationRepo.ensure(persona.id, userId);
-  const history = conv.messages.slice(-settings.memoryInjectConversationLimit);
+  // 滑动窗口 + 滚动摘要 + 状态机（每次请求都按最新用户输入更新）
+  const context = await buildConversationContext(persona, userId, userText);
+
+  // 按当前话题检索相关记忆，避免全量注入
+  const query = [userText, context.state.pendingSubjects.join(" ")].filter(Boolean).join(" ");
+  const memory = buildMemoryInjection(persona.id, userId, now, query);
+
+  // 强制状态校验指令（作业未完成时禁止催睡）
+  const guardrail = settings.guardrailEnabled ? buildGuardrail(context.state, persona.name) : null;
+
+  const { prefix, full } = assembleSystemPrompt(persona, {
+    memory,
+    userHabits: profile.habits,
+    includeTime: settings.injectSystemTime,
+    timezone: settings.timezone,
+    now,
+    contextSummary: context.summary,
+    conversationState: context.state,
+  });
 
   const processed = applyCommands(persona, userText);
   const messages: ChatMessage[] = [
     { role: "system", content: full },
-    ...history,
+    ...context.history,
     { role: "user", content: processed },
   ];
+  if (guardrail) messages.push({ role: "system", content: guardrail });
 
   let reply: string;
   let usage: LLMUsage;
@@ -96,6 +114,32 @@ export async function generateReply(persona: Persona, userId: string, userText: 
     const result = await provider.chat(messages, { temperature, maxTokens });
     reply = result.content;
     usage = result.usage;
+
+    // 请求后拦截校验：作业未完成却输出催睡词 -> 丢弃并带强制警告重试一次
+    if (guardrail && violatesGuardrail(reply, context.state)) {
+      logger.warn({ personaId: persona.id, userId }, "guardrail violated, retrying with forced instruction");
+      const retryMessages: ChatMessage[] = [
+        ...messages,
+        {
+          role: "system",
+          content:
+            "你上一条回复违反了状态约束：用户在作业未完成时需要的是任务拆解与陪伴，而不是催促休息。请严格遵守上方【系统强制警告】重新回复。",
+        },
+      ];
+      const retry = await provider.chat(retryMessages, { temperature, maxTokens });
+      usage = {
+        inputTokens: usage.inputTokens + retry.usage.inputTokens,
+        outputTokens: usage.outputTokens + retry.usage.outputTokens,
+        cacheHitTokens: usage.cacheHitTokens + retry.usage.cacheHitTokens,
+        cacheMissTokens: usage.cacheMissTokens + retry.usage.cacheMissTokens,
+      };
+      reply = retry.content;
+      // 重试仍违规：代码层兜底，移除催睡句子
+      if (violatesGuardrail(reply, context.state)) {
+        logger.warn({ personaId: persona.id, userId }, "guardrail still violated after retry, sanitizing");
+        reply = sanitizeReply(reply);
+      }
+    }
   } catch (err) {
     attemptedAbort = (err as Error).message.includes("abort");
     logger.error({ personaId: persona.id, err: (err as Error).message }, "generate reply failed");
