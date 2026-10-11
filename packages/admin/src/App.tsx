@@ -1,16 +1,23 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { ToastProvider } from "@/components/ui/toast";
 import { Layout } from "@/components/Layout";
 import { LoginPage } from "@/pages/Login";
-import { DashboardPage } from "@/pages/Dashboard";
-import { BotsPage } from "@/pages/Bots";
-import { PersonasPage } from "@/pages/Personas";
-import { ModelsPage } from "@/pages/Models";
-import { MemoriesPage } from "@/pages/Memories";
-import { StatsPage } from "@/pages/Stats";
-import { SkillsPage } from "@/pages/Skills";
-import { SettingsPage } from "@/pages/Settings";
+
+// 路由级代码分割：各管理页按需加载，降低首屏体积
+const DashboardPage = lazy(() => import("@/pages/Dashboard").then((m) => ({ default: m.DashboardPage })));
+const BotsPage = lazy(() => import("@/pages/Bots").then((m) => ({ default: m.BotsPage })));
+const PersonasPage = lazy(() => import("@/pages/Personas").then((m) => ({ default: m.PersonasPage })));
+const ModelsPage = lazy(() => import("@/pages/Models").then((m) => ({ default: m.ModelsPage })));
+const MemoriesPage = lazy(() => import("@/pages/Memories").then((m) => ({ default: m.MemoriesPage })));
+const StatsPage = lazy(() => import("@/pages/Stats").then((m) => ({ default: m.StatsPage })));
+const SkillsPage = lazy(() => import("@/pages/Skills").then((m) => ({ default: m.SkillsPage })));
+const SettingsPage = lazy(() => import("@/pages/Settings").then((m) => ({ default: m.SettingsPage })));
+
+function PageFallback() {
+  return <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">加载中...</div>;
+}
 
 function Protected() {
   const { username, ready } = useAuth();
@@ -20,7 +27,9 @@ function Protected() {
   if (!username) return <Navigate to="/login" replace />;
   return (
     <Layout>
-      <Outlet />
+      <Suspense fallback={<PageFallback />}>
+        <Outlet />
+      </Suspense>
     </Layout>
   );
 }

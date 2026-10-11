@@ -96,6 +96,10 @@ export const config = {
     agentShellPrefix: str("AGENT_SHELL_PREFIX", "/sh"),
     agentShellTimeoutMs: num("AGENT_SHELL_TIMEOUT_MS", 15000),
     agentShellMaxOutputChars: num("AGENT_SHELL_MAX_OUTPUT_CHARS", 3500),
+    // 敏感词过滤（可选）：命中用户消息时按策略处理，默认关闭
+    keywordFilterEnabled: false,
+    keywordFilterAction: "block" as string, // block | replace
+    keywordFilterWords: "",
   },
 };
 

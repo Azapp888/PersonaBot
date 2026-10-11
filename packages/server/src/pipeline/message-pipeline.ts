@@ -22,6 +22,7 @@ import { buildGuardrail, violatesGuardrail, sanitizeReply } from "../context/sta
 import { buildFileContext, renderFileContext } from "../attachments/service";
 import { detectShellCommand, formatShellReply, runAgentLoop } from "../agent";
 import { runShellCommand } from "../agent/shell";
+import { filterText } from "../moderation/filter";
 import { clearAbort, abortActive, registerAbort } from "./abort-store";
 
 const PAINT_KEYWORDS = ["画一张", "画个", "画幅", "画画", "画一下", "帮我画", "给我画", "作画", "绘一张", "来张图"];
@@ -267,13 +268,23 @@ class MessagePipeline {
     const batch = this.batches.get(key);
     if (!batch) return;
     batch.timer = null;
-    const merged = batch.contents.join("\n");
+    let merged = batch.contents.join("\n");
     const attachments = batch.attachments;
     batch.contents = [];
     batch.attachments = [];
     if (!merged.trim() && attachments.length === 0) return;
 
     const settings = settingsService.get();
+
+    // 敏感词过滤（可选）：命中用户消息时按策略拦截或替换
+    const moderation = filterText(merged);
+    if (moderation.filtered && moderation.action === "block") {
+      logger.info({ key, matched: moderation.matched }, "message blocked by keyword filter");
+      await this.send(batch, "这个话题我们换个方向聊聊吧～");
+      this.batches.delete(key);
+      return;
+    }
+    if (moderation.filtered) merged = moderation.text;
 
     // 服务器 Agent 前缀命令：无需模型参与，直接执行并回传结果
     if (batch.bot.agentEnabled) {

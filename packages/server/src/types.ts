@@ -195,6 +195,9 @@ export interface AppSettings {
   agentShellPrefix: string;
   agentShellTimeoutMs: number;
   agentShellMaxOutputChars: number;
+  keywordFilterEnabled: boolean;
+  keywordFilterAction: string;
+  keywordFilterWords: string;
 }
 
 // LLM 相关

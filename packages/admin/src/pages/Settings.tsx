@@ -376,6 +376,39 @@ export function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>敏感词过滤</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <ToggleRow
+            label="启用敏感词过滤"
+            hint="命中用户消息时按下方策略处理，默认关闭"
+            checked={settings.keywordFilterEnabled}
+            onChange={(v) => set({ keywordFilterEnabled: v })}
+          />
+          <Field label="命中策略" hint="拦截：不进入模型并回复固定提示；替换：命中词替换为 * 后继续">
+            <Select
+              value={settings.keywordFilterAction}
+              onChange={(e) => set({ keywordFilterAction: e.target.value })}
+            >
+              <option value="block">拦截</option>
+              <option value="replace">替换为 *</option>
+            </Select>
+          </Field>
+          <div className="md:col-span-2">
+            <Label>敏感词表</Label>
+            <textarea
+              className="mt-1 min-h-[96px] w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring dark:border-slate-800"
+              placeholder="每行一个词，或用逗号 / 分号分隔"
+              value={settings.keywordFilterWords}
+              onChange={(e) => set({ keywordFilterWords: e.target.value })}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">仅作基础过滤，非内容审查；留空则不生效。</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>主动消息</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
