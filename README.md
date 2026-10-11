@@ -124,6 +124,18 @@ CI 流水线见 `.github/workflows/ci.yml`，在 push / PR 时执行 typecheck�
 ```bash
 node packages/server/dist/scripts/hash-password.js "你的密码"
 ```
+
+## 数据备份
+
+SQLite 使用 `VACUUM INTO` 生成一致性在线快照（无需停机），默认保留最近 10 份，存放在 `data/backups/`：
+
+```bash
+# 备份并保留最近 10 份
+pnpm --filter @personabot/server backup
+
+# 自定义保留份数
+node packages/server/dist/scripts/backup.js 20
+```
 - **敏感字段加密**：QQ ClientSecret、LLM API Key、绘画 Key、GitHub Token 均以 AES-256-GCM 加密落库；接口只返回是否已配置，永不回传明文。
 - **鉴权**：除登录与健康检查外所有接口都需登录态，同时支持 `Authorization: Bearer`（API）与 httpOnly cookie（浏览器刷新），cookie 在生产环境带 `Secure`。
 - **登录限流**：同一 IP 15 分钟内最多 10 次登录尝试。
