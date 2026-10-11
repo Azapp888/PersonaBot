@@ -100,6 +100,9 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
     }
     const persona = personaRepo.find(body.personaId);
     if (!persona) return reply.code(404).send({ error: "not_found", message: "角色不存在" });
+    if (!/^[a-zA-Z0-9_.-]+$/.test(body.name) || body.name.includes("..")) {
+      return reply.code(400).send({ error: "bad_request", message: "非法的文件名" });
+    }
     writeMemoryFile(persona, body.userId, body.name, body.content);
     return { ok: true, name: body.name, userEdited: true };
   });
@@ -111,6 +114,9 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
     }
     const persona = personaRepo.find(body.personaId);
     if (!persona) return reply.code(404).send({ error: "not_found", message: "角色不存在" });
+    if (!/^[a-zA-Z0-9_.-]+$/.test(body.name) || body.name.includes("..")) {
+      return reply.code(400).send({ error: "bad_request", message: "非法的文件名" });
+    }
     const content = resetMemoryFile(persona, body.userId, body.name);
     return { ok: true, name: body.name, content, userEdited: false };
   });
