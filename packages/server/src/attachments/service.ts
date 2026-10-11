@@ -2,6 +2,7 @@ import { extname } from "node:path";
 import type { QQAttachment } from "../types";
 import { logger } from "../logger";
 import { settingsService } from "../settings/service";
+import { fetchWithTimeout } from "../utils/http";
 
 /** 可直接按纯文本读取的扩展名白名单 */
 const TEXT_EXTENSIONS = new Set([
@@ -63,19 +64,13 @@ function looksBinary(buf: Buffer): boolean {
 }
 
 async function download(url: string, maxBytes: number): Promise<Buffer> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) throw new Error(`下载失败 ${res.status}`);
-    const lenHeader = Number(res.headers.get("content-length") ?? "0");
-    if (lenHeader && lenHeader > maxBytes) throw new Error(`文件过大（${Math.round(lenHeader / 1024)}KB）`);
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length > maxBytes) throw new Error(`文件过大（${Math.round(buf.length / 1024)}KB）`);
-    return buf;
-  } finally {
-    clearTimeout(timer);
-  }
+  const res = await fetchWithTimeout(url, { timeoutMs: 15000 });
+  if (!res.ok) throw new Error(`下载失败 ${res.status}`);
+  const lenHeader = Number(res.headers.get("content-length") ?? "0");
+  if (lenHeader && lenHeader > maxBytes) throw new Error(`文件过大（${Math.round(lenHeader / 1024)}KB）`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.length > maxBytes) throw new Error(`文件过大（${Math.round(buf.length / 1024)}KB）`);
+  return buf;
 }
 
 function decode(buf: Buffer): string {

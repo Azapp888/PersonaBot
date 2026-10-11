@@ -1,6 +1,7 @@
 import { config } from "../config";
 import { logger } from "../logger";
 import { getAccessToken, invalidateToken } from "./token";
+import { fetchWithTimeout } from "../utils/http";
 import type { Bot } from "../types";
 
 export interface GatewayInfo {
@@ -21,13 +22,14 @@ export class QQApiClient {
 
   private async request<T>(method: string, path: string, body?: unknown, retry = true): Promise<T> {
     const token = await getAccessToken(this.bot);
-    const res = await fetch(`${config.qq.apiBase}${path}`, {
+    const res = await fetchWithTimeout(`${config.qq.apiBase}${path}`, {
       method,
       headers: {
         Authorization: `QQBot ${token}`,
         "Content-Type": "application/json",
       },
       body: body === undefined ? undefined : JSON.stringify(body),
+      timeoutMs: 15000,
     });
 
     if (res.status === 401 && retry) {
@@ -114,10 +116,11 @@ export class QQApiClient {
     } else {
       return null;
     }
-    const res = await fetch(`${config.qq.apiBase}${path}`, {
+    const res = await fetchWithTimeout(`${config.qq.apiBase}${path}`, {
       method: "POST",
       headers: { Authorization: `QQBot ${token}` },
       body: form as any,
+      timeoutMs: 30000,
     });
     const text = await res.text();
     if (!res.ok) {

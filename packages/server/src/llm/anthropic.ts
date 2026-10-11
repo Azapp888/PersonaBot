@@ -1,5 +1,6 @@
 import type { ChatMessage, LLMChatOptions, LLMChatResult } from "../types";
 import { LLMError, normalizeUsage, type LLMProvider } from "./provider";
+import { fetchWithTimeout } from "../utils/http";
 
 export interface AnthropicOptions {
   apiKey: string;
@@ -40,7 +41,7 @@ export class AnthropicProvider implements LLMProvider {
     if (options.temperature !== undefined) body.temperature = options.temperature;
     if (options.topP !== undefined) body.top_p = options.topP;
 
-    const res = await fetch(`${this.apiBase}/v1/messages`, {
+    const res = await fetchWithTimeout(`${this.apiBase}/v1/messages`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -49,6 +50,7 @@ export class AnthropicProvider implements LLMProvider {
       },
       body: JSON.stringify(body),
       signal: options.signal,
+      timeoutMs: 120000,
     });
 
     if (!res.ok) {

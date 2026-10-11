@@ -87,6 +87,31 @@ pnpm start
 # 管理后台与 API 同时挂载在 http://localhost:3000
 ```
 
+## 质量与测试
+
+```bash
+# 类型检查（server + admin）
+pnpm -r typecheck
+
+# 单元测试（node:test，覆盖时钟/文本拆分/状态守卫/Agent 命令拦截/限流）
+pnpm test
+
+# 构建
+pnpm build
+```
+
+CI 流水线见 `.github/workflows/ci.yml`，在 push / PR 时执行 typecheck、test、build。
+
+## 安全说明
+
+- **默认密钥保护**：`NODE_ENV=production` 时若 `ADMIN_PASSWORD` / `JWT_SECRET` / `ENCRYPTION_KEY` 仍为默认值会拒绝启动；开发环境仅告警。
+- **敏感字段加密**：QQ ClientSecret、LLM API Key、绘画 Key、GitHub Token 均以 AES-256-GCM 加密落库；接口只返回是否已配置，永不回传明文。
+- **鉴权**：除登录与健康检查外所有接口都需登录态，同时支持 `Authorization: Bearer`（API）与 httpOnly cookie（浏览器刷新），cookie 在生产环境带 `Secure`。
+- **登录限流**：同一 IP 15 分钟内最多 10 次登录尝试。
+- **CORS 默认关闭**：同源部署无需 CORS；如需跨域，通过 `CORS_ORIGINS` 显式白名单，不允许任意来源携带凭据。
+- **服务器 Agent 命令拦截**：内置灾难性命令黑名单（格式化、块设备写入、关机、递归删根、清空防火墙等），即便开启 Agent 也会拒绝执行。
+- **网络超时**：所有外部请求（QQ / LLM / 绘画 / GitHub / 附件下载）均设超时，避免连接挂起与内存泄漏。
+
 ## 数据模型
 
 | 表 | 说明 |
@@ -118,7 +143,7 @@ pnpm start
 | 统计 | `GET /api/stats/dashboard|trends|persona/:id|messages` |
 | 技能 | `GET/POST /api/skills`、`PUT/DELETE /api/skills/:id`、`POST /api/skills/sync` |
 | 设置 | `GET/PUT /api/settings`、`GET /api/system/info` |
-| 运维 | `POST /api/system/proactive/run|tokens/refresh|bots/reload` |
+| 运维 | `POST /api/system/proactive/run|daily/run|tokens/refresh|bots/reload` |
 
 除 `login` 与 `health` 外，所有接口都需要登录态（`Authorization: Bearer <token>` 或 cookie）。
 

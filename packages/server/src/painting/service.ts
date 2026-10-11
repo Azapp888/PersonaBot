@@ -2,6 +2,7 @@ import { settingsService } from "../settings/service";
 import { logRepo } from "../db/repos/logs";
 import { statsRepo } from "../db/repos/stats";
 import { logger } from "../logger";
+import { fetchWithTimeout } from "../utils/http";
 import type { Persona } from "../types";
 import { formatDate, startOfDay } from "../utils/id";
 
@@ -70,7 +71,7 @@ export async function generatePainting(persona: Persona, userId: string, scene: 
   }
 
   try {
-    const res = await fetch(`${apiBase}/images/generations`, {
+    const res = await fetchWithTimeout(`${apiBase}/images/generations`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
@@ -79,6 +80,7 @@ export async function generatePainting(persona: Persona, userId: string, scene: 
         n: 1,
         size: settings.paintingSize || "1024x1024",
       }),
+      timeoutMs: 120000,
     });
     const text = await res.text();
     if (!res.ok) {

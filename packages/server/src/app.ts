@@ -35,9 +35,38 @@ export async function buildApp(): Promise<FastifyInstance> {
     bodyLimit: 10 * 1024 * 1024,
   } as any) as unknown as FastifyInstance;
 
-  await app.register(fastifyCors, {
-    origin: true,
-    credentials: true,
+  // 默认不开启 CORS：生产环境管理后台与 API 同源，无需跨域。
+  // 仅当显式配置 CORS_ORIGINS 时才允许列出的来源携带凭据访问，避免任意来源反射凭据。
+  if (config.corsOrigins.length > 0) {
+    await app.register(fastifyCors, {
+      origin: config.corsOrigins,
+      credentials: true,
+    });
+    logger.info({ origins: config.corsOrigins }, "CORS enabled for configured origins");
+  }
+
+  // 基础安全响应头（等价于 helmet 的最小集合，避免引入额外依赖）
+  app.addHook("onSend", async (_request, reply, payload) => {
+    reply.header("X-Content-Type-Options", "nosniff");
+    reply.header("X-Frame-Options", "DENY");
+    reply.header("Referrer-Policy", "no-referrer");
+    reply.header("X-XSS-Protection", "0");
+    if (config.isProd) {
+      reply.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    }
+    return payload;
+  });
+
+  // 统一错误处理：避免向客户端泄露堆栈 / 内部细节
+  app.setErrorHandler((error, request, reply) => {
+    const status = error.statusCode && error.statusCode >= 400 ? error.statusCode : 500;
+    if (status >= 500) {
+      logger.error({ err: error.message, url: request.url }, "request failed");
+    }
+    reply.code(status).send({
+      error: status >= 500 ? "internal_error" : "request_error",
+      message: status >= 500 ? "服务器内部错误" : error.message,
+    });
   });
 
   await registerAuth(app);

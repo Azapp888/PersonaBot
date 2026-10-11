@@ -34,6 +34,10 @@ function resolveDir(value: string): string {
   return resolve(rootDir, value);
 }
 
+const DEFAULT_ADMIN_PASSWORD = "changeme";
+const DEFAULT_JWT_SECRET = "personabot-dev-secret-change-me";
+const DEFAULT_ENCRYPTION_KEY = "personabot-dev-encryption-key";
+
 export const config = {
   nodeEnv: str("NODE_ENV", "development"),
   get isProd(): boolean {
@@ -45,12 +49,18 @@ export const config = {
 
   admin: {
     username: str("ADMIN_USERNAME", "admin"),
-    password: str("ADMIN_PASSWORD", "changeme"),
-    jwtSecret: str("JWT_SECRET", "personabot-dev-secret-change-me"),
+    password: str("ADMIN_PASSWORD", DEFAULT_ADMIN_PASSWORD),
+    jwtSecret: str("JWT_SECRET", DEFAULT_JWT_SECRET),
     tokenTtl: str("JWT_TTL", "7d"),
   },
 
-  encryptionKey: str("ENCRYPTION_KEY", "personabot-dev-encryption-key"),
+  encryptionKey: str("ENCRYPTION_KEY", DEFAULT_ENCRYPTION_KEY),
+
+  // 允许携带凭据访问 API 的来源（逗号分隔）。为空时仅允许同源（由 CORS 反射同源）。
+  corsOrigins: str("CORS_ORIGINS", "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
 
   dataDir: resolveDir(str("DATA_DIR", "./data")),
   logDir: resolveDir(str("LOG_DIR", "./logs")),
@@ -93,4 +103,17 @@ export function ensureRuntimeDirs(): void {
       mkdirSync(dir, { recursive: true });
     }
   }
+}
+
+/**
+ * 校验安全相关配置，返回问题列表。
+ * 生产环境若仍在使用默认密钥会拒绝启动，避免密钥可预测导致鉴权/加密被绕过。
+ */
+export function securityIssues(): string[] {
+  const issues: string[] = [];
+  if (config.admin.password === DEFAULT_ADMIN_PASSWORD) issues.push("ADMIN_PASSWORD 仍为默认值 changeme");
+  if (config.admin.jwtSecret === DEFAULT_JWT_SECRET) issues.push("JWT_SECRET 仍为默认值");
+  else if (config.admin.jwtSecret.length < 16) issues.push("JWT_SECRET 长度不足 16，建议使用 32 位以上随机字符串");
+  if (config.encryptionKey === DEFAULT_ENCRYPTION_KEY) issues.push("ENCRYPTION_KEY 仍为默认值");
+  return issues;
 }

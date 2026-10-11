@@ -1,6 +1,18 @@
 import { config } from "../config";
 import { settingRepo } from "../db/repos/settings";
+import { decryptSecret, encryptSecret } from "../utils/crypto";
 import type { AppSettings } from "../types";
+
+/**
+ * 需要加密存储的设置项（如绘画 API Key、GitHub Token）。
+ * 这些字段在数据库中加密落盘，读取时解密；对外 API 永远只返回是否已设置。
+ */
+export const SENSITIVE_SETTING_KEYS = ["paintingApiKey", "githubToken"] as const;
+type SensitiveKey = (typeof SENSITIVE_SETTING_KEYS)[number];
+
+function isSensitive(key: string): key is SensitiveKey {
+  return (SENSITIVE_SETTING_KEYS as readonly string[]).includes(key);
+}
 
 function defaultSettings(): AppSettings {
   return {
@@ -62,12 +74,18 @@ export const settingsService = {
         (result as any)[key] = coerce(key, stored[key]);
       }
     }
+    for (const key of SENSITIVE_SETTING_KEYS) {
+      if (result[key]) result[key] = decryptSecret(result[key]);
+    }
     return result;
   },
   update(patch: Partial<AppSettings>): AppSettings {
     const entries: Record<string, string> = {};
     for (const [k, v] of Object.entries(patch)) {
-      if (v !== undefined && v !== null) entries[k] = String(v);
+      if (v === undefined || v === null) continue;
+      const value = String(v);
+      // 敏感字段加密落盘；空字符串表示不修改（由调用方过滤）
+      entries[k] = isSensitive(k) && value ? encryptSecret(value) : value;
     }
     if (Object.keys(entries).length) settingRepo.setMany(entries);
     return this.get();

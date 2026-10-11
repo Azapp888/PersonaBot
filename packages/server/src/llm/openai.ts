@@ -7,6 +7,7 @@ import type {
   ToolDefinition,
 } from "../types";
 import { LLMError, normalizeUsage, type LLMProvider } from "./provider";
+import { fetchWithTimeout } from "../utils/http";
 
 export interface OpenAICompatibleOptions {
   apiKey: string;
@@ -113,7 +114,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
       body.tool_choice = "auto";
     }
 
-    const res = await fetch(`${this.apiBase}/chat/completions`, {
+    const res = await fetchWithTimeout(`${this.apiBase}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -121,6 +122,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
       },
       body: JSON.stringify(body),
       signal: options.signal,
+      timeoutMs: 120000,
     });
 
     if (!res.ok) {

@@ -2,11 +2,17 @@ import type { FastifyInstance } from "fastify";
 import { settingsService } from "../settings/service";
 import { rescheduleSkillUpdate } from "../cron/scheduler";
 import { config } from "../config";
+import type { AppSettings } from "../types";
+
+/** 对外呈现设置：剔除敏感字段明文，只保留 *Set 标记。 */
+function present(settings: AppSettings) {
+  const { paintingApiKey, githubToken, ...rest } = settings;
+  return { ...rest, paintingApiKeySet: !!paintingApiKey, githubTokenSet: !!githubToken };
+}
 
 export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/settings", { preHandler: [app.authenticate] }, async () => {
-    const settings = settingsService.get();
-    return { ...settings, paintingApiKeySet: !!settings.paintingApiKey, githubTokenSet: !!settings.githubToken };
+    return present(settingsService.get());
   });
 
   app.put("/api/settings", { preHandler: [app.authenticate] }, async (request) => {
@@ -17,7 +23,7 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     if (!patch.githubToken) delete patch.githubToken;
     if (patch.skillUpdateCron) rescheduleSkillUpdate();
     const updated = settingsService.update(patch);
-    return { ...updated, paintingApiKeySet: !!updated.paintingApiKey, githubTokenSet: !!updated.githubToken };
+    return present(updated);
   });
 
   app.get("/api/system/info", { preHandler: [app.authenticate] }, async () => {

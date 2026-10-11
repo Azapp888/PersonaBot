@@ -1,6 +1,7 @@
 import { config } from "../config";
 import { logger } from "../logger";
 import { botRepo } from "../db/repos/bots";
+import { fetchWithTimeout } from "../utils/http";
 import type { Bot } from "../types";
 
 interface CacheEntry {
@@ -36,10 +37,11 @@ export async function getAccessToken(bot: Bot): Promise<string> {
 
 async function refreshToken(bot: Bot): Promise<CacheEntry> {
   const clientSecret = botRepo.decryptedSecret(bot);
-  const res = await fetch(config.qq.tokenUrl, {
+  const res = await fetchWithTimeout(config.qq.tokenUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ appId: bot.appId, clientSecret }),
+    timeoutMs: 15000,
   });
   const text = await res.text();
   if (!res.ok) {

@@ -3,6 +3,7 @@ import { logger } from "../logger";
 import type { Skill } from "../types";
 import { builtinSkills } from "./builtin";
 import { settingsService } from "../settings/service";
+import { fetchWithTimeout } from "../utils/http";
 
 /**
  * 将内置 Skill 写入数据库（不覆盖用户对 enabled 的修改）。
@@ -69,9 +70,9 @@ export async function syncSkillsFromGithub(repoUrl?: string, token?: string): Pr
 
   let tree: GithubTreeEntry[] = [];
   try {
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/git/trees/${parsed.branch}?recursive=1`,
-      { headers },
+      { headers, timeoutMs: 20000 },
     );
     if (!res.ok) {
       const text = await res.text();
@@ -88,7 +89,7 @@ export async function syncSkillsFromGithub(repoUrl?: string, token?: string): Pr
   for (const file of mdFiles) {
     try {
       const rawUrl = `https://raw.githubusercontent.com/${parsed.owner}/${parsed.repo}/${parsed.branch}/${file.path}`;
-      const res = await fetch(rawUrl, { headers: { "User-Agent": "PersonaBot" } });
+      const res = await fetchWithTimeout(rawUrl, { headers: { "User-Agent": "PersonaBot" }, timeoutMs: 20000 });
       if (!res.ok) {
         errors.push(`${file.path}: ${res.status}`);
         continue;

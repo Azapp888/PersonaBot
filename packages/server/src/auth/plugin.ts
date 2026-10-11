@@ -19,7 +19,11 @@ declare module "fastify" {
 
 export async function registerAuth(app: FastifyInstance): Promise<void> {
   await app.register(fastifyCookie);
-  await app.register(fastifyJwt, { secret: config.admin.jwtSecret });
+  await app.register(fastifyJwt, {
+    secret: config.admin.jwtSecret,
+    // 同时支持 Authorization: Bearer 与 httpOnly cookie（pb_token）
+    cookie: { cookieName: "pb_token", signed: false },
+  });
 
   app.decorate("authenticate", async (request: FastifyRequest, reply: FastifyReply) => {
     try {
