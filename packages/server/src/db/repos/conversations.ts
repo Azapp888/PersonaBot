@@ -49,11 +49,26 @@ export const conversationRepo = {
   },
   append(personaId: string, userId: string, messages: ChatMessage[]): Conversation {
     const conv = this.ensure(personaId, userId);
-    const merged = [...conv.messages, ...messages];
+    let merged = [...conv.messages, ...messages];
+    // 裁剪最旧消息，避免单会话 JSON 无限增长；近期原文仍由滑动窗口 + 滚动摘要覆盖。
+    const max = conversationRepo.maxMessages();
+    if (max > 0 && merged.length > max) {
+      merged = merged.slice(merged.length - max);
+    }
     this.db()
       .prepare(`UPDATE conversations SET messages = ?, updated_at = ? WHERE id = ?`)
       .run(toJson(merged), now(), conv.id);
     return { ...conv, messages: merged, updatedAt: now() };
+  },
+  /** 读取限制（每次动态读取以支持热更新配置）。 */
+  maxMessages(): number {
+    try {
+      // 延迟 require 避免与 settings 层循环依赖
+      const { settingsService } = require("../../settings/service") as typeof import("../../settings/service");
+      return Number(settingsService.get().conversationMaxMessages) || 400;
+    } catch {
+      return 400;
+    }
   },
   replaceMessages(personaId: string, userId: string, messages: ChatMessage[]): void {
     const conv = this.ensure(personaId, userId);

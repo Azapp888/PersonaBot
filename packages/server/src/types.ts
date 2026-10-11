@@ -188,6 +188,7 @@ export interface AppSettings {
   dailyMessageHour: number;
   contextRecentRounds: number;
   contextSummaryEnabled: boolean;
+  conversationMaxMessages: number;
   guardrailEnabled: boolean;
   fileHandlingEnabled: boolean;
   fileMaxBytes: number;

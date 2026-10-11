@@ -14,7 +14,7 @@ import {
   generateMonthlyMemory,
   generateThreeDayMemory,
 } from "../memory/summarizer";
-import { runProactiveCycle, runDailyGreetings } from "../proactive/service";
+import { runProactiveCycle, runDailyGreetings, sweepProactiveMemory } from "../proactive/service";
 import { botManager } from "../qq/manager";
 
 const tasks: ScheduledTask[] = [];
@@ -102,6 +102,13 @@ export function startScheduler(): void {
   tasks.push(cron.schedule("*/30 * * * *", () => void runProactiveCycle()));
   // 每日问候：每 15 分钟检查一次，命中用户活跃时段且当天未发时发送
   tasks.push(cron.schedule("*/15 * * * *", () => void runDailyGreetings()));
+  // 内存清理：每天 04:30 清理主动消息内存计数（防止长期运行内存增长）
+  tasks.push(
+    cron.schedule("30 4 * * *", () => {
+      sweepProactiveMemory();
+      logger.info("proactive in-memory counters swept");
+    }),
+  );
   // Bot 网关状态同步：每 5 分钟
   tasks.push(cron.schedule("*/5 * * * *", () => void botManager.reload()));
   // Skill 自动更新：可配置

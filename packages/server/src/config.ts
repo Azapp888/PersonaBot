@@ -88,6 +88,8 @@ export const config = {
     dailyMessageHour: num("DAILY_MESSAGE_HOUR", 9),
     contextRecentRounds: num("CONTEXT_RECENT_ROUNDS", 10),
     contextSummaryEnabled: true,
+    // 会话历史保留的最大消息条数（超出后裁剪最旧的，避免单会话 JSON 无限增长）
+    conversationMaxMessages: num("CONVERSATION_MAX_MESSAGES", 400),
     guardrailEnabled: true,
     fileHandlingEnabled: true,
     fileMaxBytes: num("FILE_MAX_BYTES", 2_000_000),

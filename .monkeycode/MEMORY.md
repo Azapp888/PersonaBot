@@ -47,3 +47,23 @@ This file records user instructions, preferences, and teachings for reference in
   - 主动消息不发送的常见根因：角色未绑定「已启用的 Bot」（persona 有 personaId 但 bot.personaId 不匹配或 bot 未启用）。
   - 排查入口：`POST /api/system/proactive/run` 现在返回结构化诊断（personas/profiles/sent/details/skipped/errors），skipped 会给出每个目标的具体跳过原因。
   - 从 dist 运行的服务，登录接口 `POST /api/auth/login`（admin/changeme，取自 .env 的 ADMIN_USERNAME/ADMIN_PASSWORD）返回的 token 用于 Bearer 鉴权；用 cookie 有时会 401，排查脚本优先用 Bearer token。
+
+[Project Knowledge Summary]
+- Date: 2026-10-11
+- Context: Discovered by Agent while auditing/adding tests to PersonaBot
+- Category: Testing Methods
+- Instructions:
+  - 单元测试：`pnpm test`（根目录）或 `pnpm --filter @personabot/server test`；基于 node:test + tsx，测试文件在 packages/server/test/*.test.ts。
+  - 测试覆盖纯逻辑模块（clock/text/context.state/agent.shell/rateLimit/abort-store），不依赖 DB/网络。
+  - packages/server/tsconfig.json 已 exclude test 目录，避免测试文件进入 dist 构建。
+  - CI 在 .github/workflows/ci.yml，依次执行 typecheck → test → build。
+
+[Project Knowledge Summary]
+- Date: 2026-10-11
+- Context: Discovered by Agent while hardening security
+- Category: Environment Configuration
+- Instructions:
+  - NODE_ENV=production 时若 ADMIN_PASSWORD/JWT_SECRET/ENCRYPTION_KEY 仍为默认值，进程会拒绝启动；开发环境仅告警。
+  - 敏感设置（paintingApiKey/githubToken）现由 settingsService 用 AES-256-GCM 加密落库，GET /api/settings 只返回 *Set 布尔标记。
+  - CORS 默认关闭；需要跨域时通过 CORS_ORIGINS（逗号分隔白名单）显式开启。
+  - 登录接口按 IP 限流：15 分钟 10 次，超限返回 429。服务器 Agent 前置灾难性命令黑名单拦截。

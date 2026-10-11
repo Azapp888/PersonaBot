@@ -89,6 +89,9 @@ export async function runAgentLoop(
     }
     convo.push({ role: "assistant", content: res.content ?? "", toolCalls: res.toolCalls });
     for (const call of res.toolCalls) {
+      if (options.signal?.aborted) {
+        return { content: "", usage, toolRuns };
+      }
       let command = "";
       try {
         command = String((JSON.parse(call.arguments || "{}") as any)?.command ?? "");
@@ -104,6 +107,8 @@ export async function runAgentLoop(
         ok = r.ok;
         output = r.output || `(无输出，退出码 ${r.exitCode})`;
       }
+      // 工具输出可能很长，回填给模型前再做一次截断，避免上下文与 token 失控
+      if (output.length > 4000) output = output.slice(0, 4000) + "\n…（已截断）";
       toolRuns.push({ command, output, ok });
       convo.push({ role: "tool", content: output, toolCallId: call.id });
     }

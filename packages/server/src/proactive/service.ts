@@ -17,6 +17,17 @@ import { systemClock } from "../utils/clock";
 const sentSinceReply = new Map<string, number>();
 const HOUR = 60 * 60 * 1000;
 
+/** 清理超过 24 小时无活动的计数，避免长期运行下内存无限增长。 */
+function sweepSentSinceReply(now = Date.now()): void {
+  const last = sweepLast;
+  if (now - last < HOUR) return;
+  sweepLast = now;
+  for (const [k, ts] of sentSinceReply) {
+    if (now - ts > 24 * HOUR) sentSinceReply.delete(k);
+  }
+}
+let sweepLast = 0;
+
 export interface ProactiveSendDetail {
   personaId: string;
   personaName: string;
@@ -46,6 +57,7 @@ function key(personaId: string, userId: string): string {
 }
 
 export function notifyUserReplied(personaId: string, userId: string): void {
+  sweepSentSinceReply();
   sentSinceReply.set(key(personaId, userId), 0);
 }
 
@@ -128,7 +140,9 @@ function decideDaily(profile: UserProfile, settings: AppSettings): DailyDecision
     const last = systemClock.snapshotAt(profile.lastDailyAt, settings.timezone);
     if (last.date === snap.date) return { send: false, reason: "今日已发送" };
   }
-  if (profile.lastInteractionAt && Date.now() - profile.lastInteractionAt < 30 * 60 * 1000) {
+  // 距离每日发送窗口的判定基于真实当前时间；互动时间与当前时间都用时间戳比较，避免时区混用
+  const nowTs = systemClock.now();
+  if (profile.lastInteractionAt && nowTs - profile.lastInteractionAt < 30 * 60 * 1000) {
     return { send: false, reason: "用户 30 分钟内刚互动，暂不打扰" };
   }
   const windows = parseActiveWindows(profile.habits.activeHours);
@@ -223,6 +237,7 @@ export async function runProactiveCycle(force = false): Promise<ProactiveRunResu
   const settings = settingsService.get();
   const result = emptyResult(settings.proactiveEnabled, force);
   if (!settings.proactiveEnabled && !force) return result;
+  sweepSentSinceReply();
   const maxMessages = settings.proactiveMaxMessages;
 
   for (const persona of personaRepo.listEnabled()) {
@@ -280,3 +295,9 @@ export async function runProactiveCycle(force = false): Promise<ProactiveRunResu
 }
 
 export const proactiveService = { runProactiveCycle, runDailyGreetings, notifyUserReplied };
+
+/** 强制清理主动消息内存计数（供定时任务调用）。 */
+export function sweepProactiveMemory(): void {
+  sweepLast = 0;
+  sweepSentSinceReply();
+}

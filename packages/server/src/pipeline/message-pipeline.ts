@@ -22,6 +22,7 @@ import { buildGuardrail, violatesGuardrail, sanitizeReply } from "../context/sta
 import { buildFileContext, renderFileContext } from "../attachments/service";
 import { detectShellCommand, formatShellReply, runAgentLoop } from "../agent";
 import { runShellCommand } from "../agent/shell";
+import { clearAbort, abortActive, registerAbort } from "./abort-store";
 
 const PAINT_KEYWORDS = ["画一张", "画个", "画幅", "画画", "画一下", "帮我画", "给我画", "作画", "绘一张", "来张图"];
 
@@ -54,6 +55,8 @@ export interface GenerateOptions {
   agentEnabled?: boolean;
   /** 本轮用户上传文件解析出的文本，仅注入当前请求，不写入会话历史 */
   fileContext?: string;
+  /** 用于中止在途 LLM / 工具调用（消息打断） */
+  signal?: AbortSignal;
 }
 
 export async function generateReply(
@@ -127,14 +130,15 @@ export async function generateReply(
     modelId = model?.id ?? null;
     const temperature = persona.modelConfig.temperature ?? model?.temperature;
     const maxTokens = persona.modelConfig.maxTokens ?? model?.maxTokens;
+    const signal = opts.signal;
 
     // 启用服务器 Agent 且模型支持工具调用时，走「模型自主决定执行 shell」的循环
     if (opts.agentEnabled && provider.supportsTools && provider.chatWithTools) {
-      const run = await runAgentLoop(provider, messages, { temperature, maxTokens });
+      const run = await runAgentLoop(provider, messages, { temperature, maxTokens, signal });
       reply = run.content.trim() || "（命令已经执行完了，不过我没有需要额外补充的。）";
       usage = run.usage;
     } else {
-      const result = await provider.chat(messages, { temperature, maxTokens });
+      const result = await provider.chat(messages, { temperature, maxTokens, signal });
       reply = result.content;
       usage = result.usage;
     }
@@ -251,6 +255,8 @@ class MessagePipeline {
       batch.abort = null;
       batch.running = false;
     }
+    // 兜底：即便 batch 已丢失本地引用，也中止注册表中的在途请求，避免旧回复覆盖新回复
+    abortActive(key);
     if (batch.timer) clearTimeout(batch.timer);
 
     const debounce = settingsService.get().messageDebounceMs;
@@ -299,11 +305,13 @@ class MessagePipeline {
     batch.running = true;
     const abort = new AbortController();
     batch.abort = abort;
+    registerAbort(key, abort);
 
     try {
       const { reply, painting } = await generateReply(batch.persona, batch.userId, merged, batch.bot.id, {
         agentEnabled: batch.bot.agentEnabled,
         fileContext,
+        signal: abort.signal,
       });
       if (abort.signal.aborted) return;
       await this.send(batch, reply, painting);
@@ -312,6 +320,7 @@ class MessagePipeline {
         logger.error({ key, err: (err as Error).message }, "pipeline flush failed");
       }
     } finally {
+      clearAbort(key, abort);
       this.finishBatch(key, batch, abort);
     }
   }

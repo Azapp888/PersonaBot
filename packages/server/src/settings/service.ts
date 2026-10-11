@@ -42,6 +42,7 @@ function defaultSettings(): AppSettings {
     dailyMessageHour: config.defaults.dailyMessageHour,
     contextRecentRounds: config.defaults.contextRecentRounds,
     contextSummaryEnabled: config.defaults.contextSummaryEnabled,
+    conversationMaxMessages: config.defaults.conversationMaxMessages,
     guardrailEnabled: config.defaults.guardrailEnabled,
     fileHandlingEnabled: config.defaults.fileHandlingEnabled,
     fileMaxBytes: config.defaults.fileMaxBytes,
