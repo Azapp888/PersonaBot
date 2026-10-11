@@ -50,6 +50,8 @@ export const config = {
   admin: {
     username: str("ADMIN_USERNAME", "admin"),
     password: str("ADMIN_PASSWORD", DEFAULT_ADMIN_PASSWORD),
+    // 可选：`scrypt$salt$hash` 形式的密码哈希，设置后优先于明文密码校验
+    passwordHash: str("ADMIN_PASSWORD_HASH", ""),
     jwtSecret: str("JWT_SECRET", DEFAULT_JWT_SECRET),
     tokenTtl: str("JWT_TTL", "7d"),
   },

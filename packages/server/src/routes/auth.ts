@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { config } from "../config";
 import type { AdminClaims } from "../auth/plugin";
 import { RateLimiter } from "../utils/rateLimit";
+import { verifyPassword } from "../utils/password";
 
 // 登录限流：同一 IP 15 分钟内最多 10 次尝试，抵御暴力破解。
 const loginLimiter = new RateLimiter({ windowMs: 15 * 60 * 1000, max: 10 });
@@ -18,7 +19,10 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const body = request.body as { username?: string; password?: string } | undefined;
     const username = body?.username?.trim() ?? "";
     const password = body?.password ?? "";
-    if (username !== config.admin.username || password !== config.admin.password) {
+    const storedSecret = config.admin.passwordHash || config.admin.password;
+    const userOk = username === config.admin.username;
+    const passOk = verifyPassword(password, storedSecret, config.admin.password);
+    if (!userOk || !passOk) {
       return reply.code(401).send({ error: "invalid_credentials", message: "用户名或密码错误" });
     }
     // 登录成功，清除该 IP 的失败计数

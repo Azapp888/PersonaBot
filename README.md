@@ -119,6 +119,11 @@ CI 流水线见 `.github/workflows/ci.yml`，在 push / PR 时执行 typecheck�
 ## 安全说明
 
 - **默认密钥保护**：`NODE_ENV=production` 时若 `ADMIN_PASSWORD` / `JWT_SECRET` / `ENCRYPTION_KEY` 仍为默认值会拒绝启动；开发环境仅告警。
+- **管理员密码哈希（可选）**：设置 `ADMIN_PASSWORD_HASH`（`scrypt$salt$hash`）后优先于明文密码校验，登录比较为常量时间。生成命令：
+
+```bash
+node packages/server/dist/scripts/hash-password.js "你的密码"
+```
 - **敏感字段加密**：QQ ClientSecret、LLM API Key、绘画 Key、GitHub Token 均以 AES-256-GCM 加密落库；接口只返回是否已配置，永不回传明文。
 - **鉴权**：除登录与健康检查外所有接口都需登录态，同时支持 `Authorization: Bearer`（API）与 httpOnly cookie（浏览器刷新），cookie 在生产环境带 `Secure`。
 - **登录限流**：同一 IP 15 分钟内最多 10 次登录尝试。
