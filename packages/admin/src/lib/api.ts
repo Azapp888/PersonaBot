@@ -107,10 +107,23 @@ export const api = {
   memoryFiles: (personaId: string, userId: string) =>
     request<string[]>("GET", `/api/memories/files?personaId=${personaId}&userId=${encodeURIComponent(userId)}`),
   memoryFile: (personaId: string, userId: string, name: string) =>
-    request<{ name: string; content: string }>(
+    request<{ name: string; content: string; userEdited: boolean }>(
       "GET",
       `/api/memories/file?personaId=${personaId}&userId=${encodeURIComponent(userId)}&name=${encodeURIComponent(name)}`,
     ),
+  saveMemoryFile: (personaId: string, userId: string, name: string, content: string) =>
+    request<{ ok: boolean; name: string; userEdited: boolean }>("PUT", "/api/memories/file", {
+      personaId,
+      userId,
+      name,
+      content,
+    }),
+  resetMemoryFile: (personaId: string, userId: string, name: string) =>
+    request<{ ok: boolean; name: string; content: string; userEdited: boolean }>("POST", "/api/memories/file/reset", {
+      personaId,
+      userId,
+      name,
+    }),
   importMemory: (personaId: string, userId: string, filename: string, content: string) =>
     request<{ ok: boolean; created: number; entries: { sourceDate: string; content: string }[]; message?: string }>(
       "POST",
@@ -134,6 +147,7 @@ export const api = {
 
   // system actions
   runProactive: () => request<ProactiveRunResult>("POST", "/api/system/proactive/run"),
+  runDaily: () => request<ProactiveRunResult>("POST", "/api/system/daily/run"),
   refreshTokens: () => request<{ ok: boolean }>("POST", "/api/system/tokens/refresh"),
   reloadBots: () => request<{ ok: boolean }>("POST", "/api/system/bots/reload"),
 };

@@ -1,21 +1,20 @@
-import type { Persona, UserHabits } from "../types";
+import type { Persona } from "../types";
 import { getSkillContent } from "../skills/manager";
-import { systemClock } from "../utils/clock";
+import { systemClock, timeContextLine } from "../utils/clock";
 import { renderState, type ConversationState } from "../context/state";
 
-export interface PromptMemory {
-  daily?: string;
-  threeDay?: string;
-  monthly?: string;
-  imported?: string;
-  relevant?: string;
+export interface MemoryFiles {
+  memory?: string;
+  user?: string;
+  personaState?: string;
 }
 
 export interface PromptContext {
-  memory?: PromptMemory;
-  userHabits?: UserHabits | null;
+  /** 三个可编辑记忆文件的当前内容（MEMORY.md / USER.md / persona-state.md） */
+  memoryFiles?: MemoryFiles;
+  /** 与当前话题相关的记忆片段（Top-K） */
+  relevant?: string;
   now?: number;
-  includeTime?: boolean;
   timezone?: string;
   contextSummary?: string;
   conversationState?: ConversationState;
@@ -58,42 +57,33 @@ export function buildStablePrefix(persona: Persona): string {
 }
 
 /**
- * 动态后缀：当前时间 + 分层记忆 + 用户画像。
+ * 动态后缀：当前时间 + 记忆档案（三个可编辑 md 文件）+ 相关记忆 + 状态。
  * 放在 system prompt 末尾，作为已预热请求的"前缀扩展"。
+ *
+ * 时间始终注入：所有模型动作都必须基于真实当前时间下定论。
  */
 export function buildDynamicSuffix(persona: Persona, ctx: PromptContext = {}): string {
   const lines: string[] = [];
   const now = ctx.now ?? systemClock.now();
-  const includeTime = ctx.includeTime ?? true;
-  if (includeTime) {
-    const snap = systemClock.snapshot(ctx.timezone);
-    lines.push("", "# 当前上下文");
-    lines.push(`当前系统时间：${systemClock.format(now, ctx.timezone)}（时区 ${snap.timezone}，UTC${snap.utcOffsetMinutes >= 0 ? "+" : "-"}${String(Math.floor(Math.abs(snap.utcOffsetMinutes) / 60)).padStart(2, "0")}:${String(Math.abs(snap.utcOffsetMinutes) % 60).padStart(2, "0")}）`);
+
+  lines.push("", "# 当前上下文");
+  lines.push(timeContextLine(ctx.timezone, now));
+
+  const files = ctx.memoryFiles;
+  if (files && (files.memory?.trim() || files.user?.trim() || files.personaState?.trim())) {
+    lines.push("", "# 记忆档案（由后台维护，可直接编辑，是你长期记住用户与自身设定的依据）");
+    if (files.memory?.trim()) lines.push("## MEMORY.md\n" + files.memory.trim());
+    if (files.user?.trim()) lines.push("## USER.md\n" + files.user.trim());
+    if (files.personaState?.trim()) lines.push("## persona-state.md\n" + files.personaState.trim());
   }
 
-  const mem = ctx.memory;
-  if (mem && (mem.daily || mem.threeDay || mem.monthly || mem.imported || mem.relevant)) {
-    lines.push("", "# 相关记忆");
-    if (mem.imported) lines.push(`## 导入的历史记忆\n${mem.imported}`);
-    if (mem.relevant) lines.push(`## 与当前话题相关的记忆片段\n${mem.relevant}`);
-    if (mem.daily) lines.push(`## 最近的记忆\n${mem.daily}`);
-    if (mem.threeDay) lines.push(`## 中期记忆\n${mem.threeDay}`);
-    if (mem.monthly) lines.push(`## 长期记忆\n${mem.monthly}`);
+  if (ctx.relevant?.trim()) {
+    lines.push("", "# 与当前话题相关的记忆片段", ctx.relevant.trim());
   }
 
   // 滚动摘要（更早对话的压缩，含用户画像 / 当前状态 / 未完成任务 / 长期记忆点）
   if (ctx.contextSummary) {
     lines.push("", "# 对话上下文摘要（更早对话的长期记录）", ctx.contextSummary);
-  }
-
-  const habits = ctx.userHabits;
-  if (habits && (habits.summary || habits.interests?.length || habits.expressions?.length)) {
-    lines.push("", "# 用户画像摘要");
-    if (habits.summary) lines.push(habits.summary);
-    if (habits.activeHours?.length) lines.push(`活跃时段：${habits.activeHours.join("、")}`);
-    if (habits.interests?.length) lines.push(`兴趣爱好：${habits.interests.join("、")}`);
-    if (habits.expressions?.length) lines.push(`常用表达：${habits.expressions.join("、")}`);
-    if (habits.emotionTriggers?.length) lines.push(`情绪触发点：${habits.emotionTriggers.join("、")}`);
   }
 
   if (ctx.agentEnabled) {

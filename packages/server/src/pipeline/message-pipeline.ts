@@ -65,22 +65,20 @@ export async function generateReply(
 ): Promise<GenerateResult> {
   const now = systemClock.now();
   const settings = settingsService.get();
-  const profile = profileRepo.ensure(persona.id, userId);
 
   // 滑动窗口 + 滚动摘要 + 状态机（每次请求都按最新用户输入更新）
   const context = await buildConversationContext(persona, userId, userText);
 
   // 按当前话题检索相关记忆，避免全量注入
   const query = [userText, context.state.pendingSubjects.join(" ")].filter(Boolean).join(" ");
-  const memory = buildMemoryInjection(persona.id, userId, now, query);
+  const { files: memoryFiles, relevant } = buildMemoryInjection(persona, userId, now, query);
 
   // 强制状态校验指令（作业未完成时禁止催睡）
   const guardrail = settings.guardrailEnabled ? buildGuardrail(context.state, persona.name) : null;
 
   const { prefix, full } = assembleSystemPrompt(persona, {
-    memory,
-    userHabits: profile.habits,
-    includeTime: settings.injectSystemTime,
+    memoryFiles,
+    relevant,
     timezone: settings.timezone,
     now,
     contextSummary: context.summary,

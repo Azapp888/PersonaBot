@@ -2,15 +2,18 @@ import { resolveProviderForPersona } from "../llm/factory";
 import type { ChatMessage, Persona } from "../types";
 import { logRepo } from "../db/repos/logs";
 import { memoryRepo } from "../db/repos/memories";
+import { settingsService } from "../settings/service";
+import { timeContextLine } from "../utils/clock";
 import { logger } from "../logger";
 import { formatDate, addDays } from "../utils/id";
 import { truncate } from "../utils/json";
 
 async function summarize(persona: Persona, systemPrompt: string, userContent: string): Promise<string> {
   const { provider } = resolveProviderForPersona(persona);
+  const settings = settingsService.get();
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
-    { role: "user", content: userContent },
+    { role: "user", content: `${timeContextLine(settings.timezone)}\n（请基于上述真实时间理解相对日期与时间关系）\n\n${userContent}` },
   ];
   const result = await provider.chat(messages, { temperature: 0.3, maxTokens: 1600 });
   return result.content.trim();

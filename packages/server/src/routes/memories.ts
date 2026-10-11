@@ -8,7 +8,8 @@ import {
   generateMonthlyMemory,
   generateThreeDayMemory,
 } from "../memory/summarizer";
-import { listMemoryFiles, readMemoryFile, syncMemoryFiles } from "../memory/service";
+import { listMemoryFiles, readMemoryFile, resetMemoryFile, syncMemoryFiles, writeMemoryFile } from "../memory/service";
+import { memoryFileRepo } from "../db/repos/memoryFiles";
 import { analyzeImportedText, persistImported } from "../memory/importer";
 import type { MemoryType } from "../types";
 
@@ -78,7 +79,9 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/memories/files", { preHandler: [app.authenticate] }, async (request, reply) => {
     const { personaId, userId } = request.query as { personaId?: string; userId?: string };
     if (!personaId || !userId) return reply.code(400).send({ error: "bad_request" });
-    return listMemoryFiles(personaId, userId);
+    const persona = personaRepo.find(personaId);
+    if (!persona) return reply.code(404).send({ error: "not_found" });
+    return listMemoryFiles(persona, userId);
   });
 
   app.get("/api/memories/file", { preHandler: [app.authenticate] }, async (request, reply) => {
@@ -86,6 +89,29 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
     if (!personaId || !userId || !name) return reply.code(400).send({ error: "bad_request" });
     const content = readMemoryFile(personaId, userId, name);
     if (content === null) return reply.code(404).send({ error: "not_found" });
-    return { name, content };
+    const override = memoryFileRepo.find(personaId, userId, name);
+    return { name, content, userEdited: override?.userEdited ?? false };
+  });
+
+  app.put("/api/memories/file", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const body = request.body as { personaId?: string; userId?: string; name?: string; content?: string } | undefined;
+    if (!body?.personaId || !body?.userId || !body?.name || body?.content === undefined) {
+      return reply.code(400).send({ error: "bad_request", message: "personaId / userId / name / content 必填" });
+    }
+    const persona = personaRepo.find(body.personaId);
+    if (!persona) return reply.code(404).send({ error: "not_found", message: "角色不存在" });
+    writeMemoryFile(persona, body.userId, body.name, body.content);
+    return { ok: true, name: body.name, userEdited: true };
+  });
+
+  app.post("/api/memories/file/reset", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const body = request.body as { personaId?: string; userId?: string; name?: string } | undefined;
+    if (!body?.personaId || !body?.userId || !body?.name) {
+      return reply.code(400).send({ error: "bad_request", message: "personaId / userId / name 必填" });
+    }
+    const persona = personaRepo.find(body.personaId);
+    if (!persona) return reply.code(404).send({ error: "not_found", message: "角色不存在" });
+    const content = resetMemoryFile(persona, body.userId, body.name);
+    return { ok: true, name: body.name, content, userEdited: false };
   });
 }

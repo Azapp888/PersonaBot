@@ -3,12 +3,16 @@ import { resolve } from "node:path";
 import { config } from "../config";
 import { memoryRepo } from "../db/repos/memories";
 import { profileRepo } from "../db/repos/profiles";
+import { memoryFileRepo } from "../db/repos/memoryFiles";
 import type { Memory, Persona } from "../types";
 import { addDays, formatDate } from "../utils/id";
-import type { PromptMemory } from "../persona/prompt";
+import type { MemoryFiles } from "../persona/prompt";
 import { logger } from "../logger";
 import { retrieveRelevantMemories } from "./relevant";
 import { truncate } from "../utils/json";
+
+/** 三个可由用户在网页端直接编辑的记忆文件。 */
+export const MEMORY_FILE_NAMES = ["MEMORY.md", "USER.md", "persona-state.md"] as const;
 
 function memoryDir(personaId: string, userId: string): string {
   const dir = resolve(config.dataDir, "memory", personaId, userId);
@@ -16,70 +20,16 @@ function memoryDir(personaId: string, userId: string): string {
   return dir;
 }
 
-/**
- * 按优先级检索记忆用于注入：
- * 1. 前一天日记忆（保证时间连续性）
- * 2. 三日记忆（补充中期）
- * 3. 月记忆（长期，仅在有内容时注入）
- * 4. 与当前话题相关的记忆片段（Top-K，避免全量塞入导致 Token 爆炸）
- * 短期对话由 pipeline 直接附带。
- */
-export function buildMemoryInjection(personaId: string, userId: string, now = Date.now(), query = ""): PromptMemory {
-  const result: PromptMemory = {};
-  const usedIds: string[] = [];
-  const yesterday = formatDate(addDays(now, -1));
-  const daily = memoryRepo.latest(personaId, userId, "daily");
-  if (daily && daily.sourceDate === yesterday) {
-    result.daily = daily.content;
-    usedIds.push(daily.id);
-  } else if (daily) {
-    // 前一天没有则退化为最近一次日记忆
-    result.daily = daily.content;
-    usedIds.push(daily.id);
-  }
-
-  const threeDay = memoryRepo.latest(personaId, userId, "three_day");
-  if (threeDay && threeDay.content) {
-    result.threeDay = threeDay.content;
-    usedIds.push(threeDay.id);
-  }
-
-  const monthly = memoryRepo.latest(personaId, userId, "monthly");
-  if (monthly && monthly.content) {
-    result.monthly = monthly.content;
-    usedIds.push(monthly.id);
-  }
-
-  const imported = memoryRepo
-    .listByUser(personaId, userId)
-    .filter((m) => m.type === "imported")
-    .slice(0, 3);
-  if (imported.length) {
-    result.imported = imported.map((m) => `- (${m.sourceDate}) ${m.content}`).join("\n");
-    usedIds.push(...imported.map((m) => m.id));
-  }
-
-  // 按当前话题检索相关记忆片段（Top-K）
-  if (query.trim()) {
-    const hits = retrieveRelevantMemories(personaId, userId, query, 4, usedIds);
-    if (hits.length) {
-      result.relevant = hits.map((h) => `- (${h.sourceDate}) ${truncate(h.content, 240)}`).join("\n");
-    }
-  }
-
-  return result;
+interface FileBundle {
+  "MEMORY.md": string;
+  "USER.md": string;
+  "persona-state.md": string;
 }
 
-export function listMemories(personaId: string, userId: string): Memory[] {
-  return memoryRepo.listByUser(personaId, userId);
-}
-
-/** 将结构化记忆与人设状态落盘为 Markdown 文件（文件化记忆架构）。 */
-export function syncMemoryFiles(persona: Persona, userId: string): void {
-  const dir = memoryDir(persona.id, userId);
+/** 依据数据库中的结构化记忆 / 画像，生成三个记忆文件的默认内容。 */
+function generateFileContents(persona: Persona, userId: string): FileBundle {
   const memories = memoryRepo.listByUser(persona.id, userId);
   const profile = profileRepo.find(persona.id, userId);
-
   const byType = (t: string) => memories.filter((m) => m.type === t);
 
   const memoryMd = [
@@ -129,17 +79,67 @@ export function syncMemoryFiles(persona: Persona, userId: string): void {
     "",
   ].join("\n");
 
+  return { "MEMORY.md": memoryMd, "USER.md": userMd, "persona-state.md": stateMd };
+}
+
+/**
+ * 将结构化记忆与人设状态落盘为 Markdown 文件（文件化记忆架构）。
+ * 已被用户手动编辑过的文件不会被自动生成内容覆盖。
+ */
+export function syncMemoryFiles(persona: Persona, userId: string): void {
+  const dir = memoryDir(persona.id, userId);
+  const generated = generateFileContents(persona, userId);
+
   try {
-    writeFileSync(resolve(dir, "MEMORY.md"), memoryMd, "utf8");
-    writeFileSync(resolve(dir, "USER.md"), userMd, "utf8");
-    writeFileSync(resolve(dir, "persona-state.md"), stateMd, "utf8");
+    for (const name of MEMORY_FILE_NAMES) {
+      const override = memoryFileRepo.find(persona.id, userId, name);
+      const content = override?.userEdited ? override.content : generated[name];
+      writeFileSync(resolve(dir, name), content, "utf8");
+    }
   } catch (err) {
     logger.warn({ err: (err as Error).message }, "sync memory files failed");
   }
 }
 
+/** 读取三个记忆文件内容（供注入 System Prompt）。会先按最新数据同步未被手动编辑的文件。 */
+export function loadMemoryFiles(persona: Persona, userId: string): MemoryFiles {
+  syncMemoryFiles(persona, userId);
+  return {
+    memory: readMemoryFile(persona.id, userId, "MEMORY.md") ?? undefined,
+    user: readMemoryFile(persona.id, userId, "USER.md") ?? undefined,
+    personaState: readMemoryFile(persona.id, userId, "persona-state.md") ?? undefined,
+  };
+}
+
+/**
+ * 组装记忆注入内容：三个记忆文件 + 与当前话题相关的记忆片段。
+ * 短期对话由 pipeline 直接附带。
+ */
+export function buildMemoryInjection(
+  persona: Persona,
+  userId: string,
+  _now = Date.now(),
+  query = "",
+): { files: MemoryFiles; relevant?: string } {
+  const files = loadMemoryFiles(persona, userId);
+  let relevant: string | undefined;
+  if (query.trim()) {
+    const hits = retrieveRelevantMemories(persona.id, userId, query, 4, []);
+    if (hits.length) {
+      relevant = hits.map((h) => `- (${h.sourceDate}) ${truncate(h.content, 240)}`).join("\n");
+    }
+  }
+  return { files, relevant };
+}
+
+export function listMemories(personaId: string, userId: string): Memory[] {
+  return memoryRepo.listByUser(personaId, userId);
+}
+
 export function readMemoryFile(personaId: string, userId: string, name: string): string | null {
   const safe = name.replace(/[^a-zA-Z0-9_.-]/g, "");
+  const override = memoryFileRepo.find(personaId, userId, safe);
+  if (override?.userEdited) return override.content;
   const file = resolve(memoryDir(personaId, userId), safe);
   if (!existsSync(file)) return null;
   try {
@@ -149,11 +149,33 @@ export function readMemoryFile(personaId: string, userId: string, name: string):
   }
 }
 
-export function listMemoryFiles(personaId: string, userId: string): string[] {
-  const dir = memoryDir(personaId, userId);
-  try {
-    return readdirSync(dir).filter((f) => f.endsWith(".md"));
-  } catch {
-    return [];
-  }
+/** 列出（并确保生成）三个记忆文件，供后台编辑。 */
+export function listMemoryFiles(persona: Persona, userId: string): string[] {
+  syncMemoryFiles(persona, userId);
+  const dir = memoryDir(persona.id, userId);
+  const extra = (() => {
+    try {
+      return readdirSync(dir).filter((f) => f.endsWith(".md") && !MEMORY_FILE_NAMES.includes(f as any));
+    } catch {
+      return [];
+    }
+  })();
+  return [...MEMORY_FILE_NAMES, ...extra];
+}
+
+/** 用户手动保存记忆文件：落库标记为「手动编辑」，并同步写盘。 */
+export function writeMemoryFile(persona: Persona, userId: string, name: string, content: string): void {
+  const safe = name.replace(/[^a-zA-Z0-9_.-]/g, "");
+  if (!safe) throw new Error("非法文件名");
+  memoryFileRepo.save(persona.id, userId, safe, content, true);
+  const dir = memoryDir(persona.id, userId);
+  writeFileSync(resolve(dir, safe), content, "utf8");
+}
+
+/** 放弃手动编辑，恢复为自动生成内容。 */
+export function resetMemoryFile(persona: Persona, userId: string, name: string): string {
+  const safe = name.replace(/[^a-zA-Z0-9_.-]/g, "");
+  memoryFileRepo.save(persona.id, userId, safe, "", false);
+  syncMemoryFiles(persona, userId);
+  return readMemoryFile(persona.id, userId, safe) ?? "";
 }

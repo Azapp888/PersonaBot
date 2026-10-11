@@ -9,6 +9,8 @@ export interface ClockSnapshot {
   weekday: string;
   timezone: string;
   utcOffsetMinutes: number;
+  hour: number;
+  minute: number;
 }
 
 const DATE_TIME_FMT = (timeZone?: string) =>
@@ -54,7 +56,7 @@ function offsetMinutes(ts: number, timeZone?: string): number {
 }
 
 /** 在指定 IANA 时区格式化时间；时区无效时回退到服务器本地时区。 */
-function zoned(ts: number, timeZone?: string): { formatted: string; date: string; time: string; weekday: string; resolvedTz: string } {
+function zoned(ts: number, timeZone?: string): { formatted: string; date: string; time: string; weekday: string; hour: number; minute: number; resolvedTz: string } {
   const d = new Date(ts);
   let tz = normalizeTz(timeZone);
   let parts: Intl.DateTimeFormatPart[];
@@ -78,6 +80,8 @@ function zoned(ts: number, timeZone?: string): { formatted: string; date: string
     date,
     time,
     weekday,
+    hour: Number(hh),
+    minute: Number(mi),
     resolvedTz: tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
   };
 }
@@ -93,7 +97,25 @@ function build(ts: number, timeZone?: string): ClockSnapshot {
     weekday: z.weekday,
     timezone: z.resolvedTz,
     utcOffsetMinutes: offsetMinutes(ts, timeZone),
+    hour: z.hour,
+    minute: z.minute,
   };
+}
+
+function offsetLabel(off: number): string {
+  const sign = off >= 0 ? "+" : "-";
+  const hh = String(Math.floor(Math.abs(off) / 60)).padStart(2, "0");
+  const mm = String(Math.abs(off) % 60).padStart(2, "0");
+  return `UTC${sign}${hh}:${mm}`;
+}
+
+/**
+ * 生成一行"当前时间"上下文，供所有模型调用统一注入，
+ * 保证每次推理都基于真实当前时间（而不是模型记忆或进程启动时间）。
+ */
+export function timeContextLine(timeZone?: string, ts: number = Date.now()): string {
+  const s = build(ts, timeZone);
+  return `当前时间：${s.formatted}（时区 ${s.timezone}，${offsetLabel(s.utcOffsetMinutes)}）`;
 }
 
 /**
@@ -109,6 +131,9 @@ export const systemClock = {
   },
   snapshot(timeZone?: string): ClockSnapshot {
     return build(Date.now(), timeZone);
+  },
+  snapshotAt(ts: number, timeZone?: string): ClockSnapshot {
+    return build(ts, timeZone);
   },
   format(ts: number = Date.now(), timeZone?: string): string {
     return zoned(ts, timeZone).formatted;

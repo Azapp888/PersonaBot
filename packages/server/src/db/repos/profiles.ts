@@ -20,6 +20,7 @@ function map(row: any): UserProfile {
     habits: safeJsonParse<UserHabits>(row.habits, emptyHabits),
     lastInteractionAt: row.last_interaction_at,
     lastProactiveAt: row.last_proactive_at,
+    lastDailyAt: row.last_daily_at ?? null,
   };
 }
 
@@ -62,5 +63,9 @@ export const profileRepo = {
   touchProactive(personaId: string, userId: string, ts = Date.now()): void {
     const profile = this.ensure(personaId, userId);
     this.db().prepare(`UPDATE user_profiles SET last_proactive_at = ? WHERE id = ?`).run(ts, profile.id);
+  },
+  touchDaily(personaId: string, userId: string, ts = Date.now()): void {
+    const profile = this.ensure(personaId, userId);
+    this.db().prepare(`UPDATE user_profiles SET last_daily_at = ? WHERE id = ?`).run(ts, profile.id);
   },
 };

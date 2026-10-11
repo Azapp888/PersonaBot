@@ -239,12 +239,6 @@ export function SettingsPage() {
             checked={settings.splitMessages}
             onChange={(v) => set({ splitMessages: v })}
           />
-          <ToggleRow
-            label="注入当前系统时间"
-            hint="关闭可提升 prompt cache 命中"
-            checked={settings.injectSystemTime}
-            onChange={(v) => set({ injectSystemTime: v })}
-          />
           <Field label="时区" hint="注入模型的时间按此时区显示，可选北京时间或服务器时间">
             <Select value={settings.timezone} onChange={(e) => set({ timezone: e.target.value })}>
               {TIMEZONE_OPTIONS.map((o) => (
@@ -276,7 +270,7 @@ export function SettingsPage() {
               </Button>
             </div>
             <div className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-              以服务器实时时间校准，并按上方时区显示；每次向网关发起请求（收到 QQ 消息）时都会重新拉取一次当前时间注入模型。
+              以服务器实时时间校准，并按上方时区显示。所有模型动作（回复、主动消息、每日问候、记忆整理）都会注入当前真实时间。
             </div>
           </div>
           <Field label="单次最多分条数" hint="被动回复上限：单聊 4 次、群聊 5 次，超出合并进最后一条">
@@ -284,6 +278,29 @@ export function SettingsPage() {
               type="number"
               value={settings.splitMaxMessages}
               onChange={(e) => set({ splitMaxMessages: Number(e.target.value) })}
+            />
+          </Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>每日问候</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <ToggleRow
+            label="启用每日自动问候"
+            hint="每个用户每天最多一次，优先在其活跃时段发送；已对话的用户同样会收到"
+            checked={settings.dailyMessageEnabled}
+            onChange={(v) => set({ dailyMessageEnabled: v })}
+          />
+          <Field label="默认发送时间（小时）" hint="用户尚无活跃时段记录时，在该小时之后发送，0-23">
+            <Input
+              type="number"
+              min={0}
+              max={23}
+              value={settings.dailyMessageHour}
+              onChange={(e) => set({ dailyMessageHour: Number(e.target.value) })}
             />
           </Field>
         </CardContent>

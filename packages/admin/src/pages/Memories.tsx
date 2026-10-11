@@ -33,7 +33,8 @@ export function MemoriesPage() {
   const [userId, setUserId] = useState("");
   const [memories, setMemories] = useState<Memory[]>([]);
   const [files, setFiles] = useState<string[]>([]);
-  const [fileContent, setFileContent] = useState<{ name: string; content: string } | null>(null);
+  const [fileContent, setFileContent] = useState<{ name: string; content: string; userEdited: boolean } | null>(null);
+  const [fileDraft, setFileDraft] = useState("");
   const [editing, setEditing] = useState<Record<string, string>>({});
   const [importUserId, setImportUserId] = useState("");
   const [importText, setImportText] = useState("");
@@ -81,6 +82,31 @@ export function MemoriesPage() {
   const openFile = async (name: string) => {
     const res = await api.memoryFile(personaId, userId, name);
     setFileContent(res);
+    setFileDraft(res.content);
+  };
+
+  const saveFile = async () => {
+    if (!fileContent) return;
+    try {
+      await api.saveMemoryFile(personaId, userId, fileContent.name, fileDraft);
+      push("记忆文件已保存", "success");
+      await openFile(fileContent.name);
+    } catch (err) {
+      push((err as Error).message, "error");
+    }
+  };
+
+  const resetFile = async () => {
+    if (!fileContent) return;
+    if (!confirm(`确认放弃对 ${fileContent.name} 的手动修改，恢复为自动生成内容？`)) return;
+    try {
+      const res = await api.resetMemoryFile(personaId, userId, fileContent.name);
+      setFileContent({ name: res.name, content: res.content, userEdited: false });
+      setFileDraft(res.content);
+      push("已恢复为自动生成", "success");
+    } catch (err) {
+      push((err as Error).message, "error");
+    }
   };
 
   const runImport = async () => {
@@ -277,10 +303,30 @@ export function MemoriesPage() {
             ))}
             {fileContent && (
               <div className="mt-3">
-                <div className="mb-1 text-xs font-medium text-muted-foreground">{fileContent.name}</div>
-                <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/40 p-3 text-xs dark:border-slate-800">
-                  {fileContent.content}
-                </pre>
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">{fileContent.name}</span>
+                  {fileContent.userEdited ? (
+                    <Badge variant="warning">已手动编辑</Badge>
+                  ) : (
+                    <Badge variant="secondary">自动生成</Badge>
+                  )}
+                </div>
+                <Textarea
+                  className="min-h-[280px] font-mono text-xs"
+                  value={fileDraft}
+                  onChange={(e) => setFileDraft(e.target.value)}
+                />
+                <div className="mt-2 flex justify-end gap-2">
+                  <Button size="sm" variant="outline" onClick={resetFile}>
+                    <RefreshCw className="h-3.5 w-3.5" /> 恢复自动生成
+                  </Button>
+                  <Button size="sm" onClick={saveFile}>
+                    <Save className="h-3.5 w-3.5" /> 保存
+                  </Button>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  这三个文件会作为记忆直接注入模型；手动保存后不会被自动总结覆盖。
+                </p>
               </div>
             )}
           </CardContent>

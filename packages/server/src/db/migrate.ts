@@ -175,6 +175,22 @@ CREATE TABLE IF NOT EXISTS conversation_context (
 ALTER TABLE bots ADD COLUMN agent_enabled INTEGER NOT NULL DEFAULT 0;
 `,
   },
+  {
+    id: "005_daily_memory_files",
+    sql: `
+ALTER TABLE user_profiles ADD COLUMN last_daily_at INTEGER;
+
+CREATE TABLE IF NOT EXISTS memory_files (
+  persona_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  content TEXT NOT NULL DEFAULT '',
+  user_edited INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (persona_id, user_id, name)
+);
+`,
+  },
 ];
 
 export function runMigrations(database?: Database.Database): void {

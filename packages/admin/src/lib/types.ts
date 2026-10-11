@@ -148,8 +148,9 @@ export interface AppSettings {
   messageDebounceMs: number;
   splitMessages: boolean;
   splitMaxMessages: number;
-  injectSystemTime: boolean;
   timezone: string;
+  dailyMessageEnabled: boolean;
+  dailyMessageHour: number;
   contextRecentRounds: number;
   contextSummaryEnabled: boolean;
   guardrailEnabled: boolean;

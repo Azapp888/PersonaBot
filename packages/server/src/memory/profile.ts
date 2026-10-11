@@ -2,6 +2,8 @@ import { resolveProviderForPersona } from "../llm/factory";
 import type { ChatMessage, Persona, UserHabits } from "../types";
 import { logRepo } from "../db/repos/logs";
 import { profileRepo } from "../db/repos/profiles";
+import { settingsService } from "../settings/service";
+import { timeContextLine } from "../utils/clock";
 import { logger } from "../logger";
 import { addDays, formatDate } from "../utils/id";
 
@@ -50,9 +52,10 @@ export async function extractUserHabits(persona: Persona, userId: string): Promi
   const heuristic = heuristicHabits(persona.id, userId, since);
   try {
     const { provider } = resolveProviderForPersona(persona);
+    const tz = settingsService.get().timezone;
     const messages: ChatMessage[] = [
       { role: "system", content: EXTRACT_SYSTEM },
-      { role: "user", content: transcript },
+      { role: "user", content: `${timeContextLine(tz)}\n（请据此理解聊天记录中的相对时间与用户作息）\n\n${transcript}` },
     ];
     const result = await provider.chat(messages, { temperature: 0.2, maxTokens: 800 });
     const jsonText = result.content.replace(/```json|```/g, "").trim();

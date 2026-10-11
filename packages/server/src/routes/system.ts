@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { runProactiveCycle } from "../proactive/service";
+import { runProactiveCycle, runDailyGreetings } from "../proactive/service";
 import { refreshExpiringTokens } from "../qq/token";
 import { botManager } from "../qq/manager";
 import { messagePipeline } from "../pipeline/message-pipeline";
@@ -15,6 +15,11 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
 
   app.post("/api/system/proactive/run", { preHandler: [app.authenticate] }, async () => {
     const result = await runProactiveCycle(true);
+    return { ok: true, ...result };
+  });
+
+  app.post("/api/system/daily/run", { preHandler: [app.authenticate] }, async () => {
+    const result = await runDailyGreetings(true);
     return { ok: true, ...result };
   });
 

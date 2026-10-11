@@ -1,6 +1,8 @@
 import { resolveProviderForPersona } from "../llm/factory";
 import type { ChatMessage, Persona } from "../types";
 import { memoryRepo } from "../db/repos/memories";
+import { settingsService } from "../settings/service";
+import { timeContextLine } from "../utils/clock";
 import { logger } from "../logger";
 import { formatDate } from "../utils/id";
 import { truncate } from "../utils/json";
@@ -71,6 +73,7 @@ export async function analyzeImportedText(
   if (!text) return [];
 
   const { provider } = resolveProviderForPersona(persona);
+  const tz = settingsService.get().timezone;
   const chunks = chunkText(text);
   const entries: ImportedEntry[] = [];
 
@@ -79,7 +82,7 @@ export async function analyzeImportedText(
     try {
       const messages: ChatMessage[] = [
         { role: "system", content: IMPORT_SYSTEM.replace("{name}", persona.name) },
-        { role: "user", content: `文件名：${filename}\n\n原始文本：\n${piece}` },
+        { role: "user", content: `${timeContextLine(tz)}\n（请据此推断文本中的相对日期；无法确定的日期留空）\n\n文件名：${filename}\n\n原始文本：\n${piece}` },
       ];
       const result = await provider.chat(messages, { temperature: 0.2, maxTokens: 2000 });
       parsed = extractJson(result.content);
