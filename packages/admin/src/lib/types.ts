@@ -78,6 +78,7 @@ export interface Bot {
   personaId: string | null;
   personaName: string | null;
   enabled: boolean;
+  agentEnabled: boolean;
   clientSecretSet: boolean;
   tokenExpiresAt: number | null;
   createdAt: number;
@@ -152,6 +153,11 @@ export interface AppSettings {
   contextRecentRounds: number;
   contextSummaryEnabled: boolean;
   guardrailEnabled: boolean;
+  fileHandlingEnabled: boolean;
+  fileMaxBytes: number;
+  agentShellPrefix: string;
+  agentShellTimeoutMs: number;
+  agentShellMaxOutputChars: number;
 }
 
 export interface DashboardData {

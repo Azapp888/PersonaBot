@@ -14,6 +14,7 @@ function map(row: any): Bot {
     tokenExpiresAt: row.token_expires_at,
     personaId: row.persona_id,
     enabled: !!row.enabled,
+    agentEnabled: !!row.agent_enabled,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -25,6 +26,7 @@ export interface BotInput {
   clientSecret: string;
   personaId?: string | null;
   enabled?: boolean;
+  agentEnabled?: boolean;
 }
 
 export const botRepo = {
@@ -50,8 +52,8 @@ export const botRepo = {
     const ts = now();
     this.db()
       .prepare(
-        `INSERT INTO bots (id, name, app_id, client_secret, persona_id, enabled, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO bots (id, name, app_id, client_secret, persona_id, enabled, agent_enabled, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -60,6 +62,7 @@ export const botRepo = {
         encryptSecret(input.clientSecret),
         input.personaId ?? null,
         input.enabled === false ? 0 : 1,
+        input.agentEnabled ? 1 : 0,
         ts,
         ts,
       );
@@ -77,12 +80,13 @@ export const botRepo = {
           : current.clientSecret,
       personaId: input.personaId !== undefined ? input.personaId : current.personaId,
       enabled: input.enabled !== undefined ? input.enabled : current.enabled,
+      agentEnabled: input.agentEnabled !== undefined ? input.agentEnabled : current.agentEnabled,
     };
     this.db()
       .prepare(
-        `UPDATE bots SET name = ?, app_id = ?, client_secret = ?, persona_id = ?, enabled = ?, updated_at = ? WHERE id = ?`,
+        `UPDATE bots SET name = ?, app_id = ?, client_secret = ?, persona_id = ?, enabled = ?, agent_enabled = ?, updated_at = ? WHERE id = ?`,
       )
-      .run(next.name, next.appId, next.clientSecret, next.personaId, next.enabled ? 1 : 0, now(), id);
+      .run(next.name, next.appId, next.clientSecret, next.personaId, next.enabled ? 1 : 0, next.agentEnabled ? 1 : 0, now(), id);
     return this.find(id);
   },
   updateToken(id: string, accessToken: string, expiresAt: number): void {

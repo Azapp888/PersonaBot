@@ -30,6 +30,11 @@ function defaultSettings(): AppSettings {
     contextRecentRounds: config.defaults.contextRecentRounds,
     contextSummaryEnabled: config.defaults.contextSummaryEnabled,
     guardrailEnabled: config.defaults.guardrailEnabled,
+    fileHandlingEnabled: config.defaults.fileHandlingEnabled,
+    fileMaxBytes: config.defaults.fileMaxBytes,
+    agentShellPrefix: config.defaults.agentShellPrefix,
+    agentShellTimeoutMs: config.defaults.agentShellTimeoutMs,
+    agentShellMaxOutputChars: config.defaults.agentShellMaxOutputChars,
   };
 }
 

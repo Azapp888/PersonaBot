@@ -13,6 +13,7 @@ function present(bot: Bot) {
     personaId: bot.personaId,
     personaName: bot.personaId ? personaRepo.find(bot.personaId)?.name ?? null : null,
     enabled: bot.enabled,
+    agentEnabled: bot.agentEnabled,
     clientSecretSet: !!bot.clientSecret,
     tokenExpiresAt: bot.tokenExpiresAt,
     createdAt: bot.createdAt,
@@ -49,6 +50,7 @@ export async function botRoutes(app: FastifyInstance): Promise<void> {
       clientSecret: body.clientSecret,
       personaId: body.personaId ?? null,
       enabled: body.enabled !== false,
+      agentEnabled: body.agentEnabled === true,
     });
     if (bot.enabled) await botManager.startBot(bot);
     return present(bot);
@@ -65,6 +67,7 @@ export async function botRoutes(app: FastifyInstance): Promise<void> {
       clientSecret: body.clientSecret || undefined,
       personaId: body.personaId,
       enabled: body.enabled,
+      agentEnabled: body.agentEnabled,
     });
     const fresh = botRepo.find(id)!;
     if (body.clientSecret) invalidateToken(id);

@@ -78,6 +78,11 @@ export const config = {
     contextRecentRounds: num("CONTEXT_RECENT_ROUNDS", 10),
     contextSummaryEnabled: true,
     guardrailEnabled: true,
+    fileHandlingEnabled: true,
+    fileMaxBytes: num("FILE_MAX_BYTES", 2_000_000),
+    agentShellPrefix: str("AGENT_SHELL_PREFIX", "/sh"),
+    agentShellTimeoutMs: num("AGENT_SHELL_TIMEOUT_MS", 15000),
+    agentShellMaxOutputChars: num("AGENT_SHELL_MAX_OUTPUT_CHARS", 3500),
   },
 };
 

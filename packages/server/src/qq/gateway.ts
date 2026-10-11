@@ -1,6 +1,6 @@
 import WebSocket from "ws";
 import { logger } from "../logger";
-import type { Bot, QQMessageEvent } from "../types";
+import type { Bot, QQAttachment, QQMessageEvent } from "../types";
 import { QQApiClient } from "./client";
 import { getAccessToken } from "./token";
 import { QQ_OP, type QQGatewayPayload } from "./types";
@@ -221,6 +221,7 @@ export class QQGateway {
   private dispatch(type: string | undefined, d: any): void {
     if (!type || !d) return;
     let event: QQMessageEvent | null = null;
+    const attachments = parseAttachments(d);
     switch (type) {
       case "C2C_MESSAGE_CREATE":
         event = {
@@ -230,6 +231,7 @@ export class QQGateway {
           authorId: d.author?.user_openid ?? d.author?.id,
           msgId: d.id,
           timestamp: parseTime(d.timestamp),
+          attachments,
           raw: d,
         };
         break;
@@ -242,6 +244,7 @@ export class QQGateway {
           msgId: d.id,
           groupOpenid: d.group_openid,
           timestamp: parseTime(d.timestamp),
+          attachments,
           raw: d,
         };
         break;
@@ -255,6 +258,7 @@ export class QQGateway {
           guildId: d.guild_id,
           channelId: d.channel_id,
           timestamp: parseTime(d.timestamp),
+          attachments,
           raw: d,
         };
         break;
@@ -268,6 +272,7 @@ export class QQGateway {
           guildId: d.guild_id,
           channelId: d.channel_id,
           timestamp: parseTime(d.timestamp),
+          attachments,
           raw: d,
         };
         break;
@@ -282,6 +287,23 @@ export class QQGateway {
 
 function stripMentions(content: string): string {
   return content.replace(/<@!?\d+>/g, "").replace(/<@![^>]+>/g, "").trim();
+}
+
+/** 解析 QQ v2 事件中的富媒体附件（用户发送的图片/文件）。 */
+function parseAttachments(d: any): QQAttachment[] | undefined {
+  const raw = d?.attachments;
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const list: QQAttachment[] = [];
+  for (const a of raw) {
+    if (!a || typeof a !== "object") continue;
+    list.push({
+      url: typeof a.url === "string" ? a.url : undefined,
+      filename: typeof a.filename === "string" ? a.filename : undefined,
+      contentType: typeof a.content_type === "string" ? a.content_type : undefined,
+      size: typeof a.size === "number" ? a.size : undefined,
+    });
+  }
+  return list.length ? list : undefined;
 }
 
 function parseTime(ts?: string | number): number {

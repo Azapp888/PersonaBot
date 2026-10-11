@@ -26,7 +26,7 @@ const stateMap: Record<string, { label: string; variant: any }> = {
   stopped: { label: "已停止", variant: "secondary" },
 };
 
-const emptyForm = { name: "", appId: "", clientSecret: "", personaId: "", enabled: true };
+const emptyForm = { name: "", appId: "", clientSecret: "", personaId: "", enabled: true, agentEnabled: false };
 
 export function BotsPage() {
   const { push } = useToast();
@@ -63,6 +63,7 @@ export function BotsPage() {
       clientSecret: "",
       personaId: bot.personaId ?? "",
       enabled: bot.enabled,
+      agentEnabled: bot.agentEnabled,
     });
     setModalOpen(true);
   };
@@ -75,6 +76,7 @@ export function BotsPage() {
         appId: form.appId,
         personaId: form.personaId || null,
         enabled: form.enabled,
+        agentEnabled: form.agentEnabled,
       };
       if (form.clientSecret) payload.clientSecret = form.clientSecret;
       if (editing) {
@@ -135,6 +137,7 @@ export function BotsPage() {
                 <th className="px-4 py-3">绑定角色</th>
                 <th className="px-4 py-3">状态</th>
                 <th className="px-4 py-3">启用</th>
+                <th className="px-4 py-3">服务器 Agent</th>
                 <th className="px-4 py-3">Token 过期</th>
                 <th className="px-4 py-3 text-right">操作</th>
               </tr>
@@ -153,6 +156,13 @@ export function BotsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <Switch checked={bot.enabled} onCheckedChange={() => api.toggleBot(bot.id).then(load)} />
+                    </td>
+                    <td className="px-4 py-3">
+                      {bot.agentEnabled ? (
+                        <Badge variant="destructive">已启用</Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">关闭</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{formatDateTime(bot.tokenExpiresAt)}</td>
                     <td className="px-4 py-3">
@@ -179,7 +189,7 @@ export function BotsPage() {
               })}
               {bots.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
                     还没有 Bot，点击「新建 Bot」开始接入。
                   </td>
                 </tr>
@@ -236,6 +246,16 @@ export function BotsPage() {
           <div className="flex items-center gap-2">
             <Switch checked={form.enabled} onCheckedChange={(v) => setForm({ ...form, enabled: v })} />
             <span className="text-sm">启用该 Bot</span>
+          </div>
+          <div className="space-y-2 rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-900/60 dark:bg-red-950/30">
+            <div className="flex items-center gap-2">
+              <Switch checked={form.agentEnabled} onCheckedChange={(v) => setForm({ ...form, agentEnabled: v })} />
+              <span className="text-sm font-medium">启用服务器本地 Agent（可运行 shell 命令）</span>
+            </div>
+            <p className="text-xs text-red-600 dark:text-red-400">
+              开启后，该 Bot 可调用服务器本机 shell：用户在聊天里以「/sh 命令」触发，或由模型自主决定执行。
+              请仅在可信对话场景下使用，任何能向该 Bot 发消息的人都可能触发命令执行。
+            </p>
           </div>
         </div>
       </Modal>

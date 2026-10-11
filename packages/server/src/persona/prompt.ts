@@ -19,6 +19,7 @@ export interface PromptContext {
   timezone?: string;
   contextSummary?: string;
   conversationState?: ConversationState;
+  agentEnabled?: boolean;
 }
 
 /**
@@ -93,6 +94,15 @@ export function buildDynamicSuffix(persona: Persona, ctx: PromptContext = {}): s
     if (habits.interests?.length) lines.push(`兴趣爱好：${habits.interests.join("、")}`);
     if (habits.expressions?.length) lines.push(`常用表达：${habits.expressions.join("、")}`);
     if (habits.emotionTriggers?.length) lines.push(`情绪触发点：${habits.emotionTriggers.join("、")}`);
+  }
+
+  if (ctx.agentEnabled) {
+    lines.push("", "# 服务器 Agent 能力");
+    lines.push(
+      "你运行在用户本人的服务器上，具备在本机执行 shell 命令的能力（工具名 run_shell）。" +
+        "当用户希望你完成需要命令行才能做到的事情（查询系统/文件、运行脚本、计算、处理文件等）时，" +
+        "可以调用该工具，并在拿到结果后用你的口吻向用户汇报。命令执行有超时与输出截断限制。",
+    );
   }
 
   // 当前状态放最后，利用近因效应强化对“未完成任务/情绪”的遵守

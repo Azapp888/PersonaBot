@@ -318,6 +318,47 @@ export function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>文件与服务器 Agent</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <ToggleRow
+            label="处理用户发来的文件"
+            hint="用户上传文本类文件（txt/md/json/csv/日志/代码等）时自动解析为本轮对话上下文"
+            checked={settings.fileHandlingEnabled}
+            onChange={(v) => set({ fileHandlingEnabled: v })}
+          />
+          <Field label="单文件大小上限（字节）" hint="超过则跳过，默认 2000000">
+            <Input
+              type="number"
+              value={settings.fileMaxBytes}
+              onChange={(e) => set({ fileMaxBytes: Number(e.target.value) })}
+            />
+          </Field>
+          <Field label="Shell 触发前缀" hint="用户在聊天中以此前缀开头的消息会被直接当作 shell 命令执行，默认 /sh">
+            <Input
+              value={settings.agentShellPrefix}
+              onChange={(e) => set({ agentShellPrefix: e.target.value })}
+            />
+          </Field>
+          <Field label="Shell 超时（毫秒）" hint="超时后命令会被强制终止，默认 15000">
+            <Input
+              type="number"
+              value={settings.agentShellTimeoutMs}
+              onChange={(e) => set({ agentShellTimeoutMs: Number(e.target.value) })}
+            />
+          </Field>
+          <Field label="Shell 输出字符上限" hint="超出部分会被截断，默认 3500">
+            <Input
+              type="number"
+              value={settings.agentShellMaxOutputChars}
+              onChange={(e) => set({ agentShellMaxOutputChars: Number(e.target.value) })}
+            />
+          </Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>主动消息</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">

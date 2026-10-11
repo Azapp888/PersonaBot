@@ -1,9 +1,23 @@
-import type { ChatMessage, LLMChatOptions, LLMChatResult } from "../types";
+import type {
+  ChatMessage,
+  LLMChatOptions,
+  LLMChatResult,
+  LLMToolResult,
+  ToolDefinition,
+} from "../types";
 
 export interface LLMProvider {
   readonly name: string;
   readonly model: string;
+  /** 是否支持工具调用（function calling） */
+  readonly supportsTools?: boolean;
   chat(messages: ChatMessage[], options?: LLMChatOptions): Promise<LLMChatResult>;
+  /** 支持工具调用的 Provider 可选实现 */
+  chatWithTools?(
+    messages: ChatMessage[],
+    tools: ToolDefinition[],
+    options?: LLMChatOptions,
+  ): Promise<LLMToolResult>;
 }
 
 export class LLMError extends Error {

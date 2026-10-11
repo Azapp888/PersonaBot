@@ -169,6 +169,12 @@ CREATE TABLE IF NOT EXISTS conversation_context (
 );
 `,
   },
+  {
+    id: "004_bot_agent",
+    sql: `
+ALTER TABLE bots ADD COLUMN agent_enabled INTEGER NOT NULL DEFAULT 0;
+`,
+  },
 ];
 
 export function runMigrations(database?: Database.Database): void {

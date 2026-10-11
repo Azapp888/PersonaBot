@@ -13,12 +13,15 @@ import { notifyUserReplied } from "../proactive/service";
 import { QQApiClient } from "../qq/client";
 import { settingsService } from "../settings/service";
 import { logger } from "../logger";
-import type { Bot, ChatMessage, LLMUsage, Persona, QQMessageEvent } from "../types";
+import type { Bot, ChatMessage, LLMUsage, Persona, QQAttachment, QQMessageEvent } from "../types";
 import { formatDate, sleep } from "../utils/id";
 import { splitReply } from "../utils/text";
 import { systemClock } from "../utils/clock";
 import { buildConversationContext } from "../context/manager";
 import { buildGuardrail, violatesGuardrail, sanitizeReply } from "../context/state";
+import { buildFileContext, renderFileContext } from "../attachments/service";
+import { detectShellCommand, formatShellReply, runAgentLoop } from "../agent";
+import { runShellCommand } from "../agent/shell";
 
 const PAINT_KEYWORDS = ["画一张", "画个", "画幅", "画画", "画一下", "帮我画", "给我画", "作画", "绘一张", "来张图"];
 
@@ -46,7 +49,20 @@ function wantsPainting(text: string): boolean {
  * 生成一次角色回复：组装 prompt、调用 LLM、追加会话、记录统计。
  * 同时用于 QQ 消息、主动消息与本地模拟。
  */
-export async function generateReply(persona: Persona, userId: string, userText: string, botId?: string): Promise<GenerateResult> {
+export interface GenerateOptions {
+  /** 该 Bot 是否启用了服务器本地 Agent（可调用 shell 工具） */
+  agentEnabled?: boolean;
+  /** 本轮用户上传文件解析出的文本，仅注入当前请求，不写入会话历史 */
+  fileContext?: string;
+}
+
+export async function generateReply(
+  persona: Persona,
+  userId: string,
+  userText: string,
+  botId?: string,
+  opts: GenerateOptions = {},
+): Promise<GenerateResult> {
   const now = systemClock.now();
   const settings = settingsService.get();
   const profile = profileRepo.ensure(persona.id, userId);
@@ -69,13 +85,15 @@ export async function generateReply(persona: Persona, userId: string, userText: 
     now,
     contextSummary: context.summary,
     conversationState: context.state,
+    agentEnabled: opts.agentEnabled,
   });
 
   const processed = applyCommands(persona, userText);
+  const userContent = opts.fileContext ? `${opts.fileContext}\n\n${processed}` : processed;
   const messages: ChatMessage[] = [
     { role: "system", content: full },
     ...context.history,
-    { role: "user", content: processed },
+    { role: "user", content: userContent },
   ];
   if (guardrail) messages.push({ role: "system", content: guardrail });
 
@@ -111,9 +129,17 @@ export async function generateReply(persona: Persona, userId: string, userText: 
     modelId = model?.id ?? null;
     const temperature = persona.modelConfig.temperature ?? model?.temperature;
     const maxTokens = persona.modelConfig.maxTokens ?? model?.maxTokens;
-    const result = await provider.chat(messages, { temperature, maxTokens });
-    reply = result.content;
-    usage = result.usage;
+
+    // 启用服务器 Agent 且模型支持工具调用时，走「模型自主决定执行 shell」的循环
+    if (opts.agentEnabled && provider.supportsTools && provider.chatWithTools) {
+      const run = await runAgentLoop(provider, messages, { temperature, maxTokens });
+      reply = run.content.trim() || "（命令已经执行完了，不过我没有需要额外补充的。）";
+      usage = run.usage;
+    } else {
+      const result = await provider.chat(messages, { temperature, maxTokens });
+      reply = result.content;
+      usage = result.usage;
+    }
 
     // 请求后拦截校验：作业未完成却输出催睡词 -> 丢弃并带强制警告重试一次
     if (guardrail && violatesGuardrail(reply, context.state)) {
@@ -178,6 +204,7 @@ interface Batch {
   persona: Persona;
   userId: string;
   contents: string[];
+  attachments: QQAttachment[];
   lastEvent: QQMessageEvent;
   timer: NodeJS.Timeout | null;
   abort: AbortController | null;
@@ -191,7 +218,8 @@ class MessagePipeline {
   private batches = new Map<string, Batch>();
 
   handle(bot: Bot, event: QQMessageEvent): void {
-    if (!event.content) return;
+    const hasAttachments = !!event.attachments?.length;
+    if (!event.content && !hasAttachments) return;
     const persona = bot.personaId ? personaRepo.find(bot.personaId) : null;
     if (!persona || !persona.enabled) {
       logger.debug({ botId: bot.id }, "no enabled persona bound, ignore message");
@@ -201,10 +229,21 @@ class MessagePipeline {
     notifyUserReplied(persona.id, event.authorId);
     let batch = this.batches.get(key);
     if (!batch) {
-      batch = { bot, persona, userId: event.authorId, contents: [], lastEvent: event, timer: null, abort: null, running: false };
+      batch = {
+        bot,
+        persona,
+        userId: event.authorId,
+        contents: [],
+        attachments: [],
+        lastEvent: event,
+        timer: null,
+        abort: null,
+        running: false,
+      };
       this.batches.set(key, batch);
     }
-    batch.contents.push(event.content);
+    if (event.content) batch.contents.push(event.content);
+    if (hasAttachments) batch.attachments.push(...event.attachments!);
     batch.lastEvent = event;
     batch.persona = persona;
 
@@ -225,15 +264,49 @@ class MessagePipeline {
     if (!batch) return;
     batch.timer = null;
     const merged = batch.contents.join("\n");
+    const attachments = batch.attachments;
     batch.contents = [];
-    if (!merged.trim()) return;
+    batch.attachments = [];
+    if (!merged.trim() && attachments.length === 0) return;
+
+    const settings = settingsService.get();
+
+    // 服务器 Agent 前缀命令：无需模型参与，直接执行并回传结果
+    if (batch.bot.agentEnabled) {
+      const command = detectShellCommand(merged, settings.agentShellPrefix);
+      if (command) {
+        batch.running = true;
+        const abort = new AbortController();
+        batch.abort = abort;
+        try {
+          const result = await runShellCommand(command);
+          if (abort.signal.aborted) return;
+          await this.send(batch, formatShellReply(command, result));
+        } catch (err) {
+          logger.error({ key, err: (err as Error).message }, "shell command failed");
+        } finally {
+          this.finishBatch(key, batch, abort);
+        }
+        return;
+      }
+    }
+
+    // 解析用户发来的文本类文件，作为本轮请求的临时上下文
+    let fileContext = "";
+    if (attachments.length) {
+      const parsed = await buildFileContext(attachments);
+      fileContext = renderFileContext(parsed);
+    }
 
     batch.running = true;
     const abort = new AbortController();
     batch.abort = abort;
 
     try {
-      const { reply, painting } = await generateReply(batch.persona, batch.userId, merged, batch.bot.id);
+      const { reply, painting } = await generateReply(batch.persona, batch.userId, merged, batch.bot.id, {
+        agentEnabled: batch.bot.agentEnabled,
+        fileContext,
+      });
       if (abort.signal.aborted) return;
       await this.send(batch, reply, painting);
     } catch (err) {
@@ -241,13 +314,17 @@ class MessagePipeline {
         logger.error({ key, err: (err as Error).message }, "pipeline flush failed");
       }
     } finally {
-      if (batch.abort === abort) {
-        batch.abort = null;
-        batch.running = false;
-      }
-      if (!batch.timer && batch.contents.length === 0) {
-        this.batches.delete(key);
-      }
+      this.finishBatch(key, batch, abort);
+    }
+  }
+
+  private finishBatch(key: string, batch: Batch, abort: AbortController): void {
+    if (batch.abort === abort) {
+      batch.abort = null;
+      batch.running = false;
+    }
+    if (!batch.timer && batch.contents.length === 0 && batch.attachments.length === 0) {
+      this.batches.delete(key);
     }
   }
 

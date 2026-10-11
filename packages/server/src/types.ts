@@ -9,6 +9,7 @@ export interface Bot {
   tokenExpiresAt: number | null;
   personaId: string | null;
   enabled: boolean;
+  agentEnabled: boolean; // 是否启用「服务器本地 Agent（可运行 shell 命令）」
   createdAt: number;
   updatedAt: number;
 }
@@ -90,11 +91,21 @@ export interface Memory {
   createdAt: number;
 }
 
+export interface ToolCall {
+  id: string;
+  name: string;
+  arguments: string; // 原始 JSON 字符串
+}
+
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
   name?: string;
   timestamp?: number;
+  /** assistant 消息携带的工具调用 */
+  toolCalls?: ToolCall[];
+  /** tool 消息对应的调用 id */
+  toolCallId?: string;
 }
 
 export interface Conversation {
@@ -176,6 +187,11 @@ export interface AppSettings {
   contextRecentRounds: number;
   contextSummaryEnabled: boolean;
   guardrailEnabled: boolean;
+  fileHandlingEnabled: boolean;
+  fileMaxBytes: number;
+  agentShellPrefix: string;
+  agentShellTimeoutMs: number;
+  agentShellMaxOutputChars: number;
 }
 
 // LLM 相关
@@ -200,11 +216,29 @@ export interface LLMChatResult {
   raw?: unknown;
 }
 
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  /** JSON Schema 参数定义 */
+  parameters: Record<string, unknown>;
+}
+
+export interface LLMToolResult extends LLMChatResult {
+  toolCalls: ToolCall[];
+}
+
 // QQ 事件
 export interface QQAuthor {
   id: string; // openid / member_openid
   union_openid?: string;
   user_openid?: string;
+}
+
+export interface QQAttachment {
+  url?: string;
+  filename?: string;
+  contentType?: string;
+  size?: number;
 }
 
 export interface QQMessageEvent {
@@ -217,6 +251,7 @@ export interface QQMessageEvent {
   guildId?: string;
   channelId?: string;
   timestamp: number;
+  attachments?: QQAttachment[];
   raw?: unknown;
 }
 
