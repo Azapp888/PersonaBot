@@ -77,14 +77,28 @@
 ### 冒烟
 - 敏感词设置读取正常；记忆文件名非法 400、合法 200。
 
+### 提交 `2694d52` — 服务器命令用户白名单分级
+- 新增 `agentShellAllowedUsers`：为空不限，非空仅名单内 QQ 号可触发命令前缀。
+- `agent/shell` 增加 `parseAllowedUsers` / `isUserAllowedForShell` 与单测；admin 增加输入项。
+
+### 提交 `00d154c` — 管理员密码 scrypt 哈希
+- `utils/password`（scrypt + 常量时间比较），`ADMIN_PASSWORD_HASH` 优先于明文，兼容旧配置。
+- 新增 `scripts/hash-password` 生成器与单测。
+
+### 提交 `4e1712b` — HTTP 层测试
+- `fastify.inject` 覆盖登录、鉴权 401、设置脱敏、安全头、未知 API 404、记忆文件校验。
+
+### 提交 `219ed5d` — SQLite 在线备份
+- `scripts/backup` 使用 `VACUUM INTO` 生成一致性快照并轮转保留，配套单测与 README。
+
+### 当前测试规模
+- `pnpm test`：48 passed / 0 failed（含 HTTP 层与备份）。
+
 ## 五、未完成项 / 后续建议（P2）
 
-1. **管理员密码支持哈希存储**（当前为明文比对 env）；引入 `scrypt`/`argon2` 派生。
-2. **命令权限分级**：为服务器 Agent 前缀命令增加「管理员白名单用户」限制，而非仅靠 per-Bot 开关。
-3. **SQLite 备份与迁移回滚脚本**：迁移已幂等但缺少自动备份。
-4. **依赖安全审计**：接入 `pnpm audit` 到 CI（需网络）。
-5. **结构化记忆检索**：`retrieveRelevantMemories` 目前为 n-gram，可评估轻量向量方案（注意内存预算）。
-6. **HTTP 层测试**：用 `fastify.inject` 补接口级测试（鉴权、限流、设置脱敏、记忆文件校验）。
+1. **依赖安全审计**：接入 `pnpm audit` 到 CI（需网络）。
+2. **结构化记忆检索**：`retrieveRelevantMemories` 目前为 n-gram，可评估轻量向量方案（注意内存预算）。
+3. **命令权限矩阵**：当前为「全开/白名单」，可细化为按命令分级（只读 / 写 / 危险）。
 
 ## 六、风险与说明
 
