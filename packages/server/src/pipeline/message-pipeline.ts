@@ -21,7 +21,7 @@ import { buildConversationContext } from "../context/manager";
 import { buildGuardrail, violatesGuardrail, sanitizeReply } from "../context/state";
 import { buildFileContext, renderFileContext } from "../attachments/service";
 import { detectShellCommand, formatShellReply, runAgentLoop } from "../agent";
-import { runShellCommand } from "../agent/shell";
+import { isUserAllowedForShell, runShellCommand } from "../agent/shell";
 import { filterText } from "../moderation/filter";
 import { clearAbort, abortActive, registerAbort } from "./abort-store";
 
@@ -290,6 +290,11 @@ class MessagePipeline {
     if (batch.bot.agentEnabled) {
       const command = detectShellCommand(merged, settings.agentShellPrefix);
       if (command) {
+        if (!isUserAllowedForShell(settings.agentShellAllowedUsers, batch.userId)) {
+          await this.send(batch, "当前用户没有执行服务器命令的权限。");
+          this.batches.delete(key);
+          return;
+        }
         batch.running = true;
         const abort = new AbortController();
         batch.abort = abort;

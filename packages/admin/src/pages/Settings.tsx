@@ -371,6 +371,16 @@ export function SettingsPage() {
               onChange={(e) => set({ agentShellMaxOutputChars: Number(e.target.value) })}
             />
           </Field>
+          <div className="md:col-span-2">
+            <Label>命令白名单用户</Label>
+            <textarea
+              className="mt-1 min-h-[72px] w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring dark:border-slate-800"
+              placeholder="允许执行服务器命令的 QQ 号，每行一个；留空则不限制"
+              value={settings.agentShellAllowedUsers}
+              onChange={(e) => set({ agentShellAllowedUsers: e.target.value })}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">留空表示所有与 Bot 对话的用户都可触发命令前缀。</p>
+          </div>
         </CardContent>
       </Card>
 

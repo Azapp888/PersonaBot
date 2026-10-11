@@ -160,6 +160,7 @@ export interface AppSettings {
   agentShellPrefix: string;
   agentShellTimeoutMs: number;
   agentShellMaxOutputChars: number;
+  agentShellAllowedUsers: string;
   keywordFilterEnabled: boolean;
   keywordFilterAction: string;
   keywordFilterWords: string;

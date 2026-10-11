@@ -35,6 +35,22 @@ export function blockedCommandReason(command: string): string | null {
   return null;
 }
 
+/** 解析服务器 Agent 命令的用户白名单（逗号/换行/分号分隔）；空表示不限制。 */
+export function parseAllowedUsers(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(/[\n,，;；\s]+/)
+    .map((u) => u.trim())
+    .filter((u) => u.length > 0);
+}
+
+/** 判断指定用户是否被允许执行服务器 Agent 命令；白名单为空表示允许所有人。 */
+export function isUserAllowedForShell(raw: string | undefined, userId: string): boolean {
+  const allowed = parseAllowedUsers(raw);
+  if (!allowed.length) return true;
+  return allowed.includes(userId);
+}
+
 /**
  * 在本机执行一条 shell 命令。
  * 具备超时、输出截断与灾难性命令拦截保护，命令由 Bot 所属的服务器 Agent 开关控制。

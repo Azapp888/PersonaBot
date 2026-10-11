@@ -49,6 +49,7 @@ function defaultSettings(): AppSettings {
     agentShellPrefix: config.defaults.agentShellPrefix,
     agentShellTimeoutMs: config.defaults.agentShellTimeoutMs,
     agentShellMaxOutputChars: config.defaults.agentShellMaxOutputChars,
+    agentShellAllowedUsers: config.defaults.agentShellAllowedUsers,
     keywordFilterEnabled: config.defaults.keywordFilterEnabled,
     keywordFilterAction: config.defaults.keywordFilterAction,
     keywordFilterWords: config.defaults.keywordFilterWords,
