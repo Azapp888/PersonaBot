@@ -103,14 +103,14 @@ export const api = {
     temperature?: number;
     maxTokens?: number;
     enabled?: boolean;
-  }) => request<{ ok: boolean; created: ModelRecord[]; skipped: string[] }>("POST", "/api/models/batch", data),
+  }) => request<{ ok: boolean; created: ModelRecord[]; skipped: string[]; reusedKey?: boolean }>("POST", "/api/models/batch", data),
   updateModel: (id: string, data: any) => request<ModelRecord>("PUT", `/api/models/${id}`, data),
   deleteModel: (id: string) => request<{ ok: boolean }>("DELETE", `/api/models/${id}`),
   testModel: (id: string) => request<{ ok: boolean; reply?: string; message?: string }>("POST", `/api/models/${id}/test`),
   discoverModels: (data: { provider: string; apiKey?: string; apiBase?: string }) =>
-    request<{ ok: boolean; models: DiscoveredModel[] }>("POST", "/api/models/discover", data),
+    request<{ ok: boolean; models: DiscoveredModel[]; reusedKey?: boolean }>("POST", "/api/models/discover", data),
   discoverModelById: (id: string, data: { provider?: string; apiKey?: string; apiBase?: string }) =>
-    request<{ ok: boolean; models: DiscoveredModel[] }>("POST", `/api/models/${id}/discover`, data),
+    request<{ ok: boolean; models: DiscoveredModel[]; reusedKey?: boolean }>("POST", `/api/models/${id}/discover`, data),
 
   // memories
   memories: (personaId: string, userId?: string) =>

@@ -108,7 +108,12 @@ export function ModelsPage() {
       const payload = { provider: form.provider, apiKey: form.apiKey || undefined, apiBase: form.apiBase || undefined };
       const res = editingId ? await api.discoverModelById(editingId, payload) : await api.discoverModels(payload);
       setDiscovered(res.models);
-      push(`检测到 ${res.models.length} 个可用模型`, "success");
+      push(
+        res.reusedKey
+          ? `检测到 ${res.models.length} 个可用模型（已复用该提供商已保存的密钥）`
+          : `检测到 ${res.models.length} 个可用模型`,
+        "success",
+      );
     } catch (err) {
       push((err as Error).message, "error");
     } finally {
@@ -150,7 +155,9 @@ export function ModelsPage() {
         enabled: form.enabled,
       });
       push(
-        `已加入 ${res.created.length} 个模型${res.skipped.length ? `，跳过 ${res.skipped.length} 个已存在` : ""}`,
+        `已加入 ${res.created.length} 个模型${res.skipped.length ? `，跳过 ${res.skipped.length} 个已存在` : ""}${
+          res.reusedKey ? "（密钥复用该提供商已保存的）" : ""
+        }`,
         "success",
       );
       setSelected(new Set());

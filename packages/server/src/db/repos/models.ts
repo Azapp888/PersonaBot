@@ -99,4 +99,22 @@ export const modelRepo = {
   decryptedKey(model: ModelRecord): string {
     return decryptSecret(model.apiKey ?? "");
   },
+  /** 同一提供商下已存储的第一个可用密钥（明文），用于新模型复用。 */
+  findProviderKey(provider: string): string | null {
+    const rows = this.db()
+      .prepare(`SELECT * FROM models WHERE provider = ? AND api_key IS NOT NULL AND api_key != '' ORDER BY created_at DESC`)
+      .all(provider) as any[];
+    for (const row of rows) {
+      const key = decryptSecret(row.api_key ?? "");
+      if (key) return key;
+    }
+    return null;
+  },
+  /** 同一提供商下已存储的 API Base，用于新模型复用。 */
+  findProviderApiBase(provider: string): string | null {
+    const row = this.db()
+      .prepare(`SELECT api_base FROM models WHERE provider = ? AND api_base IS NOT NULL AND api_base != '' ORDER BY created_at DESC`)
+      .get(provider) as any;
+    return row ? (row.api_base as string) : null;
+  },
 };

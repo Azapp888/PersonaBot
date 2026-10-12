@@ -23,19 +23,17 @@ function present(model: ModelRecord) {
 export async function modelRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/models", { preHandler: [app.authenticate] }, async () => modelRepo.list().map(present));
 
-  // 检测上游提供方的可用模型：使用表单中刚输入的 apiKey / apiBase。
+  // 检测上游提供方的可用模型：优先用表单中刚输入的 apiKey / apiBase，未填则复用同提供商已保存的配置。
   app.post("/api/models/discover", { preHandler: [app.authenticate] }, async (request, reply) => {
     const body = request.body as any;
     if (!body?.provider) {
       return reply.code(400).send({ error: "bad_request", message: "provider 必填" });
     }
+    const apiKey = body.apiKey || modelRepo.findProviderKey(body.provider) || "";
+    const apiBase = body.apiBase || modelRepo.findProviderApiBase(body.provider) || null;
     try {
-      const models = await discoverModels({
-        provider: body.provider,
-        apiKey: body.apiKey ?? "",
-        apiBase: body.apiBase ?? null,
-      });
-      return { ok: true, models };
+      const models = await discoverModels({ provider: body.provider, apiKey, apiBase });
+      return { ok: true, models, reusedKey: !!apiKey && !body.apiKey };
     } catch (err) {
       const status = (err as any)?.status && (err as any).status >= 400 ? (err as any).status : 400;
       return reply.code(status).send({ ok: false, error: "discover_failed", message: (err as Error).message });
@@ -78,6 +76,9 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
     }
     const created: ReturnType<typeof present>[] = [];
     const skipped: string[] = [];
+    // 同一提供商的密钥/地址一致：表单未填时复用已有模型上的配置
+    const providerKey = body.apiKey || modelRepo.findProviderKey(body.provider) || null;
+    const providerApiBase = body.apiBase || modelRepo.findProviderApiBase(body.provider) || null;
     for (const item of items) {
       const modelId = typeof item === "string" ? item : item?.modelId;
       if (!modelId) continue;
@@ -93,8 +94,8 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
             name,
             provider: body.provider,
             modelId,
-            apiKey: body.apiKey || null,
-            apiBase: body.apiBase ?? null,
+            apiKey: providerKey,
+            apiBase: providerApiBase,
             temperature: body.temperature,
             maxTokens: body.maxTokens,
             enabled: body.enabled !== false,
@@ -102,7 +103,7 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
         ),
       );
     }
-    return { ok: true, created, skipped };
+    return { ok: true, created, skipped, reusedKey: !!providerKey && !body.apiKey };
   });
 
   app.put("/api/models/:id", { preHandler: [app.authenticate] }, async (request, reply) => {

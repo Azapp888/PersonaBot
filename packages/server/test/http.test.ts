@@ -181,6 +181,29 @@ test("模型批量创建：缺少 models 返回 400", async () => {
   assert.equal(res.statusCode, 400);
 });
 
+test("模型批量创建：同提供商自动复用已保存的密钥", async () => {
+  const first = await app.inject({
+    method: "POST",
+    url: "/api/models",
+    headers: { authorization: `Bearer ${token}` },
+    payload: { name: "带密钥模型", provider: "deepseek", modelId: "deepseek-chat", apiKey: "sk-shared-123" },
+  });
+  assert.equal(first.statusCode, 200);
+  assert.equal(first.json().apiKeySet, true);
+
+  const batch = await app.inject({
+    method: "POST",
+    url: "/api/models/batch",
+    headers: { authorization: `Bearer ${token}` },
+    payload: { provider: "deepseek", models: [{ modelId: "deepseek-reasoner" }] },
+  });
+  assert.equal(batch.statusCode, 200);
+  const body = batch.json();
+  assert.equal(body.created.length, 1);
+  assert.equal(body.reusedKey, true);
+  assert.equal(body.created[0].apiKeySet, true);
+});
+
 test("检查更新：未授权返回 401", async () => {
   const res = await app.inject({ method: "GET", url: "/api/system/update/check" });
   assert.equal(res.statusCode, 401);
