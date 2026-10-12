@@ -181,6 +181,33 @@ test("模型批量创建：缺少 models 返回 400", async () => {
   assert.equal(res.statusCode, 400);
 });
 
+test("模型：支持视觉标记可读写", async () => {
+  const created = await app.inject({
+    method: "POST",
+    url: "/api/models",
+    headers: { authorization: `Bearer ${token}` },
+    payload: { name: "视觉模型", provider: "openai", modelId: "gpt-4o", supportsVision: true },
+  });
+  assert.equal(created.statusCode, 200);
+  assert.equal(created.json().supportsVision, true);
+
+  const listed = await app.inject({
+    method: "GET",
+    url: "/api/models",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const found = listed.json().find((m: any) => m.id === created.json().id);
+  assert.equal(found.supportsVision, true);
+
+  const updated = await app.inject({
+    method: "PUT",
+    url: `/api/models/${created.json().id}`,
+    headers: { authorization: `Bearer ${token}` },
+    payload: { supportsVision: false },
+  });
+  assert.equal(updated.json().supportsVision, false);
+});
+
 test("模型批量创建：同提供商自动复用已保存的密钥", async () => {
   const first = await app.inject({
     method: "POST",

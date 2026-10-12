@@ -14,6 +14,7 @@ function present(model: ModelRecord) {
     temperature: model.temperature,
     maxTokens: model.maxTokens,
     enabled: model.enabled,
+    supportsVision: model.supportsVision,
     apiKeySet: !!model.apiKey,
     createdAt: model.createdAt,
     updatedAt: model.updatedAt,
@@ -99,6 +100,7 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
             temperature: body.temperature,
             maxTokens: body.maxTokens,
             enabled: body.enabled !== false,
+            supportsVision: body.supportsVision === true,
           }),
         ),
       );

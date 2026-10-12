@@ -15,6 +15,7 @@ function map(row: any): ModelRecord {
     temperature: row.temperature,
     maxTokens: row.max_tokens,
     enabled: !!row.enabled,
+    supportsVision: !!row.supports_vision,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -29,6 +30,7 @@ export interface ModelInput {
   temperature?: number;
   maxTokens?: number;
   enabled?: boolean;
+  supportsVision?: boolean;
 }
 
 export const modelRepo = {
@@ -50,8 +52,8 @@ export const modelRepo = {
     const ts = now();
     this.db()
       .prepare(
-        `INSERT INTO models (id, name, provider, api_key, api_base, model_id, temperature, max_tokens, enabled, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO models (id, name, provider, api_key, api_base, model_id, temperature, max_tokens, enabled, supports_vision, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -63,6 +65,7 @@ export const modelRepo = {
         input.temperature ?? 0.8,
         input.maxTokens ?? 2048,
         input.enabled === false ? 0 : 1,
+        input.supportsVision ? 1 : 0,
         ts,
         ts,
       );
@@ -77,7 +80,7 @@ export const modelRepo = {
         : current.apiKey;
     this.db()
       .prepare(
-        `UPDATE models SET name = ?, provider = ?, api_key = ?, api_base = ?, model_id = ?, temperature = ?, max_tokens = ?, enabled = ?, updated_at = ? WHERE id = ?`,
+        `UPDATE models SET name = ?, provider = ?, api_key = ?, api_base = ?, model_id = ?, temperature = ?, max_tokens = ?, enabled = ?, supports_vision = ?, updated_at = ? WHERE id = ?`,
       )
       .run(
         input.name ?? current.name,
@@ -88,6 +91,7 @@ export const modelRepo = {
         input.temperature ?? current.temperature,
         input.maxTokens ?? current.maxTokens,
         input.enabled !== undefined ? (input.enabled ? 1 : 0) : current.enabled ? 1 : 0,
+        input.supportsVision !== undefined ? (input.supportsVision ? 1 : 0) : current.supportsVision ? 1 : 0,
         now(),
         id,
       );

@@ -1,5 +1,5 @@
 import { extname } from "node:path";
-import type { QQAttachment } from "../types";
+import type { ImageContentPart, QQAttachment } from "../types";
 import { logger } from "../logger";
 import { settingsService } from "../settings/service";
 import { fetchWithTimeout } from "../utils/http";
@@ -61,6 +61,58 @@ function looksBinary(buf: Buffer): boolean {
   let nulls = 0;
   for (const b of sample) if (b === 0) nulls++;
   return nulls > sample.length * 0.1;
+}
+
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp"]);
+
+function isImageLike(att: QQAttachment, name: string): boolean {
+  const mime = (att.contentType ?? "").toLowerCase();
+  if (mime.startsWith("image/")) return true;
+  const ext = extname(name).replace(/^\./, "").toLowerCase();
+  return IMAGE_EXTENSIONS.has(ext);
+}
+
+/** 下载图片并转为 data:URL（base64），供多模态模型读取。 */
+export async function downloadImageAsDataUrl(
+  url: string,
+  maxBytes: number,
+): Promise<{ dataUrl: string; mediaType: string }> {
+  const res = await fetchWithTimeout(url, { timeoutMs: 15000 });
+  if (!res.ok) throw new Error(`下载失败 ${res.status}`);
+  const lenHeader = Number(res.headers.get("content-length") ?? "0");
+  if (lenHeader && lenHeader > maxBytes) throw new Error(`图片过大（${Math.round(lenHeader / 1024)}KB）`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.length > maxBytes) throw new Error(`图片过大（${Math.round(buf.length / 1024)}KB）`);
+  const headerType = (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+  const mediaType = headerType.startsWith("image/") ? headerType : "image/jpeg";
+  return { dataUrl: `data:${mediaType};base64,${buf.toString("base64")}`, mediaType };
+}
+
+/**
+ * 下载用户发来的图片（仅 contentType 为 image/* 或图片扩展名的附件），
+ * 转为可注入多模态消息的 data:URL。非图片会被忽略。
+ */
+export async function buildImageParts(
+  attachments: QQAttachment[] | undefined,
+  maxPerImageBytes: number,
+): Promise<{ parts: ImageContentPart[]; skipped: { name: string; reason: string }[] }> {
+  const parts: ImageContentPart[] = [];
+  const skipped: { name: string; reason: string }[] = [];
+  if (!attachments?.length) return { parts, skipped };
+  for (let i = 0; i < attachments.length; i++) {
+    const att = attachments[i];
+    const name = fileNameOf(att, i);
+    if (!att.url || !isImageLike(att, name)) continue;
+    try {
+      const { dataUrl } = await downloadImageAsDataUrl(att.url, maxPerImageBytes);
+      parts.push({ type: "image_url", image_url: { url: dataUrl } });
+    } catch (err) {
+      const reason = (err as Error).message || "处理失败";
+      logger.warn({ name, reason }, "image attachment parse failed");
+      skipped.push({ name, reason });
+    }
+  }
+  return { parts, skipped };
 }
 
 async function download(url: string, maxBytes: number): Promise<Buffer> {

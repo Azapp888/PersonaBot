@@ -1,6 +1,7 @@
 import { conversationRepo } from "../db/repos/conversations";
 import { contextRepo } from "../db/repos/context";
 import { resolveProviderForPersona } from "../llm/factory";
+import { contentToText } from "../llm/provider";
 import { settingsService } from "../settings/service";
 import { logger } from "../logger";
 import type { ChatMessage, Persona } from "../types";
@@ -31,7 +32,7 @@ const SUMMARY_SYSTEM = `你是一个对话上下文压缩器。请把「已有�
 
 function transcript(messages: ChatMessage[]): string {
   return messages
-    .map((m) => `${m.role === "user" ? "用户" : m.role === "assistant" ? "角色" : m.role}: ${m.content}`)
+    .map((m) => `${m.role === "user" ? "用户" : m.role === "assistant" ? "角色" : m.role}: ${contentToText(m.content)}`)
     .join("\n");
 }
 

@@ -97,6 +97,7 @@ export interface ModelRecord {
   temperature: number;
   maxTokens: number;
   enabled: boolean;
+  supportsVision: boolean;
   apiKeySet: boolean;
   createdAt: number;
   updatedAt: number;

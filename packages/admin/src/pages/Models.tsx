@@ -33,7 +33,7 @@ const providerLabels: Record<string, string> = {
   mock: "Mock（本地联调）",
 };
 
-const empty = { name: "", provider: "deepseek", apiKey: "", apiBase: "", modelId: "deepseek-chat", temperature: 0.8, maxTokens: 2048, enabled: true };
+const empty = { name: "", provider: "deepseek", apiKey: "", apiBase: "", modelId: "deepseek-chat", temperature: 0.8, maxTokens: 2048, enabled: true, supportsVision: false };
 
 export function ModelsPage() {
   const { push } = useToast();
@@ -153,6 +153,7 @@ export function ModelsPage() {
         temperature: form.temperature,
         maxTokens: form.maxTokens,
         enabled: form.enabled,
+        supportsVision: form.supportsVision,
       });
       push(
         `已加入 ${res.created.length} 个模型${res.skipped.length ? `，跳过 ${res.skipped.length} 个已存在` : ""}${
@@ -220,6 +221,7 @@ export function ModelsPage() {
                 <th className="px-4 py-3">名称</th>
                 <th className="px-4 py-3">模型 ID</th>
                 <th className="px-4 py-3">API Key</th>
+                <th className="px-4 py-3">读图</th>
                 <th className="px-4 py-3">温度</th>
                 <th className="px-4 py-3">启用</th>
                 <th className="px-4 py-3 text-right">操作</th>
@@ -243,14 +245,14 @@ export function ModelsPage() {
               ))}
               {models.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
                     还没有模型。可以先用 provider 为 mock 的模型进行本地联调。
                   </td>
                 </tr>
               )}
               {models.length > 0 && grouped.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
                     没有匹配的模型。
                   </td>
                 </tr>
@@ -399,6 +401,13 @@ export function ModelsPage() {
             <Switch checked={form.enabled} onCheckedChange={(v) => setForm({ ...form, enabled: v })} />
             <span className="text-sm">启用该模型</span>
           </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={form.supportsVision} onCheckedChange={(v) => setForm({ ...form, supportsVision: v })} />
+            <span className="text-sm">
+              支持读图（多模态）
+              <span className="ml-1 text-xs text-muted-foreground">开启后才会把用户图片发给该模型</span>
+            </span>
+          </div>
         </div>
       </Modal>
     </div>
@@ -427,7 +436,7 @@ function FragmentGroup({
   return (
     <>
       <tr className="border-b border-border bg-muted/40 dark:border-slate-800">
-        <td colSpan={6} className="px-4 py-2">
+        <td colSpan={7} className="px-4 py-2">
           <button type="button" onClick={onToggle} className="flex items-center gap-2 text-left text-sm font-semibold">
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             <Badge variant="secondary">{providerLabels[provider] ?? provider}</Badge>
@@ -441,6 +450,9 @@ function FragmentGroup({
             <td className="px-4 py-3 font-medium">{m.name}</td>
             <td className="px-4 py-3 font-mono text-xs">{m.modelId}</td>
             <td className="px-4 py-3">{m.apiKeySet ? <Badge variant="success">已配置</Badge> : <Badge variant="warning">未配置</Badge>}</td>
+            <td className="px-4 py-3">
+              {m.supportsVision ? <Badge variant="success">支持</Badge> : <Badge variant="secondary">不支持</Badge>}
+            </td>
             <td className="px-4 py-3">{m.temperature}</td>
             <td className="px-4 py-3">
               <Switch checked={m.enabled} onCheckedChange={(v) => onToggleEnabled(m, v)} />

@@ -1,5 +1,6 @@
 import type { ChatMessage, LLMChatOptions, LLMChatResult } from "../types";
 import type { LLMProvider } from "./provider";
+import { contentToText } from "./provider";
 import { sleep } from "../utils/id";
 
 /**
@@ -15,8 +16,8 @@ export class MockProvider implements LLMProvider {
     if (options.signal?.aborted) {
       throw new Error("aborted");
     }
-    const system = messages.find((m) => m.role === "system")?.content ?? "";
-    const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+    const system = contentToText(messages.find((m) => m.role === "system")?.content ?? "");
+    const lastUser = contentToText([...messages].reverse().find((m) => m.role === "user")?.content ?? "");
     const nameMatch = system.match(/你是([^\n，。,]{1,12})/);
     const personaName = nameMatch ? nameMatch[1] : "角色";
 

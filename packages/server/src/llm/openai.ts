@@ -27,7 +27,7 @@ function toApiMessages(messages: ChatMessage[]): unknown[] {
         type: "function",
         function: { name: t.name, arguments: t.arguments },
       }));
-      if (!m.content) base.content = null;
+      if (!m.content || (Array.isArray(m.content) && m.content.length === 0)) base.content = null;
     }
     if (m.role === "tool") {
       if (m.toolCallId) base.tool_call_id = m.toolCallId;

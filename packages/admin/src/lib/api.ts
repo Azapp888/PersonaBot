@@ -103,6 +103,7 @@ export const api = {
     temperature?: number;
     maxTokens?: number;
     enabled?: boolean;
+    supportsVision?: boolean;
   }) => request<{ ok: boolean; created: ModelRecord[]; skipped: string[]; reusedKey?: boolean }>("POST", "/api/models/batch", data),
   updateModel: (id: string, data: any) => request<ModelRecord>("PUT", `/api/models/${id}`, data),
   deleteModel: (id: string) => request<{ ok: boolean }>("DELETE", `/api/models/${id}`),

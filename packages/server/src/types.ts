@@ -75,6 +75,8 @@ export interface ModelRecord {
   temperature: number;
   maxTokens: number;
   enabled: boolean;
+  /** 该模型是否支持读取图片（多模态视觉）。 */
+  supportsVision: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -99,7 +101,11 @@ export interface ToolCall {
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
-  content: string;
+  /**
+   * 文本内容，或包含文本与图片的多模态内容数组。
+   * 历史/存储中始终使用字符串；图片仅在当前请求内以数组形式注入。
+   */
+  content: string | ContentPart[];
   name?: string;
   timestamp?: number;
   /** assistant 消息携带的工具调用 */
@@ -107,6 +113,19 @@ export interface ChatMessage {
   /** tool 消息对应的调用 id */
   toolCallId?: string;
 }
+
+export interface TextContentPart {
+  type: "text";
+  text: string;
+}
+
+export interface ImageContentPart {
+  type: "image_url";
+  /** http(s) 远程图片地址，或 data:image/...;base64,... 数据地址 */
+  image_url: { url: string };
+}
+
+export type ContentPart = TextContentPart | ImageContentPart;
 
 export interface Conversation {
   id: string;
@@ -254,6 +273,14 @@ export interface QQAttachment {
   size?: number;
 }
 
+/** 用户消息中的表情包 / emoji 标记（不单独回复，仅作为低权重上下文）。 */
+export interface QQFace {
+  /** 表情标识，例如 QQ 表情编号或 emoji 名称 */
+  id: string;
+  /** 表情文本占位（如 "[表情]"） */
+  text: string;
+}
+
 export interface QQMessageEvent {
   id: string;
   type: "c2c" | "group" | "guild" | "direct";
@@ -265,6 +292,10 @@ export interface QQMessageEvent {
   channelId?: string;
   timestamp: number;
   attachments?: QQAttachment[];
+  /** 消息中解析出的表情包标记 */
+  faces?: QQFace[];
+  /** 消息中的图片地址（来自 attachments 中 contentType 为 image/*） */
+  imageUrls?: string[];
   raw?: unknown;
 }
 

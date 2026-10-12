@@ -1,6 +1,6 @@
 import WebSocket from "ws";
 import { logger } from "../logger";
-import type { Bot, QQAttachment, QQMessageEvent } from "../types";
+import type { Bot, QQAttachment, QQFace, QQMessageEvent } from "../types";
 import { QQApiClient } from "./client";
 import { getAccessToken } from "./token";
 import { QQ_OP, type QQGatewayPayload } from "./types";
@@ -222,6 +222,8 @@ export class QQGateway {
     if (!type || !d) return;
     let event: QQMessageEvent | null = null;
     const attachments = parseAttachments(d);
+    const faces = parseFaces(d);
+    const imageUrls = parseImageUrls(attachments);
     switch (type) {
       case "C2C_MESSAGE_CREATE":
         event = {
@@ -232,6 +234,8 @@ export class QQGateway {
           msgId: d.id,
           timestamp: parseTime(d.timestamp),
           attachments,
+          faces,
+          imageUrls,
           raw: d,
         };
         break;
@@ -245,6 +249,8 @@ export class QQGateway {
           groupOpenid: d.group_openid,
           timestamp: parseTime(d.timestamp),
           attachments,
+          faces,
+          imageUrls,
           raw: d,
         };
         break;
@@ -259,6 +265,8 @@ export class QQGateway {
           channelId: d.channel_id,
           timestamp: parseTime(d.timestamp),
           attachments,
+          faces,
+          imageUrls,
           raw: d,
         };
         break;
@@ -273,6 +281,8 @@ export class QQGateway {
           channelId: d.channel_id,
           timestamp: parseTime(d.timestamp),
           attachments,
+          faces,
+          imageUrls,
           raw: d,
         };
         break;
@@ -310,4 +320,45 @@ function parseTime(ts?: string | number): number {
   if (!ts) return Date.now();
   const n = typeof ts === "string" ? Date.parse(ts) : ts;
   return Number.isFinite(n) ? n : Date.now();
+}
+
+/**
+ * 解析消息中的表情包 / emoji 标记。
+ * QQ 的 content 中表情常以 `<emoji:编号>` 形式出现，也可能通过 d.emoji / msg_elements 提供。
+ */
+function parseFaces(d: any): QQFace[] | undefined {
+  const faces: QQFace[] = [];
+  const content: string = typeof d?.content === "string" ? d.content : "";
+  const emojiRe = /<emoji:(\d+)>/g;
+  let m: RegExpExecArray | null;
+  while ((m = emojiRe.exec(content)) !== null) {
+    faces.push({ id: m[1], text: "[表情]" });
+  }
+  // QQ v2 msg_elements 中的表情元素
+  const elements = d?.message_elements ?? d?.msg_elements;
+  if (Array.isArray(elements)) {
+    for (const el of elements) {
+      if (!el || typeof el !== "object") continue;
+      if (el.type === "emoji" || el.emoji || el.face) {
+        const id = String(el.emoji?.id ?? el.face?.id ?? el.id ?? "");
+        faces.push({ id, text: "[表情]" });
+      }
+    }
+  }
+  return faces.length ? faces : undefined;
+}
+
+/** 从附件中提取图片地址（contentType 为 image/*，或图片扩展名）。 */
+function parseImageUrls(attachments: QQAttachment[] | undefined): string[] | undefined {
+  if (!attachments?.length) return undefined;
+  const urls: string[] = [];
+  for (const a of attachments) {
+    if (!a.url) continue;
+    const mime = (a.contentType ?? "").toLowerCase();
+    const ext = (a.filename ?? a.url).split("?")[0].split(".").pop()?.toLowerCase() ?? "";
+    if (mime.startsWith("image/") || ["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) {
+      urls.push(a.url);
+    }
+  }
+  return urls.length ? urls : undefined;
 }

@@ -13,13 +13,13 @@ import { notifyUserReplied } from "../proactive/service";
 import { QQApiClient } from "../qq/client";
 import { settingsService } from "../settings/service";
 import { logger } from "../logger";
-import type { Bot, ChatMessage, LLMUsage, Persona, QQAttachment, QQMessageEvent } from "../types";
+import type { Bot, ChatMessage, ContentPart, ImageContentPart, LLMUsage, Persona, QQAttachment, QQMessageEvent } from "../types";
 import { formatDate, sleep } from "../utils/id";
 import { splitReply } from "../utils/text";
 import { systemClock } from "../utils/clock";
 import { buildConversationContext } from "../context/manager";
 import { buildGuardrail, violatesGuardrail, sanitizeReply } from "../context/state";
-import { buildFileContext, renderFileContext } from "../attachments/service";
+import { buildFileContext, renderFileContext, buildImageParts } from "../attachments/service";
 import { detectShellCommand, formatShellReply, runAgentLoop } from "../agent";
 import { isUserAllowedForShell, runShellCommand } from "../agent/shell";
 import { filterText } from "../moderation/filter";
@@ -56,8 +56,33 @@ export interface GenerateOptions {
   agentEnabled?: boolean;
   /** 本轮用户上传文件解析出的文本，仅注入当前请求，不写入会话历史 */
   fileContext?: string;
+  /** 本轮用户发来的图片（多模态），仅注入当前请求，不写入会话历史 */
+  imageParts?: ImageContentPart[];
+  /** 用户本轮是否发了表情包（低权重上下文标注） */
+  hasFaces?: boolean;
   /** 用于中止在途 LLM / 工具调用（消息打断） */
   signal?: AbortSignal;
+}
+
+function buildUserContent(
+  fileContext: string | undefined,
+  processed: string,
+  imageParts: ImageContentPart[] | undefined,
+  hasFaces: boolean | undefined,
+): ChatMessage["content"] {
+  const textBlocks: string[] = [];
+  if (fileContext) textBlocks.push(fileContext);
+  let main = processed;
+  if (hasFaces) main = main ? `${main}\n（用户还发了一个表情包，权重很低，通常无需专门回应）` : "（用户发了一个表情包，权重很低，通常无需专门回应）";
+  if (main) textBlocks.push(main);
+  const text = textBlocks.join("\n\n");
+  if (imageParts?.length) {
+    const parts: ContentPart[] = [];
+    if (text) parts.push({ type: "text", text });
+    parts.push(...imageParts);
+    return parts;
+  }
+  return text;
 }
 
 export async function generateReply(
@@ -91,7 +116,7 @@ export async function generateReply(
   });
 
   const processed = applyCommands(persona, userText);
-  const userContent = opts.fileContext ? `${opts.fileContext}\n\n${processed}` : processed;
+  const userContent = buildUserContent(opts.fileContext, processed, opts.imageParts, opts.hasFaces);
   const messages: ChatMessage[] = [
     { role: "system", content: full },
     ...context.history,
@@ -208,6 +233,8 @@ interface Batch {
   userId: string;
   contents: string[];
   attachments: QQAttachment[];
+  faceCount: number;
+  imageUrls: string[];
   lastEvent: QQMessageEvent;
   timer: NodeJS.Timeout | null;
   abort: AbortController | null;
@@ -222,7 +249,9 @@ class MessagePipeline {
 
   handle(bot: Bot, event: QQMessageEvent): void {
     const hasAttachments = !!event.attachments?.length;
-    if (!event.content && !hasAttachments) return;
+    const hasFaces = !!event.faces?.length;
+    const hasImages = !!event.imageUrls?.length;
+    if (!event.content && !hasAttachments && !hasFaces && !hasImages) return;
     const persona = bot.personaId ? personaRepo.find(bot.personaId) : null;
     if (!persona || !persona.enabled) {
       logger.debug({ botId: bot.id }, "no enabled persona bound, ignore message");
@@ -238,6 +267,8 @@ class MessagePipeline {
         userId: event.authorId,
         contents: [],
         attachments: [],
+        faceCount: 0,
+        imageUrls: [],
         lastEvent: event,
         timer: null,
         abort: null,
@@ -247,6 +278,8 @@ class MessagePipeline {
     }
     if (event.content) batch.contents.push(event.content);
     if (hasAttachments) batch.attachments.push(...event.attachments!);
+    if (hasFaces) batch.faceCount += event.faces!.length;
+    if (hasImages) batch.imageUrls.push(...event.imageUrls!);
     batch.lastEvent = event;
     batch.persona = persona;
 
@@ -270,9 +303,21 @@ class MessagePipeline {
     batch.timer = null;
     let merged = batch.contents.join("\n");
     const attachments = batch.attachments;
+    const faceCount = batch.faceCount;
+    const imageUrls = batch.imageUrls;
     batch.contents = [];
     batch.attachments = [];
-    if (!merged.trim() && attachments.length === 0) return;
+    batch.faceCount = 0;
+    batch.imageUrls = [];
+    const hasRealContent = merged.trim().length > 0 || attachments.length > 0 || imageUrls.length > 0;
+    // 只有表情包、没有文字/图片/文件时不触发回复
+    if (!hasRealContent) {
+      if (faceCount > 0) {
+        logger.debug({ key }, "emoji-only message ignored");
+      }
+      this.batches.delete(key);
+      return;
+    }
 
     const settings = settingsService.get();
 
@@ -318,6 +363,29 @@ class MessagePipeline {
       fileContext = renderFileContext(parsed);
     }
 
+    // 图片处理：先判断当前模型是否支持视觉
+    let imageParts: ImageContentPart[] = [];
+    if (imageUrls.length) {
+      const { model } = resolveProviderForPersona(batch.persona);
+      if (!model?.supportsVision) {
+        logger.info({ key, modelId: model?.id }, "image received but model lacks vision support");
+        await this.send(batch, "【当前模型不支持读图，请切换模型再试】");
+        this.batches.delete(key);
+        return;
+      }
+      const imageAtts: QQAttachment[] = imageUrls.map((url) => ({ url }));
+      const { parts, skipped } = await buildImageParts(imageAtts, settings.fileMaxBytes * 4);
+      imageParts = parts;
+      if (!imageParts.length) {
+        logger.warn({ key, skipped }, "all images failed to download");
+        if (!merged.trim() && !fileContext) {
+          await this.send(batch, "【图片下载失败了，稍后再试试～】");
+          this.batches.delete(key);
+          return;
+        }
+      }
+    }
+
     batch.running = true;
     const abort = new AbortController();
     batch.abort = abort;
@@ -327,6 +395,8 @@ class MessagePipeline {
       const { reply, painting } = await generateReply(batch.persona, batch.userId, merged, batch.bot.id, {
         agentEnabled: batch.bot.agentEnabled,
         fileContext,
+        imageParts,
+        hasFaces: faceCount > 0,
         signal: abort.signal,
       });
       if (abort.signal.aborted) return;
@@ -346,7 +416,7 @@ class MessagePipeline {
       batch.abort = null;
       batch.running = false;
     }
-    if (!batch.timer && batch.contents.length === 0 && batch.attachments.length === 0) {
+    if (!batch.timer && batch.contents.length === 0 && batch.attachments.length === 0 && batch.imageUrls.length === 0 && batch.faceCount === 0) {
       this.batches.delete(key);
     }
   }

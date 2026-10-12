@@ -198,6 +198,12 @@ ALTER TABLE memory_files ADD COLUMN append_enabled INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE memory_files ADD COLUMN base_content TEXT NOT NULL DEFAULT '';
 `,
   },
+  {
+    id: "007_model_supports_vision",
+    sql: `
+ALTER TABLE models ADD COLUMN supports_vision INTEGER NOT NULL DEFAULT 0;
+`,
+  },
 ];
 
 export function runMigrations(database?: Database.Database): void {
