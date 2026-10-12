@@ -33,7 +33,12 @@ export function MemoriesPage() {
   const [userId, setUserId] = useState("");
   const [memories, setMemories] = useState<Memory[]>([]);
   const [files, setFiles] = useState<string[]>([]);
-  const [fileContent, setFileContent] = useState<{ name: string; content: string; userEdited: boolean } | null>(null);
+  const [fileContent, setFileContent] = useState<{
+    name: string;
+    content: string;
+    userEdited: boolean;
+    appendEnabled: boolean;
+  } | null>(null);
   const [fileDraft, setFileDraft] = useState("");
   const [editing, setEditing] = useState<Record<string, string>>({});
   const [importUserId, setImportUserId] = useState("");
@@ -101,9 +106,20 @@ export function MemoriesPage() {
     if (!confirm(`确认放弃对 ${fileContent.name} 的手动修改，恢复为自动生成内容？`)) return;
     try {
       const res = await api.resetMemoryFile(personaId, userId, fileContent.name);
-      setFileContent({ name: res.name, content: res.content, userEdited: false });
+      setFileContent({ name: res.name, content: res.content, userEdited: false, appendEnabled: false });
       setFileDraft(res.content);
       push("已恢复为自动生成", "success");
+    } catch (err) {
+      push((err as Error).message, "error");
+    }
+  };
+
+  const toggleAppend = async () => {
+    if (!fileContent) return;
+    try {
+      const res = await api.setMemoryFileAppend(personaId, userId, fileContent.name, !fileContent.appendEnabled);
+      setFileContent({ ...fileContent, appendEnabled: res.appendEnabled });
+      push(res.appendEnabled ? "已允许 AI 追加该文件" : "已关闭 AI 追加", "success");
     } catch (err) {
       push((err as Error).message, "error");
     }
@@ -316,6 +332,20 @@ export function MemoriesPage() {
                   value={fileDraft}
                   onChange={(e) => setFileDraft(e.target.value)}
                 />
+                {fileContent.userEdited && (
+                  <label className="mt-2 flex cursor-pointer items-center justify-between rounded-md border border-border px-3 py-2 text-sm dark:border-slate-800">
+                    <span>
+                      允许 AI 追加
+                      <span className="ml-1 text-xs text-muted-foreground">（保留原文，只累积新内容）</span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-primary"
+                      checked={fileContent.appendEnabled}
+                      onChange={toggleAppend}
+                    />
+                  </label>
+                )}
                 <div className="mt-2 flex justify-end gap-2">
                   <Button size="sm" variant="outline" onClick={resetFile}>
                     <RefreshCw className="h-3.5 w-3.5" /> 恢复自动生成
@@ -325,7 +355,7 @@ export function MemoriesPage() {
                   </Button>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  这三个文件会作为记忆直接注入模型；手动保存后不会被自动总结覆盖。
+                  这三个文件会作为记忆直接注入模型；手动保存后不会被自动总结覆盖。开启「允许 AI 追加」后，每日记忆会累积到文件末尾的追加区，原文保持不变。
                 </p>
               </div>
             )}

@@ -104,6 +104,8 @@ export const config = {
     keywordFilterEnabled: false,
     keywordFilterAction: "block" as string, // block | replace
     keywordFilterWords: "",
+    // 记忆文件 AI 追加：用户手改后仍允许 AI 在追加区累积（默认关闭）
+    memoryFileAppendEnabled: false,
   },
 };
 

@@ -53,6 +53,7 @@ function defaultSettings(): AppSettings {
     keywordFilterEnabled: config.defaults.keywordFilterEnabled,
     keywordFilterAction: config.defaults.keywordFilterAction,
     keywordFilterWords: config.defaults.keywordFilterWords,
+    memoryFileAppendEnabled: config.defaults.memoryFileAppendEnabled,
   };
 }
 

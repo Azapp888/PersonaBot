@@ -14,6 +14,12 @@ import { truncate } from "../utils/json";
 /** 三个可由用户在网页端直接编辑的记忆文件。 */
 export const MEMORY_FILE_NAMES = ["MEMORY.md", "USER.md", "persona-state.md"] as const;
 
+/**
+ * AI 追加区标记：用户原文与其后的 AI 累积内容以此为界。
+ * 追加时只在该标记之后写入，用户原文（标记之前）永不被修改。
+ */
+export const APPEND_MARKER = "<!-- AI:APPEND -->";
+
 function memoryDir(personaId: string, userId: string): string {
   const dir = resolve(config.dataDir, "memory", personaId, userId);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -178,4 +184,123 @@ export function resetMemoryFile(persona: Persona, userId: string, name: string):
   memoryFileRepo.save(persona.id, userId, safe, "", false);
   syncMemoryFiles(persona, userId);
   return readMemoryFile(persona.id, userId, safe) ?? "";
+}
+
+/** 拆分文件为「用户原文」与「AI 追加区」两部分（标记之前为用户原文）。 */
+export function splitAppendRegion(content: string): { base: string; appended: string } {
+  const idx = content.indexOf(APPEND_MARKER);
+  if (idx === -1) return { base: content, appended: "" };
+  return {
+    base: content.slice(0, idx),
+    appended: content.slice(idx + APPEND_MARKER.length),
+  };
+}
+
+/** 把追加区文本按行规范化，去掉空行与重复行（保持首次出现顺序）。 */
+export function normalizeAppendLines(text: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of text.split("\n")) {
+    const line = raw.trimEnd();
+    const key = line.trim();
+    if (!key) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(line);
+  }
+  return out;
+}
+
+/**
+ * 将 newContent 追加到记忆文件的 AI 追加区，不改动用户原文。
+ * - 已在追加区或用户原文中出现过的行会被去重跳过；
+ * - 若文件尚无追加区，则在用户原文之后补一个分隔标记；
+ * - 返回本次新增的行数。
+ */
+export function appendToMemoryFile(
+  persona: Persona,
+  userId: string,
+  name: string,
+  newContent: string,
+): number {
+  const safe = name.replace(/[^a-zA-Z0-9_.-]/g, "");
+  if (!safe) return 0;
+
+  const current = readMemoryFile(persona.id, userId, safe) ?? "";
+  const { base, appended } = splitAppendRegion(current);
+
+  const existingKeys = new Set(
+    normalizeAppendLines(appended).map((l) => l.trim()),
+  );
+  for (const line of base.split("\n")) {
+    const key = line.trim();
+    if (key) existingKeys.add(key);
+  }
+
+  const fresh = normalizeAppendLines(newContent).filter((l) => !existingKeys.has(l.trim()));
+  if (!fresh.length) return 0;
+
+  const appendedLines = [...normalizeAppendLines(appended), ...fresh];
+  const nextAppended = "\n" + appendedLines.join("\n") + "\n";
+  const basePart = base.trimEnd();
+  const next = `${basePart}\n\n${APPEND_MARKER}${nextAppended}`;
+
+  const dir = memoryDir(persona.id, userId);
+  writeFileSync(resolve(dir, safe), next, "utf8");
+  memoryFileRepo.saveAppended(persona.id, userId, safe, next, basePart);
+  return fresh.length;
+}
+
+/** 是否允许对该文件执行 AI 追加（需全局开关 + 文件级开关，且文件已被用户编辑过）。 */
+export function canAppendMemoryFile(
+  persona: Persona,
+  userId: string,
+  name: string,
+  globalEnabled: boolean,
+): boolean {
+  if (!globalEnabled) return false;
+  const safe = name.replace(/[^a-zA-Z0-9_.-]/g, "");
+  const record = memoryFileRepo.find(persona.id, userId, safe);
+  if (!record || !record.userEdited || !record.appendEnabled) return false;
+  return true;
+}
+
+/** 为某个记忆文件设置「是否允许 AI 追加」。 */
+export function setMemoryFileAppendEnabled(
+  personaId: string,
+  userId: string,
+  name: string,
+  enabled: boolean,
+): boolean {
+  const safe = name.replace(/[^a-zA-Z0-9_.-]/g, "");
+  if (!safe) return false;
+  memoryFileRepo.setAppendEnabled(personaId, userId, safe, enabled);
+  return true;
+}
+
+/**
+ * 每日记忆生成后，把当日记忆追加进「允许追加」的记忆文件。
+ * 生成内容按日期分节，追加时依赖 appendToMemoryFile 的行级去重避免重复。
+ * 返回各文件新增行数，便于观测。
+ */
+export function appendDailyMemoryToFiles(
+  persona: Persona,
+  userId: string,
+  sourceDate: string,
+  dailyContent: string,
+): Record<string, number> {
+  const section = [`### ${sourceDate}`, dailyContent.trim()].join("\n");
+  const result: Record<string, number> = {};
+  for (const name of MEMORY_FILE_NAMES) {
+    // 每日记忆默认只进 MEMORY.md；USER.md / persona-state.md 由各自开关控制
+    if (name !== "MEMORY.md") continue;
+    if (!canAppendMemoryFile(persona, userId, name, true)) continue;
+    try {
+      const added = appendToMemoryFile(persona, userId, name, section);
+      if (added > 0) result[name] = added;
+    } catch (err) {
+      logger.warn({ personaId: persona.id, userId, name, err: (err as Error).message }, "append daily memory failed");
+    }
+  }
+  return result;
 }

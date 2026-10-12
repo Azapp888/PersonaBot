@@ -191,6 +191,13 @@ CREATE TABLE IF NOT EXISTS memory_files (
 );
 `,
   },
+  {
+    id: "006_memory_file_append",
+    sql: `
+ALTER TABLE memory_files ADD COLUMN append_enabled INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE memory_files ADD COLUMN base_content TEXT NOT NULL DEFAULT '';
+`,
+  },
 ];
 
 export function runMigrations(database?: Database.Database): void {

@@ -419,6 +419,20 @@ export function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>记忆文件 AI 追加</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3">
+          <ToggleRow
+            label="允许 AI 在用户编辑过的记忆文件上追加内容"
+            hint="开启后，每日记忆生成时会把新累积内容追加到文件末尾的 AI 追加区，用户原文不会被修改。还需在记忆页为具体文件打开追加开关。"
+            checked={settings.memoryFileAppendEnabled}
+            onChange={(v) => set({ memoryFileAppendEnabled: v })}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>主动消息</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">

@@ -8,7 +8,7 @@ import {
   generateMonthlyMemory,
   generateThreeDayMemory,
 } from "../memory/summarizer";
-import { listMemoryFiles, readMemoryFile, resetMemoryFile, syncMemoryFiles, writeMemoryFile } from "../memory/service";
+import { listMemoryFiles, readMemoryFile, resetMemoryFile, setMemoryFileAppendEnabled, syncMemoryFiles, writeMemoryFile } from "../memory/service";
 import { memoryFileRepo } from "../db/repos/memoryFiles";
 import { analyzeImportedText, persistImported } from "../memory/importer";
 import type { MemoryType } from "../types";
@@ -90,7 +90,12 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
     const content = readMemoryFile(personaId, userId, name);
     if (content === null) return reply.code(404).send({ error: "not_found" });
     const override = memoryFileRepo.find(personaId, userId, name);
-    return { name, content, userEdited: override?.userEdited ?? false };
+    return {
+      name,
+      content,
+      userEdited: override?.userEdited ?? false,
+      appendEnabled: override?.appendEnabled ?? false,
+    };
   });
 
   app.put("/api/memories/file", { preHandler: [app.authenticate] }, async (request, reply) => {
@@ -119,5 +124,20 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
     }
     const content = resetMemoryFile(persona, body.userId, body.name);
     return { ok: true, name: body.name, content, userEdited: false };
+  });
+
+  // 设置某个记忆文件是否允许 AI 自动追加（需全局开关同时开启）
+  app.put("/api/memories/file/append", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const body = request.body as { personaId?: string; userId?: string; name?: string; enabled?: boolean } | undefined;
+    if (!body?.personaId || !body?.userId || !body?.name) {
+      return reply.code(400).send({ error: "bad_request", message: "personaId / userId / name 必填" });
+    }
+    if (!/^[a-zA-Z0-9_.-]+$/.test(body.name) || body.name.includes("..")) {
+      return reply.code(400).send({ error: "bad_request", message: "非法的文件名" });
+    }
+    const persona = personaRepo.find(body.personaId);
+    if (!persona) return reply.code(404).send({ error: "not_found", message: "角色不存在" });
+    setMemoryFileAppendEnabled(body.personaId, body.userId, body.name, body.enabled === true);
+    return { ok: true, name: body.name, appendEnabled: body.enabled === true };
   });
 }

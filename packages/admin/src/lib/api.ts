@@ -107,7 +107,7 @@ export const api = {
   memoryFiles: (personaId: string, userId: string) =>
     request<string[]>("GET", `/api/memories/files?personaId=${personaId}&userId=${encodeURIComponent(userId)}`),
   memoryFile: (personaId: string, userId: string, name: string) =>
-    request<{ name: string; content: string; userEdited: boolean }>(
+    request<{ name: string; content: string; userEdited: boolean; appendEnabled: boolean }>(
       "GET",
       `/api/memories/file?personaId=${personaId}&userId=${encodeURIComponent(userId)}&name=${encodeURIComponent(name)}`,
     ),
@@ -123,6 +123,13 @@ export const api = {
       personaId,
       userId,
       name,
+    }),
+  setMemoryFileAppend: (personaId: string, userId: string, name: string, enabled: boolean) =>
+    request<{ ok: boolean; name: string; appendEnabled: boolean }>("PUT", "/api/memories/file/append", {
+      personaId,
+      userId,
+      name,
+      enabled,
     }),
   importMemory: (personaId: string, userId: string, filename: string, content: string) =>
     request<{ ok: boolean; created: number; entries: { sourceDate: string; content: string }[]; message?: string }>(

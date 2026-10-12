@@ -164,6 +164,7 @@ export interface AppSettings {
   keywordFilterEnabled: boolean;
   keywordFilterAction: string;
   keywordFilterWords: string;
+  memoryFileAppendEnabled: boolean;
 }
 
 export interface DashboardData {

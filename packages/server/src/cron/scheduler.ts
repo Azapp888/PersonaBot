@@ -16,6 +16,7 @@ import {
 } from "../memory/summarizer";
 import { runProactiveCycle, runDailyGreetings, sweepProactiveMemory } from "../proactive/service";
 import { botManager } from "../qq/manager";
+import { appendDailyMemoryToFiles } from "../memory/service";
 
 const tasks: ScheduledTask[] = [];
 
@@ -36,8 +37,15 @@ async function forEachUser(personaId: string, fn: (personaId: string, userId: st
 }
 
 async function runDailyMemories(): Promise<void> {
+  const appendEnabled = settingsService.get().memoryFileAppendEnabled;
   for (const persona of personaRepo.listEnabled()) {
-    await forEachUser(persona.id, (pid, uid) => generateDailyMemory(personaRepo.find(pid)!, uid, addDays(new Date(), -1)).then(() => undefined));
+    await forEachUser(persona.id, async (pid, uid) => {
+      const p = personaRepo.find(pid);
+      if (!p) return;
+      const content = await generateDailyMemory(p, uid, addDays(new Date(), -1));
+      // 记忆文件 AI 追加：仅当全局开关打开、且该文件标记为可追加时，把当日新记忆累积进去
+      if (appendEnabled && content) appendDailyMemoryToFiles(p, uid, formatDate(addDays(new Date(), -1)), content);
+    });
   }
   logger.info("daily memory task finished");
 }

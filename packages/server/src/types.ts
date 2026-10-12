@@ -199,6 +199,8 @@ export interface AppSettings {
   keywordFilterEnabled: boolean;
   keywordFilterAction: string;
   keywordFilterWords: string;
+  /** 全局开关：允许 AI 在用户手动编辑过的记忆文件上自动追加内容（不改动原文）。 */
+  memoryFileAppendEnabled: boolean;
 }
 
 // LLM 相关
