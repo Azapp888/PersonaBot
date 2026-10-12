@@ -27,6 +27,14 @@ This file records user instructions, preferences, and teachings for reference in
 
 ## Entries
 
+[User Instruction Summary]
+- Date: 2026-10-12
+- Context: User was rolling back the nightly-maintenance work and set a new baseline
+- Instructions:
+  - 基线提交确定为 `8386a0b`（"feat(memory): 记忆文件支持 AI 追加且不改动用户原文"）。
+  - 以后所有修改都以该提交为起点进行。
+  - 用户将手动执行 `git reset --hard 8386a0b` + `git push --force-with-lease origin main` 废弃其后的提交（含 `2245ea6` OpenClaw 接入）；Agent 不得代跑删除/强推等破坏性操作。
+
 [Project Knowledge Summary]
 - Date: 2026-10-10
 - Context: Discovered by Agent while rebuilding and restarting PersonaBot after feature work

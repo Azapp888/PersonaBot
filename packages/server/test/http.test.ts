@@ -103,3 +103,47 @@ test("记忆文件写入：非法文件名返回 400", async () => {
   });
   assert.equal(res.statusCode, 400);
 });
+
+test("模型检测：mock provider 返回内置模型", async () => {
+  const res = await app.inject({
+    method: "POST",
+    url: "/api/models/discover",
+    headers: { authorization: `Bearer ${token}` },
+    payload: { provider: "mock" },
+  });
+  assert.equal(res.statusCode, 200);
+  const body = res.json();
+  assert.equal(body.ok, true);
+  assert.ok(Array.isArray(body.models));
+  assert.equal(body.models[0].id, "mock-roleplay");
+});
+
+test("模型检测：缺少 provider 返回 400", async () => {
+  const res = await app.inject({
+    method: "POST",
+    url: "/api/models/discover",
+    headers: { authorization: `Bearer ${token}` },
+    payload: {},
+  });
+  assert.equal(res.statusCode, 400);
+});
+
+test("模型检测：openai 缺少 apiKey 返回 400", async () => {
+  const res = await app.inject({
+    method: "POST",
+    url: "/api/models/discover",
+    headers: { authorization: `Bearer ${token}` },
+    payload: { provider: "openai" },
+  });
+  assert.equal(res.statusCode, 400);
+});
+
+test("模型检测：不存在的模型 id 返回 404", async () => {
+  const res = await app.inject({
+    method: "POST",
+    url: "/api/models/mdl_not_exist/discover",
+    headers: { authorization: `Bearer ${token}` },
+    payload: {},
+  });
+  assert.equal(res.statusCode, 404);
+});

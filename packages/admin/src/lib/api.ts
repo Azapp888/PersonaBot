@@ -2,6 +2,7 @@ import type {
   AppSettings,
   Bot,
   DashboardData,
+  DiscoveredModel,
   Memory,
   ModelRecord,
   Persona,
@@ -95,6 +96,10 @@ export const api = {
   updateModel: (id: string, data: any) => request<ModelRecord>("PUT", `/api/models/${id}`, data),
   deleteModel: (id: string) => request<{ ok: boolean }>("DELETE", `/api/models/${id}`),
   testModel: (id: string) => request<{ ok: boolean; reply?: string; message?: string }>("POST", `/api/models/${id}/test`),
+  discoverModels: (data: { provider: string; apiKey?: string; apiBase?: string }) =>
+    request<{ ok: boolean; models: DiscoveredModel[] }>("POST", "/api/models/discover", data),
+  discoverModelById: (id: string, data: { provider?: string; apiKey?: string; apiBase?: string }) =>
+    request<{ ok: boolean; models: DiscoveredModel[] }>("POST", `/api/models/${id}/discover`, data),
 
   // memories
   memories: (personaId: string, userId?: string) =>

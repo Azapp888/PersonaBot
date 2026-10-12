@@ -102,6 +102,12 @@ export interface ModelRecord {
   updatedAt: number;
 }
 
+export interface DiscoveredModel {
+  id: string;
+  created?: number | null;
+  ownedBy?: string | null;
+}
+
 export interface Memory {
   id: string;
   personaId: string;

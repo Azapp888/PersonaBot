@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { modelRepo } from "../db/repos/models";
 import { createProviderFromModel } from "../llm/factory";
+import { discoverModels } from "../llm/discover";
 import type { ModelRecord } from "../types";
 
 function present(model: ModelRecord) {
@@ -21,6 +22,44 @@ function present(model: ModelRecord) {
 
 export async function modelRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/models", { preHandler: [app.authenticate] }, async () => modelRepo.list().map(present));
+
+  // 检测上游提供方的可用模型：使用表单中刚输入的 apiKey / apiBase。
+  app.post("/api/models/discover", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const body = request.body as any;
+    if (!body?.provider) {
+      return reply.code(400).send({ error: "bad_request", message: "provider 必填" });
+    }
+    try {
+      const models = await discoverModels({
+        provider: body.provider,
+        apiKey: body.apiKey ?? "",
+        apiBase: body.apiBase ?? null,
+      });
+      return { ok: true, models };
+    } catch (err) {
+      const status = (err as any)?.status && (err as any).status >= 400 ? (err as any).status : 400;
+      return reply.code(status).send({ ok: false, error: "discover_failed", message: (err as Error).message });
+    }
+  });
+
+  // 编辑场景检测：apiKey 留空时复用该模型已存储的密钥。
+  app.post("/api/models/:id/discover", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const model = modelRepo.find(id);
+    if (!model) return reply.code(404).send({ error: "not_found" });
+    const body = (request.body ?? {}) as any;
+    try {
+      const models = await discoverModels({
+        provider: body.provider ?? model.provider,
+        apiKey: body.apiKey || modelRepo.decryptedKey(model),
+        apiBase: body.apiBase ?? model.apiBase,
+      });
+      return { ok: true, models };
+    } catch (err) {
+      const status = (err as any)?.status && (err as any).status >= 400 ? (err as any).status : 400;
+      return reply.code(status).send({ ok: false, error: "discover_failed", message: (err as Error).message });
+    }
+  });
 
   app.post("/api/models", { preHandler: [app.authenticate] }, async (request, reply) => {
     const body = request.body as any;
