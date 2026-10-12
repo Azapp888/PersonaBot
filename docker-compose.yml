@@ -1,6 +1,9 @@
 services:
   personabot:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
     container_name: personabot
     restart: unless-stopped
     env_file:
@@ -16,3 +19,5 @@ services:
       - PORT=3000
       - DATA_DIR=/app/data
       - LOG_DIR=/app/logs
+      - PERSONABOT_DEPLOY=docker
+      - GIT_COMMIT=${GIT_COMMIT:-unknown}

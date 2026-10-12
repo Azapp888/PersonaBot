@@ -3,6 +3,7 @@ import { Download, Play, RefreshCw, Save, Server } from "lucide-react";
 import { api } from "@/lib/api";
 import type { AppSettings, UpdateInfo, UpdateResult } from "@/lib/types";
 import {
+  Badge,
   Button,
   Card,
   CardContent,
@@ -615,14 +616,16 @@ export function SettingsPage() {
               <RefreshCw className={cn("h-4 w-4", checkingUpdate && "animate-spin")} />
               {checkingUpdate ? "检查中..." : "检查更新"}
             </Button>
-            <Button
-              className="w-full sm:w-auto"
-              onClick={applyUpdateNow}
-              disabled={applyingUpdate || checkingUpdate || !updateInfo?.available}
-            >
-              <Download className="h-4 w-4" />
-              {applyingUpdate ? "更新中..." : "一键更新"}
-            </Button>
+            {updateInfo?.canAutoUpdate !== false && (
+              <Button
+                className="w-full sm:w-auto"
+                onClick={applyUpdateNow}
+                disabled={applyingUpdate || checkingUpdate || !updateInfo?.available || updateInfo.mode !== "git"}
+              >
+                <Download className="h-4 w-4" />
+                {applyingUpdate ? "更新中..." : "一键更新"}
+              </Button>
+            )}
           </div>
 
           {updateInfo && (
@@ -640,6 +643,9 @@ export function SettingsPage() {
                 >
                   {updateInfo.available ? "有新版本" : updateInfo.ok ? "已是最新" : "检查失败"}
                 </span>
+                <Badge variant="secondary">
+                  部署方式：{updateInfo.mode === "git" ? "Git" : updateInfo.mode === "docker" ? "Docker" : "未知"}
+                </Badge>
                 <span className="text-muted-foreground">{updateInfo.message}</span>
               </div>
               <div className="mt-2 grid grid-cols-1 gap-1.5 text-xs text-muted-foreground sm:grid-cols-2">
@@ -657,6 +663,11 @@ export function SettingsPage() {
                   </div>
                 )}
               </div>
+              {updateInfo.guidance && (
+                <pre className="mt-3 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/60 p-2.5 text-xs text-muted-foreground dark:bg-slate-800/60">
+                  {updateInfo.guidance}
+                </pre>
+              )}
             </div>
           )}
 
@@ -682,11 +693,30 @@ export function SettingsPage() {
             </div>
           )}
 
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            从本机 Git 仓库的 origin 拉取指定分支最新代码，随后自动安装依赖并构建。工作区有未提交改动时会中止，避免覆盖你的修改。更新后需重启服务。
-          </p>
+          {updateResult && updateResult.steps.length === 0 && updateResult.guidance && (
+            <div className="rounded-xl border border-border p-3.5 dark:border-slate-800">
+              <p className="text-sm text-muted-foreground">{updateResult.message}</p>
+              <pre className="mt-2 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/50 p-2.5 text-xs text-muted-foreground dark:bg-slate-800/50">
+                {updateResult.guidance}
+              </pre>
+            </div>
+          )}
+
+          {updateInfo?.mode === "docker" ? (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              检测到 Docker 部署：容器内没有 Git 仓库，无法在容器内自动更新。请在宿主机项目目录执行
+              {" "}
+              <code className="rounded bg-muted px-1 py-0.5 dark:bg-slate-800">docker compose build --pull && docker compose up -d</code>
+              {" "}
+              完成更新。版本对比基于构建时注入的提交号（GIT_COMMIT）。
+            </p>
+          ) : (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              从本机 Git 仓库的 origin 拉取指定分支最新代码，随后自动安装依赖并构建。工作区有未提交改动时会中止，避免覆盖你的修改。更新后需重启服务。
+            </p>
+          )}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Field label="仓库地址（仅展示）" hint="实际更新以本机 git remote.origin.url 为准">
+            <Field label="仓库地址" hint="GitHub 仓库；Docker 部署时用于查询远端版本">
               <Input value={settings.updateRepoUrl} onChange={(e) => set({ updateRepoUrl: e.target.value })} />
             </Field>
             <Field label="跟踪分支" hint="默认 main">

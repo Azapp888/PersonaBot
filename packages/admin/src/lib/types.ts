@@ -178,6 +178,7 @@ export interface AppSettings {
 export interface UpdateInfo {
   available: boolean;
   ok: boolean;
+  mode: "git" | "docker" | "unknown";
   repoRoot: string | null;
   repoUrl: string | null;
   branch: string;
@@ -189,6 +190,8 @@ export interface UpdateInfo {
   ahead: number;
   remoteMessage: string | null;
   message: string;
+  guidance: string | null;
+  canAutoUpdate: boolean;
 }
 
 export interface UpdateStep {
@@ -199,11 +202,13 @@ export interface UpdateStep {
 
 export interface UpdateResult {
   ok: boolean;
+  mode: "git" | "docker" | "unknown";
   steps: UpdateStep[];
   message: string;
   previousCommit: string | null;
   newCommit: string | null;
   restartRequired: boolean;
+  guidance: string | null;
 }
 
 export interface DashboardData {

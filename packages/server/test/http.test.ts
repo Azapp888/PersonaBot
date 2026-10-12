@@ -199,6 +199,19 @@ test("检查更新：返回结构化更新信息", async () => {
   assert.equal(typeof body.behind, "number");
   assert.equal(typeof body.ahead, "number");
   assert.equal(typeof body.message, "string");
+  assert.ok(["git", "docker", "unknown"].includes(body.mode));
+  assert.equal(typeof body.canAutoUpdate, "boolean");
+});
+
+test("部署方式检测：测试环境为 git 工作区", async () => {
+  const res = await app.inject({
+    method: "GET",
+    url: "/api/system/update/check",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const body = res.json();
+  assert.equal(body.mode, "git");
+  assert.equal(body.canAutoUpdate, true);
 });
 
 test("一键更新：未授权返回 401", async () => {

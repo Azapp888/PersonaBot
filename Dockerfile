@@ -11,7 +11,11 @@ RUN pnpm build
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 RUN corepack enable
+# 构建时注入当前提交，供「检查更新」在容器内对比版本
+ARG GIT_COMMIT=unknown
+ENV GIT_COMMIT=${GIT_COMMIT}
 ENV NODE_ENV=production
+ENV PERSONABOT_DEPLOY=docker
 COPY --from=build /app/package.json /app/pnpm-workspace.yaml ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/server ./packages/server
