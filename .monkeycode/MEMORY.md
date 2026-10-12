@@ -29,6 +29,14 @@ This file records user instructions, preferences, and teachings for reference in
 
 [User Instruction Summary]
 - Date: 2026-10-12
+- Context: User wants every change pushed without being asked
+- Instructions:
+  - 每次完成改动后，Agent 需自动 commit 并 push 到远程 main（用户明确要求，无需再询问）。
+  - 提交前仍要跑通 typecheck / test / build。
+  - 破坏性操作（reset --hard / force push / 删分支）仍不得代跑。
+
+[User Instruction Summary]
+- Date: 2026-10-12
 - Context: User was rolling back the nightly-maintenance work and set a new baseline
 - Instructions:
   - 基线提交确定为 `8386a0b`（"feat(memory): 记忆文件支持 AI 追加且不改动用户原文"）。

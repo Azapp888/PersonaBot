@@ -10,6 +10,8 @@ import type {
   Skill,
   SystemTime,
   TrendPoint,
+  UpdateInfo,
+  UpdateResult,
 } from "./types";
 
 const TOKEN_KEY = "pb_token";
@@ -93,6 +95,15 @@ export const api = {
   // models
   models: () => request<ModelRecord[]>("GET", "/api/models"),
   createModel: (data: any) => request<ModelRecord>("POST", "/api/models", data),
+  createModelsBatch: (data: {
+    provider: string;
+    models: { modelId: string; name?: string }[];
+    apiKey?: string;
+    apiBase?: string;
+    temperature?: number;
+    maxTokens?: number;
+    enabled?: boolean;
+  }) => request<{ ok: boolean; created: ModelRecord[]; skipped: string[] }>("POST", "/api/models/batch", data),
   updateModel: (id: string, data: any) => request<ModelRecord>("PUT", `/api/models/${id}`, data),
   deleteModel: (id: string) => request<{ ok: boolean }>("DELETE", `/api/models/${id}`),
   testModel: (id: string) => request<{ ok: boolean; reply?: string; message?: string }>("POST", `/api/models/${id}/test`),
@@ -162,4 +173,6 @@ export const api = {
   runDaily: () => request<ProactiveRunResult>("POST", "/api/system/daily/run"),
   refreshTokens: () => request<{ ok: boolean }>("POST", "/api/system/tokens/refresh"),
   reloadBots: () => request<{ ok: boolean }>("POST", "/api/system/bots/reload"),
+  checkUpdate: () => request<UpdateInfo>("GET", "/api/system/update/check"),
+  applyUpdate: () => request<UpdateResult>("POST", "/api/system/update/apply"),
 };

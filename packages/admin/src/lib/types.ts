@@ -171,6 +171,39 @@ export interface AppSettings {
   keywordFilterAction: string;
   keywordFilterWords: string;
   memoryFileAppendEnabled: boolean;
+  updateRepoUrl: string;
+  updateBranch: string;
+}
+
+export interface UpdateInfo {
+  available: boolean;
+  ok: boolean;
+  repoRoot: string | null;
+  repoUrl: string | null;
+  branch: string;
+  currentCommit: string | null;
+  currentCommitDate: string | null;
+  remoteCommit: string | null;
+  remoteCommitDate: string | null;
+  behind: number;
+  ahead: number;
+  remoteMessage: string | null;
+  message: string;
+}
+
+export interface UpdateStep {
+  name: string;
+  ok: boolean;
+  output: string;
+}
+
+export interface UpdateResult {
+  ok: boolean;
+  steps: UpdateStep[];
+  message: string;
+  previousCommit: string | null;
+  newCommit: string | null;
+  restartRequired: boolean;
 }
 
 export interface DashboardData {

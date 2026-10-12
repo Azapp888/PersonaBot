@@ -6,6 +6,7 @@ import { messagePipeline } from "../pipeline/message-pipeline";
 import { logger } from "../logger";
 import { systemClock } from "../utils/clock";
 import { settingsService } from "../settings/service";
+import { checkUpdate, applyUpdate, updateRepoRoot } from "../updater/service";
 
 export async function systemRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/system/time", { preHandler: [app.authenticate] }, async (request) => {
@@ -35,6 +36,23 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
 
   app.get("/api/system/pipeline", { preHandler: [app.authenticate] }, async () => {
     return { activeBatches: messagePipeline.activeCount() };
+  });
+
+  app.get("/api/system/update/check", { preHandler: [app.authenticate] }, async () => {
+    return checkUpdate();
+  });
+
+  app.post("/api/system/update/apply", { preHandler: [app.authenticate] }, async () => {
+    const result = await applyUpdate();
+    return result;
+  });
+
+  app.get("/api/system/update/version", { preHandler: [app.authenticate] }, async () => {
+    return {
+      repoRoot: updateRepoRoot(),
+      nodeVersion: process.version,
+      version: process.env.npm_package_version ?? null,
+    };
   });
 
   app.get("/api/health", async () => {

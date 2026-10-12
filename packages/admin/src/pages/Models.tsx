@@ -48,6 +48,8 @@ export function ModelsPage() {
   const [discovered, setDiscovered] = useState<DiscoveredModel[] | null>(null);
   const [discovering, setDiscovering] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [addingBatch, setAddingBatch] = useState(false);
 
   const load = () => api.models().then(setModels);
   useEffect(() => {
@@ -59,6 +61,7 @@ export function ModelsPage() {
     setForm({ ...empty });
     setDiscovered(null);
     setModelSearch("");
+    setSelected(new Set());
     setOpen(true);
   };
 
@@ -67,6 +70,7 @@ export function ModelsPage() {
     setForm({ ...m, apiKey: "" });
     setDiscovered(null);
     setModelSearch("");
+    setSelected(new Set());
     setOpen(true);
   };
 
@@ -99,6 +103,7 @@ export function ModelsPage() {
 
   const discover = async () => {
     setDiscovering(true);
+    setSelected(new Set());
     try {
       const payload = { provider: form.provider, apiKey: form.apiKey || undefined, apiBase: form.apiBase || undefined };
       const res = editingId ? await api.discoverModelById(editingId, payload) : await api.discoverModels(payload);
@@ -108,6 +113,52 @@ export function ModelsPage() {
       push((err as Error).message, "error");
     } finally {
       setDiscovering(false);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = (ids: string[]) => {
+    setSelected((prev) => {
+      const allSelected = ids.length > 0 && ids.every((id) => prev.has(id));
+      const next = new Set(prev);
+      if (allSelected) ids.forEach((id) => next.delete(id));
+      else ids.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
+  const addSelected = async () => {
+    if (selected.size === 0) return;
+    const items = Array.from(selected).map((modelId) => ({ modelId, name: modelId }));
+    setAddingBatch(true);
+    try {
+      const res = await api.createModelsBatch({
+        provider: form.provider,
+        models: items,
+        apiKey: form.apiKey || undefined,
+        apiBase: form.apiBase || undefined,
+        temperature: form.temperature,
+        maxTokens: form.maxTokens,
+        enabled: form.enabled,
+      });
+      push(
+        `已加入 ${res.created.length} 个模型${res.skipped.length ? `，跳过 ${res.skipped.length} 个已存在` : ""}`,
+        "success",
+      );
+      setSelected(new Set());
+      await load();
+    } catch (err) {
+      push((err as Error).message, "error");
+    } finally {
+      setAddingBatch(false);
     }
   };
 
@@ -271,36 +322,58 @@ export function ModelsPage() {
 
             {discovered && (
               <div className="mt-3 space-y-2">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={modelSearch}
-                    onChange={(e) => setModelSearch(e.target.value)}
-                    placeholder={`在 ${discovered.length} 个模型中搜索`}
-                    className="pl-8"
-                  />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <div className="relative flex-1">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={modelSearch}
+                      onChange={(e) => setModelSearch(e.target.value)}
+                      placeholder={`在 ${discovered.length} 个模型中搜索`}
+                      className="pl-8"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => toggleSelectAll(filteredDiscovered.map((m) => m.id))}
+                      disabled={filteredDiscovered.length === 0}
+                    >
+                      {filteredDiscovered.length > 0 && filteredDiscovered.every((m) => selected.has(m.id)) ? "取消全选" : "全选"}
+                    </Button>
+                    <Button size="sm" onClick={addSelected} disabled={selected.size === 0 || addingBatch}>
+                      {addingBatch ? "加入中..." : `加入所选（${selected.size}）`}
+                    </Button>
+                  </div>
                 </div>
                 <div className="max-h-56 overflow-y-auto rounded-md border border-border dark:border-slate-800">
                   {filteredDiscovered.length === 0 && (
                     <div className="px-3 py-6 text-center text-xs text-muted-foreground">没有匹配的模型</div>
                   )}
-                  {filteredDiscovered.map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => {
-                        setForm((f: any) => ({ ...f, modelId: m.id, name: f.name || m.id }));
-                        push(`已选择 ${m.id}`, "success");
-                      }}
-                      className={`flex w-full items-center justify-between gap-2 border-b border-border px-3 py-2 text-left text-sm transition-colors last:border-0 hover:bg-muted dark:border-slate-800 ${
-                        form.modelId === m.id ? "bg-primary/10" : ""
-                      }`}
-                    >
-                      <span className="truncate font-mono text-xs">{m.id}</span>
-                      {m.ownedBy && <span className="shrink-0 text-xs text-muted-foreground">{m.ownedBy}</span>}
-                    </button>
-                  ))}
+                  {filteredDiscovered.map((m) => {
+                    const checked = selected.has(m.id);
+                    return (
+                      <label
+                        key={m.id}
+                        className={`flex w-full cursor-pointer items-center gap-2.5 border-b border-border px-3 py-2 text-left text-sm transition-colors last:border-0 hover:bg-muted dark:border-slate-800 ${
+                          checked ? "bg-primary/10" : ""
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleSelect(m.id)}
+                          className="h-4 w-4 shrink-0 accent-primary"
+                        />
+                        <span className="truncate font-mono text-xs">{m.id}</span>
+                        {m.ownedBy && <span className="ml-auto shrink-0 text-xs text-muted-foreground">{m.ownedBy}</span>}
+                      </label>
+                    );
+                  })}
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  勾选要加入的模型后点「加入所选」，会按当前 Provider / API Base / API Key 批量创建；已存在的会自动跳过。
+                </p>
               </div>
             )}
           </div>

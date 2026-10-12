@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Play, RefreshCw, Save, Server } from "lucide-react";
+import { Download, Play, RefreshCw, Save, Server } from "lucide-react";
 import { api } from "@/lib/api";
-import type { AppSettings } from "@/lib/types";
+import type { AppSettings, UpdateInfo, UpdateResult } from "@/lib/types";
 import {
   Button,
   Card,
@@ -125,6 +125,10 @@ export function SettingsPage() {
   const [snapshot, setSnapshot] = useState("");
   const [serverOffset, setServerOffset] = useState(0);
   const [tick, setTick] = useState(Date.now());
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [applyingUpdate, setApplyingUpdate] = useState(false);
+  const [updateResult, setUpdateResult] = useState<UpdateResult | null>(null);
 
   const refreshServerTime = async () => {
     const t = await api.systemTime();
@@ -168,6 +172,36 @@ export function SettingsPage() {
       push((err as Error).message, "error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const checkForUpdate = async () => {
+    setCheckingUpdate(true);
+    setUpdateResult(null);
+    try {
+      const info = await api.checkUpdate();
+      setUpdateInfo(info);
+      push(info.message, info.available ? "info" : info.ok ? "success" : "error");
+    } catch (err) {
+      push((err as Error).message, "error");
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
+  const applyUpdateNow = async () => {
+    if (!window.confirm("将从 GitHub 拉取最新代码并重新安装依赖、构建。期间服务可能短暂不可用，确认继续？")) return;
+    setApplyingUpdate(true);
+    setUpdateResult(null);
+    try {
+      const res = await api.applyUpdate();
+      setUpdateResult(res);
+      push(res.message, res.ok ? "success" : "error");
+      await checkForUpdate();
+    } catch (err) {
+      push((err as Error).message, "error");
+    } finally {
+      setApplyingUpdate(false);
     }
   };
 
@@ -567,6 +601,97 @@ export function SettingsPage() {
             <Button variant="outline" className="w-full sm:w-auto" onClick={() => api.reloadBots().then(() => push("已重载 Bot 网关"))}>
               <Server className="h-4 w-4" /> 重载 Bot 网关
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>检查更新</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={checkForUpdate} disabled={checkingUpdate || applyingUpdate}>
+              <RefreshCw className={cn("h-4 w-4", checkingUpdate && "animate-spin")} />
+              {checkingUpdate ? "检查中..." : "检查更新"}
+            </Button>
+            <Button
+              className="w-full sm:w-auto"
+              onClick={applyUpdateNow}
+              disabled={applyingUpdate || checkingUpdate || !updateInfo?.available}
+            >
+              <Download className="h-4 w-4" />
+              {applyingUpdate ? "更新中..." : "一键更新"}
+            </Button>
+          </div>
+
+          {updateInfo && (
+            <div className="rounded-xl border border-border bg-muted/40 p-3.5 text-sm dark:border-slate-800 dark:bg-slate-900/40">
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={cn(
+                    "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                    updateInfo.available
+                      ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-200"
+                      : updateInfo.ok
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
+                        : "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-200",
+                  )}
+                >
+                  {updateInfo.available ? "有新版本" : updateInfo.ok ? "已是最新" : "检查失败"}
+                </span>
+                <span className="text-muted-foreground">{updateInfo.message}</span>
+              </div>
+              <div className="mt-2 grid grid-cols-1 gap-1.5 text-xs text-muted-foreground sm:grid-cols-2">
+                <div className="truncate">仓库：{updateInfo.repoUrl || settings.updateRepoUrl || "-"}</div>
+                <div>分支：{updateInfo.branch}</div>
+                <div className="truncate" title={updateInfo.currentCommit ?? ""}>
+                  当前：{updateInfo.currentCommit?.slice(0, 8) || "-"}
+                </div>
+                <div className="truncate" title={updateInfo.remoteCommit ?? ""}>
+                  远端：{updateInfo.remoteCommit?.slice(0, 8) || "-"}
+                </div>
+                {updateInfo.remoteMessage && (
+                  <div className="truncate sm:col-span-2" title={updateInfo.remoteMessage}>
+                    最新提交：{updateInfo.remoteMessage}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {updateResult && updateResult.steps.length > 0 && (
+            <div className="space-y-2 rounded-xl border border-border p-3.5 dark:border-slate-800">
+              {updateResult.steps.map((s, i) => (
+                <div key={i} className="text-sm">
+                  <div className={cn("font-medium", s.ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
+                    {s.ok ? "✓" : "✗"} {s.name}
+                  </div>
+                  {s.output && (
+                    <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/50 p-2 text-xs text-muted-foreground dark:bg-slate-800/50">
+                      {s.output.slice(0, 4000)}
+                    </pre>
+                  )}
+                </div>
+              ))}
+              {updateResult.restartRequired && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  更新完成，请重启服务（如 systemd / pm2 restart 或重新执行启动命令）后生效。
+                </p>
+              )}
+            </div>
+          )}
+
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            从本机 Git 仓库的 origin 拉取指定分支最新代码，随后自动安装依赖并构建。工作区有未提交改动时会中止，避免覆盖你的修改。更新后需重启服务。
+          </p>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Field label="仓库地址（仅展示）" hint="实际更新以本机 git remote.origin.url 为准">
+              <Input value={settings.updateRepoUrl} onChange={(e) => set({ updateRepoUrl: e.target.value })} />
+            </Field>
+            <Field label="跟踪分支" hint="默认 main">
+              <Input value={settings.updateBranch} onChange={(e) => set({ updateBranch: e.target.value })} />
+            </Field>
           </div>
         </CardContent>
       </Card>

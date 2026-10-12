@@ -201,6 +201,10 @@ export interface AppSettings {
   keywordFilterWords: string;
   /** 全局开关：允许 AI 在用户手动编辑过的记忆文件上自动追加内容（不改动原文）。 */
   memoryFileAppendEnabled: boolean;
+  /** 一键更新：用于展示的仓库地址（实际以本地 git remote 为准）。 */
+  updateRepoUrl: string;
+  /** 一键更新：跟踪的分支，默认 main。 */
+  updateBranch: string;
 }
 
 // LLM 相关

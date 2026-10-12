@@ -147,3 +147,73 @@ test("模型检测：不存在的模型 id 返回 404", async () => {
   });
   assert.equal(res.statusCode, 404);
 });
+
+test("模型批量创建：一次加入多个并跳过重复", async () => {
+  const res = await app.inject({
+    method: "POST",
+    url: "/api/models/batch",
+    headers: { authorization: `Bearer ${token}` },
+    payload: { provider: "mock", models: [{ modelId: "mock-a" }, { modelId: "mock-b" }] },
+  });
+  assert.equal(res.statusCode, 200);
+  const body = res.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.created.length, 2);
+
+  const again = await app.inject({
+    method: "POST",
+    url: "/api/models/batch",
+    headers: { authorization: `Bearer ${token}` },
+    payload: { provider: "mock", models: [{ modelId: "mock-a" }] },
+  });
+  assert.equal(again.statusCode, 200);
+  assert.equal(again.json().created.length, 0);
+  assert.deepEqual(again.json().skipped, ["mock-a"]);
+});
+
+test("模型批量创建：缺少 models 返回 400", async () => {
+  const res = await app.inject({
+    method: "POST",
+    url: "/api/models/batch",
+    headers: { authorization: `Bearer ${token}` },
+    payload: { provider: "mock", models: [] },
+  });
+  assert.equal(res.statusCode, 400);
+});
+
+test("检查更新：未授权返回 401", async () => {
+  const res = await app.inject({ method: "GET", url: "/api/system/update/check" });
+  assert.equal(res.statusCode, 401);
+});
+
+test("检查更新：返回结构化更新信息", async () => {
+  const res = await app.inject({
+    method: "GET",
+    url: "/api/system/update/check",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(res.statusCode, 200);
+  const body = res.json();
+  assert.equal(typeof body.available, "boolean");
+  assert.equal(typeof body.ok, "boolean");
+  assert.equal(typeof body.behind, "number");
+  assert.equal(typeof body.ahead, "number");
+  assert.equal(typeof body.message, "string");
+});
+
+test("一键更新：未授权返回 401", async () => {
+  const res = await app.inject({ method: "POST", url: "/api/system/update/apply" });
+  assert.equal(res.statusCode, 401);
+});
+
+test("更新版本信息：返回仓库根目录", async () => {
+  const res = await app.inject({
+    method: "GET",
+    url: "/api/system/update/version",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(res.statusCode, 200);
+  const body = res.json();
+  assert.equal(typeof body.repoRoot, "string");
+  assert.ok(body.repoRoot.length > 0);
+});

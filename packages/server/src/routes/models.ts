@@ -69,6 +69,42 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
     return present(modelRepo.create(body));
   });
 
+  // 批量创建：把检测到的多个模型一次性加入列表。
+  app.post("/api/models/batch", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const body = request.body as any;
+    const items: any[] = Array.isArray(body?.models) ? body.models : [];
+    if (!body?.provider || items.length === 0) {
+      return reply.code(400).send({ error: "bad_request", message: "provider 与 models 必填" });
+    }
+    const created: ReturnType<typeof present>[] = [];
+    const skipped: string[] = [];
+    for (const item of items) {
+      const modelId = typeof item === "string" ? item : item?.modelId;
+      if (!modelId) continue;
+      const name = (typeof item === "object" && item?.name) || modelId;
+      const existing = modelRepo.list().find((m) => m.provider === body.provider && m.modelId === modelId);
+      if (existing) {
+        skipped.push(modelId);
+        continue;
+      }
+      created.push(
+        present(
+          modelRepo.create({
+            name,
+            provider: body.provider,
+            modelId,
+            apiKey: body.apiKey || null,
+            apiBase: body.apiBase ?? null,
+            temperature: body.temperature,
+            maxTokens: body.maxTokens,
+            enabled: body.enabled !== false,
+          }),
+        ),
+      );
+    }
+    return { ok: true, created, skipped };
+  });
+
   app.put("/api/models/:id", { preHandler: [app.authenticate] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = request.body as any;

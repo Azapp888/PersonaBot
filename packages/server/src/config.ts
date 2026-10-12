@@ -106,6 +106,9 @@ export const config = {
     keywordFilterWords: "",
     // 记忆文件 AI 追加：用户手改后仍允许 AI 在追加区累积（默认关闭）
     memoryFileAppendEnabled: false,
+    // 一键更新：展示用仓库地址与跟踪分支（实际更新以本地 git remote.origin 为准）
+    updateRepoUrl: str("UPDATE_REPO_URL", "https://github.com/Azapp888/PersonaBot"),
+    updateBranch: str("UPDATE_BRANCH", "main"),
   },
 };
 
