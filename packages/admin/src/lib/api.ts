@@ -112,6 +112,26 @@ export const api = {
     request<{ ok: boolean; models: DiscoveredModel[]; reusedKey?: boolean }>("POST", "/api/models/discover", data),
   discoverModelById: (id: string, data: { provider?: string; apiKey?: string; apiBase?: string }) =>
     request<{ ok: boolean; models: DiscoveredModel[]; reusedKey?: boolean }>("POST", `/api/models/${id}/discover`, data),
+  scanVision: (data?: { onlyEnabled?: boolean; probe?: boolean; persist?: boolean }) =>
+    request<{
+      ok: boolean;
+      total: number;
+      probed: number;
+      updated: number;
+      unknown: number;
+      items: {
+        id: string;
+        name: string;
+        provider: string;
+        modelId: string;
+        previous: boolean;
+        detected: boolean | null;
+        changed: boolean;
+        source: string;
+        reason?: string;
+        error?: string;
+      }[];
+    }>("POST", "/api/models/vision-scan", data ?? {}),
 
   // memories
   memories: (personaId: string, userId?: string) =>

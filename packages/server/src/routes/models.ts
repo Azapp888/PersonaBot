@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { modelRepo } from "../db/repos/models";
 import { createProviderFromModel } from "../llm/factory";
 import { discoverModels } from "../llm/discover";
+import { scanModelsVision } from "../llm/vision-scan";
 import type { ModelRecord } from "../types";
 
 function present(model: ModelRecord) {
@@ -23,6 +24,21 @@ function present(model: ModelRecord) {
 
 export async function modelRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/models", { preHandler: [app.authenticate] }, async () => modelRepo.list().map(present));
+
+  // 手动触发读图能力扫描：检测所有（或指定）模型的视觉支持并写回。
+  app.post("/api/models/vision-scan", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const body = (request.body ?? {}) as any;
+    try {
+      const summary = await scanModelsVision({
+        onlyEnabled: body.onlyEnabled !== false,
+        probe: body.probe !== false,
+        persist: body.persist !== false,
+      });
+      return { ok: true, ...summary };
+    } catch (err) {
+      return reply.code(500).send({ ok: false, error: "vision_scan_failed", message: (err as Error).message });
+    }
+  });
 
   // 检测上游提供方的可用模型：优先用表单中刚输入的 apiKey / apiBase，未填则复用同提供商已保存的配置。
   app.post("/api/models/discover", { preHandler: [app.authenticate] }, async (request, reply) => {

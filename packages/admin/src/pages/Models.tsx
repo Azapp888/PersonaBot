@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, FlaskConical, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, FlaskConical, Pencil, Plus, RefreshCw, ScanEye, Search, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { DiscoveredModel, ModelRecord } from "@/lib/types";
 import {
@@ -47,6 +47,7 @@ export function ModelsPage() {
 
   const [discovered, setDiscovered] = useState<DiscoveredModel[] | null>(null);
   const [discovering, setDiscovering] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [addingBatch, setAddingBatch] = useState(false);
@@ -121,8 +122,26 @@ export function ModelsPage() {
     }
   };
 
-  const toggleSelect = (id: string) => {
-    setSelected((prev) => {
+  const scanVision = async () => {
+    setScanning(true);
+    try {
+      const res = await api.scanVision();
+      await load();
+      const parts = [`共 ${res.total} 个`, `实测 ${res.probed} 个`, `更新 ${res.updated} 个`];
+      if (res.unknown) parts.push(`${res.unknown} 个未能判定`);
+      push(`读图能力检测完成：${parts.join("，")}`, "success");
+      const visionOn = res.items.filter((i) => i.detected === true).map((i) => i.modelId);
+      const tricky = res.items.filter((i) => i.detected === null || i.error);
+      if (visionOn.length) push(`支持读图：${visionOn.join("、")}`);
+      if (tricky.length) push(`需人工确认：${tricky.map((i) => i.modelId).join("、")}`);
+    } catch (err) {
+      push((err as Error).message, "error");
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const toggleSelect = (id: string) => {    setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -209,9 +228,14 @@ export function ModelsPage() {
                 className="w-full pl-8 sm:w-56"
               />
             </div>
-            <Button size="sm" onClick={openCreate}>
-              <Plus className="h-4 w-4" /> 新建模型
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={scanVision} disabled={scanning}>
+                <ScanEye className="h-4 w-4" /> {scanning ? "扫描中..." : "检测读图能力"}
+              </Button>
+              <Button size="sm" onClick={openCreate}>
+                <Plus className="h-4 w-4" /> 新建模型
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto p-0">

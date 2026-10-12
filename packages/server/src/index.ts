@@ -6,6 +6,7 @@ import { buildApp } from "./app";
 import { botManager } from "./qq/manager";
 import { messagePipeline } from "./pipeline/message-pipeline";
 import { startScheduler, stopScheduler } from "./cron/scheduler";
+import { scanModelsVision } from "./llm/vision-scan";
 import { logger } from "./logger";
 
 async function main(): Promise<void> {
@@ -32,6 +33,12 @@ async function main(): Promise<void> {
 
   await botManager.startAll();
   startScheduler();
+
+  // 上线/部署后自动检测所有模型的读图能力，结果写回 models.supports_vision。
+  // 后台异步执行，不阻塞启动；命名可判定的模型不消耗网络请求，无法判定的才实测。
+  void scanModelsVision().catch((err) =>
+    logger.warn({ err: (err as Error).message }, "startup vision scan failed"),
+  );
 
   const shutdown = async (signal: string) => {
     logger.info({ signal }, "shutting down");
