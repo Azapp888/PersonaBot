@@ -140,6 +140,8 @@ export const api = {
   triggerMemory: (personaId: string, userId: string, type: string) =>
     request<{ ok: boolean; content?: string; message?: string }>("POST", "/api/memories/trigger", { personaId, userId, type }),
   updateMemory: (id: string, content: string) => request<{ ok: boolean }>("PUT", `/api/memories/${id}`, { content }),
+  updateMemoryMeta: (id: string, patch: { content?: string; importance?: number; pinned?: boolean; kind?: string }) =>
+    request<{ ok: boolean }>("PUT", `/api/memories/${id}`, patch),
   deleteMemory: (id: string) => request<{ ok: boolean }>("DELETE", `/api/memories/${id}`),
   memoryFiles: (personaId: string, userId: string) =>
     request<string[]>("GET", `/api/memories/files?personaId=${personaId}&userId=${encodeURIComponent(userId)}`),

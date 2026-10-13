@@ -81,7 +81,10 @@ export interface ModelRecord {
   updatedAt: number;
 }
 
-export type MemoryType = "daily" | "three_day" | "biweekly" | "monthly" | "imported";
+export type MemoryType = "daily" | "three_day" | "biweekly" | "monthly" | "imported" | "fact";
+
+/** 记忆条目的语义类别，用于区分「必须长期记住」与「可遗忘」。 */
+export type MemoryKind = "agreement" | "preference" | "fact" | "event" | "trivial";
 
 export interface Memory {
   id: string;
@@ -90,6 +93,13 @@ export interface Memory {
   type: MemoryType;
   content: string;
   sourceDate: string;
+  /** 重要性 1-10，写入时由 LLM 打分。 */
+  importance: number;
+  /** 是否受保护（永不剪枝 / 常驻注入）。约定、承诺、重要偏好默认受保护。 */
+  pinned: boolean;
+  kind: MemoryKind;
+  /** 已被哪条上层记忆浓缩吸收（用于剪枝追踪），未浓缩时为 null。 */
+  consolidatedInto: string | null;
   createdAt: number;
 }
 
@@ -220,6 +230,12 @@ export interface AppSettings {
   keywordFilterWords: string;
   /** 全局开关：允许 AI 在用户手动编辑过的记忆文件上自动追加内容（不改动原文）。 */
   memoryFileAppendEnabled: boolean;
+  /** 日记忆保留天数：三日记忆生成后，更早的日记忆会被剪枝（原子事实不受影响）。 */
+  memoryDailyRetainDays: number;
+  /** 进入核心记忆（受保护区）的最低重要性，默认 8。 */
+  memoryCoreImportance: number;
+  /** 核心记忆注入条数上限。 */
+  memoryCoreMaxFacts: number;
   /** 一键更新：用于展示的仓库地址（实际以本地 git remote 为准）。 */
   updateRepoUrl: string;
   /** 一键更新：跟踪的分支，默认 main。 */

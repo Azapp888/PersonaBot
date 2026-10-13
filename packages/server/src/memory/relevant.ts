@@ -29,8 +29,21 @@ export interface RelevanceHit {
   score: number;
 }
 
+/** 三维打分权重：相关性 / 重要性 / 新鲜度（参考 Generative Agents）。 */
+const WEIGHT_RELEVANCE = 0.5;
+const WEIGHT_IMPORTANCE = 0.3;
+const WEIGHT_RECENCY = 0.2;
+/** 新鲜度衰减半衰期（天）。 */
+const RECENCY_HALF_LIFE_DAYS = 30;
+
+function normalize(values: number[]): number[] {
+  const max = Math.max(...values, 0);
+  return values.map((v) => (max > 0 ? v / max : 0));
+}
+
 /**
- * 检索与 query 相关的记忆片段（按关键词命中数排序），只返回 Top-K。
+ * 检索与 query 相关的记忆片段，按「相关性 + 重要性 + 新鲜度」三维加权排序，只返回 Top-K。
+ * 相关性用轻量关键词命中近似（避免引入 embedding）；候选需至少命中一个关键词。
  * excludeIds 用于排除已经在分层注入中出现的记忆，避免重复占 Token。
  */
 export function retrieveRelevantMemories(
@@ -44,15 +57,28 @@ export function retrieveRelevantMemories(
   if (!keywords.length) return [];
   const excluded = new Set(excludeIds);
   const rows = memoryRepo.listByUser(personaId, userId).filter((m) => !excluded.has(m.id));
-  const scored: RelevanceHit[] = [];
+  const now = Date.now();
+
+  const candidates: { row: (typeof rows)[number]; relevance: number; importance: number; recency: number }[] = [];
   for (const m of rows) {
     const haystack = m.content.toLowerCase();
-    let score = 0;
+    let relevance = 0;
     for (const k of keywords) {
-      if (haystack.includes(k)) score += k.length >= 2 ? 1 : 0;
+      if (k.length >= 2 && haystack.includes(k)) relevance += 1;
     }
-    if (score > 0) scored.push({ sourceDate: m.sourceDate, content: m.content, score });
+    if (relevance <= 0) continue;
+    const ageDays = Math.max(0, (now - m.createdAt) / 86_400_000);
+    const recency = Math.pow(0.5, ageDays / RECENCY_HALF_LIFE_DAYS);
+    const importance = Math.max(1, Math.min(10, m.importance)) / 10;
+    candidates.push({ row: m, relevance, importance, recency });
   }
+
+  const relNorm = normalize(candidates.map((c) => c.relevance));
+  const scored: RelevanceHit[] = candidates.map((c, i) => ({
+    sourceDate: c.row.sourceDate,
+    content: c.row.content,
+    score: WEIGHT_RELEVANCE * relNorm[i] + WEIGHT_IMPORTANCE * c.importance + WEIGHT_RECENCY * c.recency,
+  }));
   scored.sort((a, b) => b.score - a.score);
   return scored.slice(0, topK);
 }

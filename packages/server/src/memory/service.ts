@@ -4,7 +4,8 @@ import { config } from "../config";
 import { memoryRepo } from "../db/repos/memories";
 import { profileRepo } from "../db/repos/profiles";
 import { memoryFileRepo } from "../db/repos/memoryFiles";
-import type { Memory, Persona } from "../types";
+import { settingsService } from "../settings/service";
+import type { Memory, MemoryKind, Persona } from "../types";
 import { addDays, formatDate } from "../utils/id";
 import type { MemoryFiles } from "../persona/prompt";
 import { logger } from "../logger";
@@ -36,10 +37,17 @@ interface FileBundle {
 function generateFileContents(persona: Persona, userId: string): FileBundle {
   const memories = memoryRepo.listByUser(persona.id, userId);
   const profile = profileRepo.find(persona.id, userId);
+  const settings = settingsService.get();
   const byType = (t: string) => memories.filter((m) => m.type === t);
+  const core = memoryRepo.listCore(persona.id, userId, settings.memoryCoreImportance, settings.memoryCoreMaxFacts);
 
   const memoryMd = [
     `# MEMORY.md · ${persona.name} ← ${userId}`,
+    "",
+    "## 核心记忆（永久保留，受保护，未经允许不得遗忘）",
+    ...(core.length
+      ? core.map((m) => `- [${kindLabel(m.kind)}] ${m.content}`)
+      : ["（暂无）"]),
     "",
     "## 长期记忆（月）",
     ...byType("monthly").map((m) => `- (${m.sourceDate}) ${m.content}`),
@@ -118,7 +126,7 @@ export function loadMemoryFiles(persona: Persona, userId: string): MemoryFiles {
 }
 
 /**
- * 组装记忆注入内容：三个记忆文件 + 与当前话题相关的记忆片段。
+ * 组装记忆注入内容：三个记忆文件 + 核心记忆（受保护原子事实）+ 与当前话题相关的记忆片段。
  * 短期对话由 pipeline 直接附带。
  */
 export function buildMemoryInjection(
@@ -126,8 +134,9 @@ export function buildMemoryInjection(
   userId: string,
   _now = Date.now(),
   query = "",
-): { files: MemoryFiles; relevant?: string } {
+): { files: MemoryFiles; relevant?: string; core?: string } {
   const files = loadMemoryFiles(persona, userId);
+  const core = buildCoreMemory(persona, userId);
   let relevant: string | undefined;
   if (query.trim()) {
     const hits = retrieveRelevantMemories(persona.id, userId, query, 4, []);
@@ -135,7 +144,51 @@ export function buildMemoryInjection(
       relevant = hits.map((h) => `- (${h.sourceDate}) ${truncate(h.content, 240)}`).join("\n");
     }
   }
-  return { files, relevant };
+  return { files, relevant, core };
+}
+
+/** 记忆类别 → 中文标签（用于核心记忆展示）。 */
+export function kindLabel(kind: MemoryKind): string {
+  switch (kind) {
+    case "agreement":
+      return "约定";
+    case "preference":
+      return "偏好";
+    case "fact":
+      return "事实";
+    case "trivial":
+      return "琐事";
+    default:
+      return "事件";
+  }
+}
+
+/**
+ * 核心记忆（受保护区）：pinned 或高重要性的原子事实。
+ * 独立于记忆文件注入，即使文件被手动编辑冻结也不会丢失。
+ */
+export function buildCoreMemory(persona: Persona, userId: string): string | undefined {
+  const settings = settingsService.get();
+  const facts = memoryRepo.listCore(persona.id, userId, settings.memoryCoreImportance, settings.memoryCoreMaxFacts);
+  if (!facts.length) return undefined;
+  return facts.map((m) => `- [${kindLabel(m.kind)}] ${m.content}`).join("\n");
+}
+
+/**
+ * 剪枝已浓缩进上层记忆的日记忆：只保留最近 memoryDailyRetainDays 天。
+ * 原子事实（type=fact）不受影响，重要内容靠核心记忆长期保留。
+ * 返回被删除的条数。
+ */
+export function pruneDailyMemories(persona: Persona, userId: string): number {
+  const settings = settingsService.get();
+  const retain = Math.max(1, settings.memoryDailyRetainDays);
+  const cutoff = formatDate(addDays(new Date(), -retain));
+  try {
+    return memoryRepo.removeDailyBefore(persona.id, userId, cutoff);
+  } catch (err) {
+    logger.warn({ personaId: persona.id, userId, err: (err as Error).message }, "prune daily memory failed");
+    return 0;
+  }
 }
 
 export function listMemories(personaId: string, userId: string): Memory[] {

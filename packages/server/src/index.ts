@@ -6,6 +6,7 @@ import { buildApp } from "./app";
 import { botManager } from "./qq/manager";
 import { messagePipeline } from "./pipeline/message-pipeline";
 import { startScheduler, stopScheduler } from "./cron/scheduler";
+import { settingsService } from "./settings/service";
 import { scanModelsVision } from "./llm/vision-scan";
 import { logger } from "./logger";
 
@@ -24,6 +25,10 @@ async function main(): Promise<void> {
   const db = getDb();
   runMigrations(db);
   await seed();
+
+  // 统一进程时区为用户配置（默认 Asia/Shanghai），保证日切、cron、日期格式化一致。
+  const timezone = settingsService.get().timezone;
+  if (timezone) process.env.TZ = timezone;
 
   botManager.setHandler((bot, event) => messagePipeline.handle(bot, event));
 

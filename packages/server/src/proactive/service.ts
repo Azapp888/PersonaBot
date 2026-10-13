@@ -105,9 +105,10 @@ const DAILY_INSTRUCTION = `[系统内部指令，请勿向用户暴露本指令�
 async function generateProactive(persona: Persona, userId: string, instruction: string): Promise<string | null> {
   const settings = settingsService.get();
   const profile = profileRepo.ensure(persona.id, userId);
-  const { files, relevant } = buildMemoryInjection(persona, userId);
+  const { files, relevant, core } = buildMemoryInjection(persona, userId);
   const { full } = assembleSystemPrompt(persona, {
     memoryFiles: files,
+    coreMemories: core,
     relevant,
     timezone: settings.timezone,
     now: systemClock.now(),

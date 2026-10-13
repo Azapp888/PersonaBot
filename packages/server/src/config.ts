@@ -106,6 +106,12 @@ export const config = {
     keywordFilterWords: "",
     // 记忆文件 AI 追加：用户手改后仍允许 AI 在追加区累积（默认关闭）
     memoryFileAppendEnabled: false,
+    // 日记忆保留天数：三日记忆生成后剪掉更早的日记忆（原子事实不受影响）
+    memoryDailyRetainDays: num("MEMORY_DAILY_RETAIN_DAYS", 2),
+    // 进入核心记忆（受保护区）的最低重要性
+    memoryCoreImportance: num("MEMORY_CORE_IMPORTANCE", 8),
+    // 核心记忆注入条数上限
+    memoryCoreMaxFacts: num("MEMORY_CORE_MAX_FACTS", 40),
     // 一键更新：展示用仓库地址与跟踪分支（实际更新以本地 git remote.origin 为准）
     updateRepoUrl: str("UPDATE_REPO_URL", "https://github.com/Azapp888/PersonaBot"),
     updateBranch: str("UPDATE_BRANCH", "main"),

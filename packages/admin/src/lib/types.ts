@@ -1,5 +1,7 @@
 export type ModelProvider = "openai" | "deepseek" | "anthropic" | "mock" | "custom";
-export type MemoryType = "daily" | "three_day" | "biweekly" | "monthly" | "imported";
+export type MemoryType = "daily" | "three_day" | "biweekly" | "monthly" | "imported" | "fact";
+
+export type MemoryKind = "agreement" | "preference" | "fact" | "event" | "trivial";
 
 export interface ProactiveRunResult {
   ok: boolean;
@@ -116,6 +118,10 @@ export interface Memory {
   type: MemoryType;
   content: string;
   sourceDate: string;
+  importance: number;
+  pinned: boolean;
+  kind: MemoryKind;
+  consolidatedInto: string | null;
   createdAt: number;
 }
 
@@ -172,6 +178,9 @@ export interface AppSettings {
   keywordFilterAction: string;
   keywordFilterWords: string;
   memoryFileAppendEnabled: boolean;
+  memoryDailyRetainDays: number;
+  memoryCoreImportance: number;
+  memoryCoreMaxFacts: number;
   updateRepoUrl: string;
   updateBranch: string;
 }

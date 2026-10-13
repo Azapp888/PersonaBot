@@ -204,6 +204,16 @@ ALTER TABLE memory_files ADD COLUMN base_content TEXT NOT NULL DEFAULT '';
 ALTER TABLE models ADD COLUMN supports_vision INTEGER NOT NULL DEFAULT 0;
 `,
   },
+  {
+    id: "008_memory_importance",
+    sql: `
+ALTER TABLE memories ADD COLUMN importance INTEGER NOT NULL DEFAULT 5;
+ALTER TABLE memories ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE memories ADD COLUMN kind TEXT NOT NULL DEFAULT 'event';
+ALTER TABLE memories ADD COLUMN consolidated_into TEXT;
+CREATE INDEX IF NOT EXISTS idx_memories_core ON memories(persona_id, user_id, pinned, importance);
+`,
+  },
 ];
 
 export function runMigrations(database?: Database.Database): void {

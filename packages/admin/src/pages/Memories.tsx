@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { FileText, RefreshCw, Save, Upload, Wand2 } from "lucide-react";
+import { FileText, Pin, RefreshCw, Save, Upload, Wand2 } from "lucide-react";
 import { api } from "@/lib/api";
-import type { Memory, MemoryType, Persona } from "@/lib/types";
+import type { Memory, MemoryKind, MemoryType, Persona } from "@/lib/types";
 import {
   Badge,
   Button,
@@ -23,6 +23,15 @@ const typeLabels: Record<MemoryType, string> = {
   biweekly: "精简记忆（两周）",
   monthly: "月记忆",
   imported: "导入记忆",
+  fact: "原子事实",
+};
+
+const kindLabels: Record<MemoryKind, string> = {
+  agreement: "约定",
+  preference: "偏好",
+  fact: "事实",
+  event: "事件",
+  trivial: "琐事",
 };
 
 export function MemoriesPage() {
@@ -271,11 +280,32 @@ export function MemoriesPage() {
           {memories.map((m) => (
             <Card key={m.id}>
               <CardHeader className="flex flex-row items-center justify-between">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="default">{typeLabels[m.type]}</Badge>
+                  {m.type === "fact" && <Badge variant="secondary">{kindLabels[m.kind]}</Badge>}
+                  {m.type === "fact" && (
+                    <span className="text-xs text-muted-foreground">重要性 {m.importance}</span>
+                  )}
+                  {m.pinned && <Badge variant="warning">永久保留</Badge>}
                   <span className="text-xs text-muted-foreground">{m.sourceDate}</span>
                 </div>
-                <span className="text-xs text-muted-foreground">{formatDateTime(m.createdAt)}</span>
+                <div className="flex items-center gap-2">
+                  {m.type === "fact" && (
+                    <Button
+                      size="sm"
+                      variant={m.pinned ? "default" : "outline"}
+                      title={m.pinned ? "取消永久保留" : "设为永久保留（核心记忆）"}
+                      onClick={async () => {
+                        await api.updateMemoryMeta(m.id, { pinned: !m.pinned });
+                        push(m.pinned ? "已取消永久保留" : "已设为永久保留", "success");
+                        await reload();
+                      }}
+                    >
+                      <Pin className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                  <span className="text-xs text-muted-foreground">{formatDateTime(m.createdAt)}</span>
+                </div>
               </CardHeader>
               <CardContent>
                 <Textarea
@@ -288,7 +318,7 @@ export function MemoriesPage() {
                     size="sm"
                     variant="outline"
                     onClick={async () => {
-                      await api.updateMemory(m.id, editing[m.id] ?? m.content);
+                      await api.updateMemoryMeta(m.id, { content: editing[m.id] ?? m.content });
                       push("已保存", "success");
                       await reload();
                     }}

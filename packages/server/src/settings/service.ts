@@ -54,6 +54,9 @@ function defaultSettings(): AppSettings {
     keywordFilterAction: config.defaults.keywordFilterAction,
     keywordFilterWords: config.defaults.keywordFilterWords,
     memoryFileAppendEnabled: config.defaults.memoryFileAppendEnabled,
+    memoryDailyRetainDays: config.defaults.memoryDailyRetainDays,
+    memoryCoreImportance: config.defaults.memoryCoreImportance,
+    memoryCoreMaxFacts: config.defaults.memoryCoreMaxFacts,
     updateRepoUrl: config.defaults.updateRepoUrl,
     updateBranch: config.defaults.updateBranch,
   };

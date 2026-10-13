@@ -100,13 +100,14 @@ export async function generateReply(
 
   // 按当前话题检索相关记忆，避免全量注入
   const query = [userText, context.state.pendingSubjects.join(" ")].filter(Boolean).join(" ");
-  const { files: memoryFiles, relevant } = buildMemoryInjection(persona, userId, now, query);
+  const { files: memoryFiles, relevant, core } = buildMemoryInjection(persona, userId, now, query);
 
   // 强制状态校验指令（作业未完成时禁止催睡）
   const guardrail = settings.guardrailEnabled ? buildGuardrail(context.state, persona.name) : null;
 
   const { prefix, full } = assembleSystemPrompt(persona, {
     memoryFiles,
+    coreMemories: core,
     relevant,
     timezone: settings.timezone,
     now,

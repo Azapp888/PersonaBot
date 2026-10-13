@@ -11,7 +11,7 @@ import {
 import { listMemoryFiles, readMemoryFile, resetMemoryFile, setMemoryFileAppendEnabled, syncMemoryFiles, writeMemoryFile } from "../memory/service";
 import { memoryFileRepo } from "../db/repos/memoryFiles";
 import { analyzeImportedText, persistImported } from "../memory/importer";
-import type { MemoryType } from "../types";
+import type { MemoryKind, MemoryType } from "../types";
 
 export async function memoryRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/memories", { preHandler: [app.authenticate] }, async (request, reply) => {
@@ -64,9 +64,16 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
 
   app.put("/api/memories/:id", { preHandler: [app.authenticate] }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = request.body as { content?: string } | undefined;
-    if (!body?.content) return reply.code(400).send({ error: "bad_request", message: "content 必填" });
-    memoryRepo.updateContent(id, body.content);
+    const body = request.body as { content?: string; importance?: number; pinned?: boolean; kind?: MemoryKind } | undefined;
+    if (body?.content === undefined && body?.importance === undefined && body?.pinned === undefined && body?.kind === undefined) {
+      return reply.code(400).send({ error: "bad_request", message: "至少需要提供 content / importance / pinned / kind 之一" });
+    }
+    memoryRepo.updateMeta(id, {
+      content: body?.content,
+      importance: body?.importance,
+      pinned: body?.pinned,
+      kind: body?.kind,
+    });
     return { ok: true };
   });
 
