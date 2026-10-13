@@ -52,3 +52,12 @@ QQ ClientSecret、LLM API Key、绘画 Key 均以 AES-256-GCM 加密落库，密
 ## 11. 技能系统
 
 内置「前任」Skill 以 prompt 片段形式入库；自定义 Skill 可自由编辑；GitHub 同步通过 Git Trees API 拉取仓库内所有 `.md` 文件，每个文件映射为一个技能，避免依赖解压库。
+
+## 12. 模型按 Bot 分配
+
+模型选择以 **Bot** 为单位（`bots.model_id`），而非角色。同一个角色可被多个 Bot 复用，各 Bot 可绑定不同模型。
+
+解析优先级：`bot.modelId`（且模型已启用）> `persona.modelConfig.modelId`（且已启用）> 第一个已启用模型 > Mock。
+
+`resolveProviderForBot()` 保持「选一个可用模型」的语义，不做失败后自动切换其它模型的故障转移。后台在「编辑 Bot」弹窗中维护该字段；角色页的模型设置保留为回退项。
+

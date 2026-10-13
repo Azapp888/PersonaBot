@@ -13,6 +13,7 @@ function map(row: any): Bot {
     accessToken: row.access_token,
     tokenExpiresAt: row.token_expires_at,
     personaId: row.persona_id,
+    modelId: row.model_id ?? null,
     enabled: !!row.enabled,
     agentEnabled: !!row.agent_enabled,
     createdAt: row.created_at,
@@ -25,6 +26,7 @@ export interface BotInput {
   appId: string;
   clientSecret: string;
   personaId?: string | null;
+  modelId?: string | null;
   enabled?: boolean;
   agentEnabled?: boolean;
 }
@@ -52,8 +54,8 @@ export const botRepo = {
     const ts = now();
     this.db()
       .prepare(
-        `INSERT INTO bots (id, name, app_id, client_secret, persona_id, enabled, agent_enabled, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO bots (id, name, app_id, client_secret, persona_id, model_id, enabled, agent_enabled, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -61,6 +63,7 @@ export const botRepo = {
         input.appId,
         encryptSecret(input.clientSecret),
         input.personaId ?? null,
+        input.modelId ?? null,
         input.enabled === false ? 0 : 1,
         input.agentEnabled ? 1 : 0,
         ts,
@@ -79,14 +82,15 @@ export const botRepo = {
           ? encryptSecret(input.clientSecret)
           : current.clientSecret,
       personaId: input.personaId !== undefined ? input.personaId : current.personaId,
+      modelId: input.modelId !== undefined ? input.modelId : current.modelId,
       enabled: input.enabled !== undefined ? input.enabled : current.enabled,
       agentEnabled: input.agentEnabled !== undefined ? input.agentEnabled : current.agentEnabled,
     };
     this.db()
       .prepare(
-        `UPDATE bots SET name = ?, app_id = ?, client_secret = ?, persona_id = ?, enabled = ?, agent_enabled = ?, updated_at = ? WHERE id = ?`,
+        `UPDATE bots SET name = ?, app_id = ?, client_secret = ?, persona_id = ?, model_id = ?, enabled = ?, agent_enabled = ?, updated_at = ? WHERE id = ?`,
       )
-      .run(next.name, next.appId, next.clientSecret, next.personaId, next.enabled ? 1 : 0, next.agentEnabled ? 1 : 0, now(), id);
+      .run(next.name, next.appId, next.clientSecret, next.personaId, next.modelId, next.enabled ? 1 : 0, next.agentEnabled ? 1 : 0, now(), id);
     return this.find(id);
   },
   updateToken(id: string, accessToken: string, expiresAt: number): void {

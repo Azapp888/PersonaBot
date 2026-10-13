@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Plus, RefreshCw, RotateCw, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
-import type { Bot, Persona } from "@/lib/types";
+import type { Bot, ModelRecord, Persona } from "@/lib/types";
 import {
   Badge,
   Button,
@@ -26,21 +26,23 @@ const stateMap: Record<string, { label: string; variant: any }> = {
   stopped: { label: "已停止", variant: "secondary" },
 };
 
-const emptyForm = { name: "", appId: "", clientSecret: "", personaId: "", enabled: true, agentEnabled: false };
+const emptyForm = { name: "", appId: "", clientSecret: "", personaId: "", modelId: "", enabled: true, agentEnabled: false };
 
 export function BotsPage() {
   const { push } = useToast();
   const [bots, setBots] = useState<Bot[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
+  const [models, setModels] = useState<ModelRecord[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Bot | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
-    const [b, p] = await Promise.all([api.botStatus(), api.personas()]);
+    const [b, p, m] = await Promise.all([api.botStatus(), api.personas(), api.models()]);
     setBots(b);
     setPersonas(p);
+    setModels(m);
   };
 
   useEffect(() => {
@@ -62,6 +64,7 @@ export function BotsPage() {
       appId: bot.appId,
       clientSecret: "",
       personaId: bot.personaId ?? "",
+      modelId: bot.modelId ?? "",
       enabled: bot.enabled,
       agentEnabled: bot.agentEnabled,
     });
@@ -75,6 +78,7 @@ export function BotsPage() {
         name: form.name,
         appId: form.appId,
         personaId: form.personaId || null,
+        modelId: form.modelId || null,
         enabled: form.enabled,
         agentEnabled: form.agentEnabled,
       };
@@ -135,6 +139,7 @@ export function BotsPage() {
                 <th className="px-4 py-3">名称</th>
                 <th className="px-4 py-3">AppID</th>
                 <th className="px-4 py-3">绑定角色</th>
+                <th className="px-4 py-3">使用模型</th>
                 <th className="px-4 py-3">状态</th>
                 <th className="px-4 py-3">启用</th>
                 <th className="px-4 py-3">服务器 Agent</th>
@@ -150,6 +155,9 @@ export function BotsPage() {
                     <td className="px-4 py-3 font-medium">{bot.name}</td>
                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{bot.appId}</td>
                     <td className="px-4 py-3">{bot.personaName ?? <span className="text-muted-foreground">未绑定</span>}</td>
+                    <td className="px-4 py-3 text-xs">
+                      {bot.modelName ?? <span className="text-muted-foreground">跟随角色</span>}
+                    </td>
                     <td className="px-4 py-3">
                       <Badge variant={st.variant}>{st.label}</Badge>
                       {bot.lastError && <div className="mt-1 text-xs text-red-500">{bot.lastError}</div>}
@@ -189,7 +197,7 @@ export function BotsPage() {
               })}
               {bots.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">
                     还没有 Bot，点击「新建 Bot」开始接入。
                   </td>
                 </tr>
@@ -242,6 +250,20 @@ export function BotsPage() {
                 </option>
               ))}
             </Select>
+          </div>
+          <div>
+            <Label>使用模型</Label>
+            <Select value={form.modelId} onChange={(e) => setForm({ ...form, modelId: e.target.value })}>
+              <option value="">（跟随角色配置）</option>
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}（{m.provider}/{m.modelId}）
+                </option>
+              ))}
+            </Select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              模型按 Bot 分配，优先于角色上的模型设置；留空则回退到角色配置。
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <Switch checked={form.enabled} onCheckedChange={(v) => setForm({ ...form, enabled: v })} />

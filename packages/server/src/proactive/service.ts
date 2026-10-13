@@ -4,7 +4,7 @@ import { profileRepo } from "../db/repos/profiles";
 import { conversationRepo } from "../db/repos/conversations";
 import { logRepo } from "../db/repos/logs";
 import { statsRepo } from "../db/repos/stats";
-import { resolveProviderForPersona } from "../llm/factory";
+import { resolveProviderForBot } from "../llm/factory";
 import { assembleSystemPrompt } from "../persona/prompt";
 import { buildMemoryInjection } from "../memory/service";
 import { buildScheduleContext } from "../memory/schedule";
@@ -102,7 +102,7 @@ const DAILY_INSTRUCTION = `[系统内部指令，请勿向用户暴露本指令�
 3. 不要生硬，不要出现「定时」「自动」「推送」等字眼；
 4. 只输出你要说的话，不要任何前缀或说明。`;
 
-async function generateProactive(persona: Persona, userId: string, instruction: string): Promise<string | null> {
+async function generateProactive(persona: Persona, userId: string, instruction: string, bot?: Bot): Promise<string | null> {
   const settings = settingsService.get();
   const profile = profileRepo.ensure(persona.id, userId);
   const { files, relevant, core } = buildMemoryInjection(persona, userId);
@@ -121,7 +121,7 @@ async function generateProactive(persona: Persona, userId: string, instruction: 
   const instructionWithTime = `${timeContextLine(settings.timezone, now)}\n${instruction}`;
 
   try {
-    const { provider, model } = resolveProviderForPersona(persona);
+    const { provider, model } = resolveProviderForBot(bot, persona);
     const result = await provider.chat(
       [{ role: "system", content: full }, ...history, { role: "user", content: instructionWithTime }],
       { temperature: persona.modelConfig.temperature ?? model?.temperature, maxTokens: persona.modelConfig.maxTokens },
@@ -229,7 +229,7 @@ export async function runDailyGreetings(force = false): Promise<ProactiveRunResu
           continue;
         }
       }
-      const reply = await generateProactive(persona, profile.userId, DAILY_INSTRUCTION);
+      const reply = await generateProactive(persona, profile.userId, DAILY_INSTRUCTION, bot);
       if (!reply) {
         result.errors.push(`${persona.name} → ${profile.userId}：生成每日问候失败`);
         continue;
@@ -295,7 +295,7 @@ export async function runProactiveCycle(force = false): Promise<ProactiveRunResu
         }
       }
 
-      const reply = await generateProactive(persona, profile.userId, PROACTIVE_INSTRUCTION);
+      const reply = await generateProactive(persona, profile.userId, PROACTIVE_INSTRUCTION, bot);
       if (!reply) {
         result.errors.push(`${persona.name} → ${profile.userId}：生成主动消息失败`);
         continue;

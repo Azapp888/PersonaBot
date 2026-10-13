@@ -8,6 +8,8 @@ export interface Bot {
   accessToken: string | null;
   tokenExpiresAt: number | null;
   personaId: string | null;
+  /** 该 Bot 使用的模型（引用 models 表）。为空时回退到角色上的模型配置。 */
+  modelId: string | null;
   enabled: boolean;
   agentEnabled: boolean; // 是否启用「服务器本地 Agent（可运行 shell 命令）」
   createdAt: number;

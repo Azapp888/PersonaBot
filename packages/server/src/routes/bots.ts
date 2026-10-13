@@ -1,17 +1,21 @@
 import type { FastifyInstance } from "fastify";
 import { botRepo } from "../db/repos/bots";
 import { personaRepo } from "../db/repos/personas";
+import { modelRepo } from "../db/repos/models";
 import { botManager } from "../qq/manager";
 import { invalidateToken } from "../qq/token";
 import type { Bot } from "../types";
 
 function present(bot: Bot) {
+  const model = bot.modelId ? modelRepo.find(bot.modelId) : null;
   return {
     id: bot.id,
     name: bot.name,
     appId: bot.appId,
     personaId: bot.personaId,
     personaName: bot.personaId ? personaRepo.find(bot.personaId)?.name ?? null : null,
+    modelId: bot.modelId,
+    modelName: model ? `${model.name}（${model.provider}/${model.modelId}）` : null,
     enabled: bot.enabled,
     agentEnabled: bot.agentEnabled,
     clientSecretSet: !!bot.clientSecret,
@@ -49,6 +53,7 @@ export async function botRoutes(app: FastifyInstance): Promise<void> {
       appId: body.appId,
       clientSecret: body.clientSecret,
       personaId: body.personaId ?? null,
+      modelId: body.modelId ?? null,
       enabled: body.enabled !== false,
       agentEnabled: body.agentEnabled === true,
     });
@@ -66,6 +71,7 @@ export async function botRoutes(app: FastifyInstance): Promise<void> {
       appId: body.appId,
       clientSecret: body.clientSecret || undefined,
       personaId: body.personaId,
+      modelId: body.modelId,
       enabled: body.enabled,
       agentEnabled: body.agentEnabled,
     });

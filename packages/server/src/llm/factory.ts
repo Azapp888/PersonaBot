@@ -1,4 +1,4 @@
-import type { ModelRecord, Persona } from "../types";
+import type { Bot, ModelRecord, Persona } from "../types";
 import { modelRepo } from "../db/repos/models";
 import { AnthropicProvider } from "./anthropic";
 import { OpenAICompatibleProvider } from "./openai";
@@ -78,4 +78,25 @@ export function resolveProviderForPersona(persona: Persona): { provider: LLMProv
   }
   logger.warn({ personaId: persona.id }, "no enabled model found, falling back to MockProvider");
   return { provider: new MockProvider(), model: null };
+}
+
+/**
+ * 解析某次对话实际使用的模型：优先按 Bot 分配的模型，Bot 未配置或不可用时回退到角色配置。
+ *
+ * 模型分配以 Bot 为单位（同一个角色可被多个 Bot 复用，各 Bot 可用不同模型）。
+ * 这里保持纯"选一个可用模型"的语义，不做失败后自动切换其它模型的故障转移。
+ */
+export function resolveProviderForBot(
+  bot: Pick<Bot, "modelId"> | null | undefined,
+  persona: Persona,
+): { provider: LLMProvider; model: ModelRecord | null } {
+  const targetId = bot?.modelId;
+  if (targetId) {
+    const model = modelRepo.find(targetId);
+    if (model && model.enabled) {
+      return { provider: createProviderFromModel(model), model };
+    }
+    logger.warn({ modelId: targetId }, "bot-configured model unavailable, falling back to persona/default");
+  }
+  return resolveProviderForPersona(persona);
 }

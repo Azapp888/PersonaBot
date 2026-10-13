@@ -94,6 +94,8 @@ export interface Bot {
   appId: string;
   personaId: string | null;
   personaName: string | null;
+  modelId: string | null;
+  modelName?: string | null;
   enabled: boolean;
   agentEnabled: boolean;
   clientSecretSet: boolean;

@@ -235,6 +235,12 @@ CREATE TABLE IF NOT EXISTS persona_schedules (
 );
 `,
   },
+  {
+    id: "011_bot_model",
+    sql: `
+ALTER TABLE bots ADD COLUMN model_id TEXT;
+`,
+  },
 ];
 
 export function runMigrations(database?: Database.Database): void {

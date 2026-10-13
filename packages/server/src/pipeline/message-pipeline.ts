@@ -4,7 +4,7 @@ import { conversationRepo } from "../db/repos/conversations";
 import { profileRepo } from "../db/repos/profiles";
 import { logRepo } from "../db/repos/logs";
 import { statsRepo } from "../db/repos/stats";
-import { resolveProviderForPersona } from "../llm/factory";
+import { resolveProviderForBot } from "../llm/factory";
 import { assembleSystemPrompt } from "../persona/prompt";
 import { buildMemoryInjection, syncMemoryFiles } from "../memory/service";
 import { extractUserHabits } from "../memory/profile";
@@ -97,6 +97,10 @@ export async function generateReply(
   const now = systemClock.now();
   const settings = settingsService.get();
 
+  // 模型按 Bot 分配：优先 Bot 上配置的模型，未配置或不可用时回退到角色配置
+  const boundBot = botId ? botRepo.find(botId) : null;
+  const resolved = resolveProviderForBot(boundBot, persona);
+
   // 滑动窗口 + 滚动摘要 + 状态机（每次请求都按最新用户输入更新）
   const context = await buildConversationContext(persona, userId, userText);
 
@@ -157,7 +161,7 @@ export async function generateReply(
 
   let attemptedAbort = false;
   try {
-    const { provider, model } = resolveProviderForPersona(persona);
+    const { provider, model } = resolved;
     modelId = model?.id ?? null;
     const temperature = persona.modelConfig.temperature ?? model?.temperature;
     const maxTokens = persona.modelConfig.maxTokens ?? model?.maxTokens;
@@ -371,10 +375,10 @@ class MessagePipeline {
       fileContext = renderFileContext(parsed);
     }
 
-    // 图片处理：先判断当前模型是否支持视觉
+    // 图片处理：先判断当前模型是否支持视觉（按 Bot 分配模型优先）
     let imageParts: ImageContentPart[] = [];
     if (imageUrls.length) {
-      const { model } = resolveProviderForPersona(batch.persona);
+      const { model } = resolveProviderForBot(batch.bot, batch.persona);
       if (!model?.supportsVision) {
         logger.info({ key, modelId: model?.id }, "image received but model lacks vision support");
         await this.send(batch, "【当前模型不支持读图，请切换模型再试】");
