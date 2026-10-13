@@ -60,6 +60,8 @@ function defaultSettings(): AppSettings {
     memoryCoreImportance: config.defaults.memoryCoreImportance,
     memoryCoreMaxFacts: config.defaults.memoryCoreMaxFacts,
     realtimeFactEnabled: config.defaults.realtimeFactEnabled,
+    scheduleEnabled: config.defaults.scheduleEnabled,
+    scheduleGenerateHour: config.defaults.scheduleGenerateHour,
     updateRepoUrl: config.defaults.updateRepoUrl,
     updateBranch: config.defaults.updateBranch,
   };

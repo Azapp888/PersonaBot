@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { MessageCircle, Pencil, Plus, Send, Trash2 } from "lucide-react";
+import { CalendarClock, MessageCircle, Pencil, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
-import type { ModelRecord, Persona, PersonaCommand, Skill } from "@/lib/types";
+import type { ModelRecord, Persona, PersonaCommand, ScheduleSegment, Skill } from "@/lib/types";
 import {
   Badge,
   Button,
@@ -29,6 +29,7 @@ const emptyPersona: Persona = {
   commands: [],
   paintingConfig: { enabled: false, style: "", artistReference: "", characterDna: "" },
   modelConfig: { temperature: 0.8, maxTokens: 2048 },
+  scheduleTemplate: "",
   enabled: true,
   createdAt: 0,
   updatedAt: 0,
@@ -48,6 +49,10 @@ export function PersonasPage() {
   const [simMessage, setSimMessage] = useState("");
   const [simReply, setSimReply] = useState("");
   const [simLoading, setSimLoading] = useState(false);
+  const [schOpen, setSchOpen] = useState(false);
+  const [schPersona, setSchPersona] = useState<Persona | null>(null);
+  const [schSegments, setSchSegments] = useState<ScheduleSegment[]>([]);
+  const [schLoading, setSchLoading] = useState(false);
 
   const load = async () => {
     const [p, s, m] = await Promise.all([api.personas(), api.skills(), api.models()]);
@@ -179,6 +184,18 @@ export function PersonasPage() {
                   variant="ghost"
                   size="sm"
                   onClick={() => {
+                    setSchPersona(p);
+                    setSchSegments([]);
+                    setSchOpen(true);
+                    api.personaSchedule(p.id).then((s) => setSchSegments(s.segments ?? []));
+                  }}
+                >
+                  <CalendarClock className="h-3.5 w-3.5" /> 日程
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
                     if (confirm(`确认删除角色「${p.name}」？相关记忆与会话也会被删除。`)) api.deletePersona(p.id).then(load);
                   }}
                 >
@@ -231,6 +248,19 @@ export function PersonasPage() {
               onChange={(e) => setForm({ ...form, systemPrompt: e.target.value })}
               placeholder="描述这个角色的身份、背景、与用户的关系。此部分会作为稳定前缀，保持字节级不变以优化缓存。"
             />
+          </section>
+
+          <section>
+            <Label>日程底稿（可选，固定作息规律）</Label>
+            <Textarea
+              className="min-h-[110px]"
+              value={form.scheduleTemplate}
+              onChange={(e) => setForm({ ...form, scheduleTemplate: e.target.value })}
+              placeholder="例：就读于XX中学高二，周一到周五 7:30-12:00 上课，12:00-14:00 午休，14:00-17:30 上课，19:00-22:00 晚自习，23:30 睡觉；周末睡懒觉、写作业、出去玩。&#10;留空则由 AI 按角色身份自动编排每日日程。"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              每天 0 点会据此生成「今日日程」，角色言行会随当前时段变化，避免身份不一致。
+            </p>
           </section>
 
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -426,6 +456,98 @@ export function PersonasPage() {
               {simReply}
             </div>
           )}
+        </div>
+      </Modal>
+
+      <Modal
+        open={schOpen}
+        onClose={() => setSchOpen(false)}
+        title={`今日日程 · ${schPersona?.name ?? ""}`}
+        size="lg"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setSchOpen(false)}>
+              关闭
+            </Button>
+            <Button
+              variant="outline"
+              disabled={schLoading}
+              onClick={async () => {
+                if (!schPersona) return;
+                setSchLoading(true);
+                try {
+                  await api.updatePersonaSchedule(schPersona.id, "", schSegments);
+                  push("日程已保存", "success");
+                } catch (e) {
+                  push((e as Error).message || "保存失败", "error");
+                } finally {
+                  setSchLoading(false);
+                }
+              }}
+            >
+              保存
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              角色每天 0 点自动生成今日日程，言行会随当前时段变化。也可在此手动调整。
+            </p>
+            <Button
+              size="sm"
+              disabled={schLoading || !schPersona}
+              onClick={async () => {
+                if (!schPersona) return;
+                setSchLoading(true);
+                try {
+                  const s = await api.generatePersonaSchedule(schPersona.id);
+                  setSchSegments(s.segments ?? []);
+                  push("已重新生成日程", "success");
+                } catch (e) {
+                  push((e as Error).message || "生成失败", "error");
+                } finally {
+                  setSchLoading(false);
+                }
+              }}
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> {schLoading ? "处理中..." : "重新生成"}
+            </Button>
+          </div>
+          {schSegments.length === 0 && (
+            <p className="text-sm text-muted-foreground">暂无日程，点击「重新生成」让 AI 按角色身份编排今天。</p>
+          )}
+          <div className="space-y-2">
+            {schSegments.map((seg, i) => (
+              <div key={i} className="grid grid-cols-[90px_90px_1fr] items-center gap-2">
+                <Input
+                  value={seg.start}
+                  onChange={(e) => {
+                    const next = [...schSegments];
+                    next[i] = { ...next[i], start: e.target.value };
+                    setSchSegments(next);
+                  }}
+                />
+                <Input
+                  value={seg.end}
+                  onChange={(e) => {
+                    const next = [...schSegments];
+                    next[i] = { ...next[i], end: e.target.value };
+                    setSchSegments(next);
+                  }}
+                />
+                <Input
+                  value={seg.activity}
+                  onChange={(e) => {
+                    const next = [...schSegments];
+                    next[i] = { ...next[i], activity: e.target.value };
+                    setSchSegments(next);
+                  }}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </Modal>
     </div>

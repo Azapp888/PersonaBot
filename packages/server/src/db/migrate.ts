@@ -222,6 +222,19 @@ ALTER TABLE user_profiles ADD COLUMN daily_count_date TEXT;
 ALTER TABLE memories ADD COLUMN origin TEXT NOT NULL DEFAULT 'daily';
 `,
   },
+  {
+    id: "010_persona_schedule",
+    sql: `
+ALTER TABLE personas ADD COLUMN schedule_template TEXT NOT NULL DEFAULT '';
+CREATE TABLE IF NOT EXISTS persona_schedules (
+  persona_id TEXT NOT NULL,
+  date TEXT NOT NULL,
+  segments TEXT NOT NULL DEFAULT '[]',
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (persona_id, date)
+);
+`,
+  },
 ];
 
 export function runMigrations(database?: Database.Database): void {

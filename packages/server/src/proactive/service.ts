@@ -7,6 +7,7 @@ import { statsRepo } from "../db/repos/stats";
 import { resolveProviderForPersona } from "../llm/factory";
 import { assembleSystemPrompt } from "../persona/prompt";
 import { buildMemoryInjection } from "../memory/service";
+import { buildScheduleContext } from "../memory/schedule";
 import { QQApiClient } from "../qq/client";
 import { settingsService } from "../settings/service";
 import { logger } from "../logger";
@@ -106,16 +107,18 @@ async function generateProactive(persona: Persona, userId: string, instruction: 
   const settings = settingsService.get();
   const profile = profileRepo.ensure(persona.id, userId);
   const { files, relevant, core } = buildMemoryInjection(persona, userId);
+  const now = systemClock.now();
+  const schedule = buildScheduleContext(persona, userId, settings.timezone, now);
   const { full } = assembleSystemPrompt(persona, {
     memoryFiles: files,
     coreMemories: core,
+    schedule,
     relevant,
     timezone: settings.timezone,
-    now: systemClock.now(),
+    now,
   });
   const conv = conversationRepo.ensure(persona.id, userId);
   const history = conv.messages.slice(-10);
-  const now = systemClock.now();
   const instructionWithTime = `${timeContextLine(settings.timezone, now)}\n${instruction}`;
 
   try {

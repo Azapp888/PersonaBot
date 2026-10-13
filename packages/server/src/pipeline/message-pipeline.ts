@@ -9,6 +9,7 @@ import { assembleSystemPrompt } from "../persona/prompt";
 import { buildMemoryInjection, syncMemoryFiles } from "../memory/service";
 import { extractUserHabits } from "../memory/profile";
 import { captureRealtimeFacts } from "../memory/realtime";
+import { buildScheduleContext } from "../memory/schedule";
 import { generatePainting, canPaint, type PaintingResult } from "../painting/service";
 import { notifyUserReplied } from "../proactive/service";
 import { QQApiClient } from "../qq/client";
@@ -102,6 +103,7 @@ export async function generateReply(
   // 按当前话题检索相关记忆，避免全量注入
   const query = [userText, context.state.pendingSubjects.join(" ")].filter(Boolean).join(" ");
   const { files: memoryFiles, relevant, core } = buildMemoryInjection(persona, userId, now, query);
+  const schedule = buildScheduleContext(persona, userId, settings.timezone, now);
 
   // 强制状态校验指令（作业未完成时禁止催睡）
   const guardrail = settings.guardrailEnabled ? buildGuardrail(context.state, persona.name) : null;
@@ -109,6 +111,7 @@ export async function generateReply(
   const { prefix, full } = assembleSystemPrompt(persona, {
     memoryFiles,
     coreMemories: core,
+    schedule,
     relevant,
     timezone: settings.timezone,
     now,

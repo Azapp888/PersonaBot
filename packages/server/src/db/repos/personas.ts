@@ -38,6 +38,7 @@ function map(row: any): Persona {
     commands: safeJsonParse<PersonaCommand[]>(row.commands, []),
     paintingConfig: { ...defaultPainting, ...safeJsonParse<Partial<PaintingConfig>>(row.painting_config, {}) },
     modelConfig: { ...defaultModelConfig, ...safeJsonParse<Partial<ModelConfig>>(row.model_config, {}) },
+    scheduleTemplate: row.schedule_template ?? "",
     enabled: !!row.enabled,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -54,6 +55,7 @@ export interface PersonaInput {
   commands?: PersonaCommand[];
   paintingConfig?: Partial<PaintingConfig>;
   modelConfig?: Partial<ModelConfig>;
+  scheduleTemplate?: string;
   enabled?: boolean;
 }
 
@@ -76,8 +78,8 @@ export const personaRepo = {
     const ts = now();
     this.db()
       .prepare(
-        `INSERT INTO personas (id, name, avatar, description, system_prompt, personality, skills, commands, painting_config, model_config, enabled, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO personas (id, name, avatar, description, system_prompt, personality, skills, commands, painting_config, model_config, schedule_template, enabled, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -90,6 +92,7 @@ export const personaRepo = {
         toJson(input.commands ?? []),
         toJson({ ...defaultPainting, ...(input.paintingConfig ?? {}) }),
         toJson({ ...defaultModelConfig, ...(input.modelConfig ?? {}) }),
+        input.scheduleTemplate ?? "",
         input.enabled === false ? 0 : 1,
         ts,
         ts,
@@ -109,11 +112,12 @@ export const personaRepo = {
       commands: input.commands ?? current.commands,
       paintingConfig: { ...current.paintingConfig, ...(input.paintingConfig ?? {}) },
       modelConfig: { ...current.modelConfig, ...(input.modelConfig ?? {}) },
+      scheduleTemplate: input.scheduleTemplate ?? current.scheduleTemplate,
       enabled: input.enabled !== undefined ? input.enabled : current.enabled,
     };
     this.db()
       .prepare(
-        `UPDATE personas SET name = ?, avatar = ?, description = ?, system_prompt = ?, personality = ?, skills = ?, commands = ?, painting_config = ?, model_config = ?, enabled = ?, updated_at = ? WHERE id = ?`,
+        `UPDATE personas SET name = ?, avatar = ?, description = ?, system_prompt = ?, personality = ?, skills = ?, commands = ?, painting_config = ?, model_config = ?, schedule_template = ?, enabled = ?, updated_at = ? WHERE id = ?`,
       )
       .run(
         merged.name,
@@ -125,6 +129,7 @@ export const personaRepo = {
         toJson(merged.commands),
         toJson(merged.paintingConfig),
         toJson(merged.modelConfig),
+        merged.scheduleTemplate,
         merged.enabled ? 1 : 0,
         now(),
         id,
@@ -138,6 +143,7 @@ export const personaRepo = {
       db.prepare(`DELETE FROM memories WHERE persona_id = ?`).run(id);
       db.prepare(`DELETE FROM conversations WHERE persona_id = ?`).run(id);
       db.prepare(`DELETE FROM user_profiles WHERE persona_id = ?`).run(id);
+      db.prepare(`DELETE FROM persona_schedules WHERE persona_id = ?`).run(id);
       db.prepare(`UPDATE bots SET persona_id = NULL WHERE persona_id = ?`).run(id);
     });
     tx();

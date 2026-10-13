@@ -6,7 +6,9 @@ import type {
   Memory,
   ModelRecord,
   Persona,
+  PersonaSchedule,
   ProactiveRunResult,
+  ScheduleSegment,
   Skill,
   SystemTime,
   TrendPoint,
@@ -91,6 +93,12 @@ export const api = {
   deletePersona: (id: string) => request<{ ok: boolean }>("DELETE", `/api/personas/${id}`),
   simulate: (id: string, userId: string, message: string) =>
     request<{ reply: string; usage: any; painting?: any }>("POST", `/api/personas/${id}/simulate`, { userId, message }),
+  personaSchedule: (id: string, date?: string) =>
+    request<PersonaSchedule>("GET", `/api/personas/${id}/schedule${date ? `?date=${date}` : ""}`),
+  generatePersonaSchedule: (id: string, date?: string) =>
+    request<PersonaSchedule>("POST", `/api/personas/${id}/schedule/generate`, { date }),
+  updatePersonaSchedule: (id: string, date: string, segments: ScheduleSegment[]) =>
+    request<PersonaSchedule>("PUT", `/api/personas/${id}/schedule`, { date, segments }),
 
   // models
   models: () => request<ModelRecord[]>("GET", "/api/models"),

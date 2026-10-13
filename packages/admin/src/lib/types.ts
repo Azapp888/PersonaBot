@@ -68,9 +68,24 @@ export interface Persona {
   commands: PersonaCommand[];
   paintingConfig: PaintingConfig;
   modelConfig: ModelConfig;
+  scheduleTemplate: string;
   enabled: boolean;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface ScheduleSegment {
+  start: string;
+  end: string;
+  activity: string;
+  note: string;
+}
+
+export interface PersonaSchedule {
+  personaId: string;
+  date: string;
+  segments: ScheduleSegment[];
+  createdAt: number;
 }
 
 export interface Bot {
@@ -185,6 +200,8 @@ export interface AppSettings {
   memoryCoreImportance: number;
   memoryCoreMaxFacts: number;
   realtimeFactEnabled: boolean;
+  scheduleEnabled: boolean;
+  scheduleGenerateHour: number;
   updateRepoUrl: string;
   updateBranch: string;
 }

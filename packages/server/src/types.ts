@@ -58,9 +58,31 @@ export interface Persona {
   commands: PersonaCommand[];
   paintingConfig: PaintingConfig;
   modelConfig: ModelConfig;
+  /** 日程底稿（可选）：角色固定的作息规律，作为每日日程生成的基础。 */
+  scheduleTemplate: string;
   enabled: boolean;
   createdAt: number;
   updatedAt: number;
+}
+
+/** 每日日程中的单个时间段。 */
+export interface ScheduleSegment {
+  /** 起始时间 HH:mm */
+  start: string;
+  /** 结束时间 HH:mm */
+  end: string;
+  /** 该时段在做什么 */
+  activity: string;
+  /** 该时段的补充说明（状态/是否能回消息等，可空） */
+  note: string;
+}
+
+/** 角色某一天的日程。 */
+export interface PersonaSchedule {
+  personaId: string;
+  date: string;
+  segments: ScheduleSegment[];
+  createdAt: number;
 }
 
 export type ModelProvider = "openai" | "deepseek" | "anthropic" | "mock" | "custom";
@@ -248,6 +270,10 @@ export interface AppSettings {
   memoryCoreMaxFacts: number;
   /** 对话中实时提炼原子事实（约定/偏好/重要事件）并立即写入记忆，默认开启。 */
   realtimeFactEnabled: boolean;
+  /** 每日为角色生成当日日程并注入 prompt，让角色行为符合身份，默认开启。 */
+  scheduleEnabled: boolean;
+  /** 每日生成日程的小时（0-23），默认 0（即 0 点前后）。 */
+  scheduleGenerateHour: number;
   /** 一键更新：用于展示的仓库地址（实际以本地 git remote 为准）。 */
   updateRepoUrl: string;
   /** 一键更新：跟踪的分支，默认 main。 */

@@ -7,7 +7,7 @@ import { refreshExpiringTokens } from "../qq/token";
 import { syncSkillsFromGithub } from "../skills/manager";
 import { settingsService } from "../settings/service";
 import { logger } from "../logger";
-import { formatDate, addDays } from "../utils/id";
+import { formatDate, addDays, sleep } from "../utils/id";
 import { resolveIanaTimezone } from "../utils/clock";
 import {
   generateBiweeklyMemory,
@@ -18,6 +18,7 @@ import {
 import { runProactiveCycle, runDailyGreetings, sweepProactiveMemory } from "../proactive/service";
 import { botManager } from "../qq/manager";
 import { appendDailyMemoryToFiles, pruneDailyMemories } from "../memory/service";
+import { generateDailySchedule } from "../memory/schedule";
 
 const tasks: ScheduledTask[] = [];
 
@@ -49,6 +50,16 @@ async function runDailyMemories(): Promise<void> {
     });
   }
   logger.info("daily memory task finished");
+}
+
+/** 为每个启用的角色生成「今天」的日程，让角色行为符合身份与作息。 */
+async function runDailySchedules(): Promise<void> {
+  if (!settingsService.get().scheduleEnabled) return;
+  for (const persona of personaRepo.listEnabled()) {
+    await generateDailySchedule(persona, formatDate());
+    await sleep(200);
+  }
+  logger.info("daily schedule task finished");
 }
 
 async function runThreeDayMemories(): Promise<void> {
@@ -105,6 +116,9 @@ export function startScheduler(): void {
 
   // 日记忆：每天 00:00
   tasks.push(schedule("0 0 * * *", () => void runDailyMemories()));
+  // 每日日程：按配置小时生成（默认 0 点，即你说的「每天晚上 12 点」）
+  const scheduleHour = Math.max(0, Math.min(23, settingsService.get().scheduleGenerateHour));
+  tasks.push(schedule(`0 ${scheduleHour} * * *`, () => void runDailySchedules()));
   // 统计重置：每天 00:05（新的一天从零开始）
   tasks.push(
     schedule("5 0 * * *", () => {

@@ -146,4 +146,26 @@ test("时区解析：server 别名与非法值都不会传给调度器", async (
   assert.equal(resolveIanaTimezone(""), server);
 });
 
+test("日程：按当前时间匹配对应时段", async () => {
+  const { currentSegment } = await import("../src/memory/schedule");
+  const schedule = {
+    personaId: "p1",
+    date: "2026-01-01",
+    createdAt: 0,
+    segments: [
+      { start: "08:00", end: "12:00", activity: "上课", note: "不能回消息" },
+      { start: "12:00", end: "14:00", activity: "午休", note: "可以聊天" },
+      { start: "23:00", end: "07:00", activity: "睡觉", note: "跨夜时段" },
+    ],
+  };
+  // 用 UTC 时区固定时间点判断
+  const at = (hh: number, mm: number) => Date.UTC(2026, 0, 1, hh, mm);
+  assert.equal(currentSegment(schedule, "UTC", at(9, 0))?.activity, "上课");
+  assert.equal(currentSegment(schedule, "UTC", at(13, 0))?.activity, "午休");
+  // 跨零点时段：凌晨 2 点命中「睡觉」
+  assert.equal(currentSegment(schedule, "UTC", at(2, 0))?.activity, "睡觉");
+  assert.equal(currentSegment(null, "UTC", at(9, 0)), null);
+});
+
+
 

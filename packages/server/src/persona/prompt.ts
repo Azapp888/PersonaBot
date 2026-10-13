@@ -14,6 +14,8 @@ export interface PromptContext {
   memoryFiles?: MemoryFiles;
   /** 核心记忆：受保护的约定 / 偏好 / 重要事实，始终注入，不得遗忘。 */
   coreMemories?: string;
+  /** 角色今日日程与当前时段状态，让行为符合身份。 */
+  schedule?: string;
   /** 与当前话题相关的记忆片段（Top-K） */
   relevant?: string;
   now?: number;
@@ -74,6 +76,11 @@ export function buildDynamicSuffix(persona: Persona, ctx: PromptContext = {}): s
   if (ctx.coreMemories?.trim()) {
     lines.push("", "# 核心记忆（永久保留，务必遵守，不得遗忘或与之矛盾）");
     lines.push(ctx.coreMemories.trim());
+  }
+
+  if (ctx.schedule?.trim()) {
+    lines.push("", "# 你今天的日程（务必让言行符合当前时段）");
+    lines.push(ctx.schedule.trim());
   }
 
   const files = ctx.memoryFiles;

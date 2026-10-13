@@ -1,7 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import { personaRepo } from "../db/repos/personas";
+import { scheduleRepo } from "../db/repos/schedules";
 import { messagePipeline } from "../pipeline/message-pipeline";
 import { buildStablePrefix } from "../persona/prompt";
+import { generateDailySchedule } from "../memory/schedule";
+import { formatDate } from "../utils/id";
+import type { ScheduleSegment } from "../types";
 
 export async function personaRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/personas", { preHandler: [app.authenticate] }, async () => personaRepo.list());
@@ -18,6 +22,37 @@ export async function personaRoutes(app: FastifyInstance): Promise<void> {
     const persona = personaRepo.find(id);
     if (!persona) return reply.code(404).send({ error: "not_found" });
     return { prefix: buildStablePrefix(persona) };
+  });
+
+  // 读取角色某天日程（默认今天）
+  app.get("/api/personas/:id/schedule", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { date } = request.query as { date?: string };
+    const persona = personaRepo.find(id);
+    if (!persona) return reply.code(404).send({ error: "not_found" });
+    return scheduleRepo.find(id, date || formatDate()) ?? { personaId: id, date: date || formatDate(), segments: [], createdAt: 0 };
+  });
+
+  // 手动重新生成角色某天日程
+  app.post("/api/personas/:id/schedule/generate", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as { date?: string } | undefined;
+    const persona = personaRepo.find(id);
+    if (!persona) return reply.code(404).send({ error: "not_found" });
+    const schedule = await generateDailySchedule(persona, body?.date || formatDate());
+    if (!schedule) return reply.code(400).send({ error: "generate_failed", message: "日程生成失败，请检查模型配置" });
+    return schedule;
+  });
+
+  // 手动编辑角色某天日程
+  app.put("/api/personas/:id/schedule", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as { date?: string; segments?: ScheduleSegment[] } | undefined;
+    const persona = personaRepo.find(id);
+    if (!persona) return reply.code(404).send({ error: "not_found" });
+    if (!Array.isArray(body?.segments)) return reply.code(400).send({ error: "bad_request", message: "segments 必填" });
+    const date = body?.date || formatDate();
+    return scheduleRepo.upsert(id, date, body.segments);
   });
 
   app.post("/api/personas", { preHandler: [app.authenticate] }, async (request, reply) => {

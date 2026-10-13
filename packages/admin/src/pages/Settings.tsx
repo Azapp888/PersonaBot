@@ -387,6 +387,21 @@ export function SettingsPage() {
             checked={settings.realtimeFactEnabled}
             onChange={(v) => set({ realtimeFactEnabled: v })}
           />
+          <ToggleRow
+            label="每日角色日程"
+            hint="每天为角色生成当日作息日程并注入提示词，让言行符合身份（如学生上课时段不闲聊）"
+            checked={settings.scheduleEnabled}
+            onChange={(v) => set({ scheduleEnabled: v })}
+          />
+          <Field label="日程生成时间（小时）" hint="每天在该小时为角色生成当日日程，默认 0（即 0 点），0-23">
+            <Input
+              type="number"
+              min={0}
+              max={23}
+              value={settings.scheduleGenerateHour}
+              onChange={(e) => set({ scheduleGenerateHour: Number(e.target.value) })}
+            />
+          </Field>
         </CardContent>
       </Card>
 

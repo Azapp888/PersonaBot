@@ -118,6 +118,10 @@ export const config = {
     memoryCoreMaxFacts: num("MEMORY_CORE_MAX_FACTS", 40),
     // 对话中实时提炼原子事实（约定/偏好/重要事件）
     realtimeFactEnabled: true,
+    // 每日为角色生成当日日程
+    scheduleEnabled: true,
+    // 每日生成日程的小时（0-23）
+    scheduleGenerateHour: num("SCHEDULE_GENERATE_HOUR", 0),
     // 一键更新：展示用仓库地址与跟踪分支（实际更新以本地 git remote.origin 为准）
     updateRepoUrl: str("UPDATE_REPO_URL", "https://github.com/Azapp888/PersonaBot"),
     updateBranch: str("UPDATE_BRANCH", "main"),
