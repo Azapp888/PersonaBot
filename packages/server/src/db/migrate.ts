@@ -214,6 +214,14 @@ ALTER TABLE memories ADD COLUMN consolidated_into TEXT;
 CREATE INDEX IF NOT EXISTS idx_memories_core ON memories(persona_id, user_id, pinned, importance);
 `,
   },
+  {
+    id: "009_daily_message_count",
+    sql: `
+ALTER TABLE user_profiles ADD COLUMN daily_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE user_profiles ADD COLUMN daily_count_date TEXT;
+ALTER TABLE memories ADD COLUMN origin TEXT NOT NULL DEFAULT 'daily';
+`,
+  },
 ];
 
 export function runMigrations(database?: Database.Database): void {

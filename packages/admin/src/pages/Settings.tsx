@@ -325,7 +325,7 @@ export function SettingsPage() {
         <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <ToggleRow
             label="启用每日自动问候"
-            hint="每个用户每天最多一次，优先在其活跃时段发送；已对话的用户同样会收到"
+            hint="每个用户每天最多发 N 次，优先在其活跃时段发送；已对话的用户同样会收到"
             checked={settings.dailyMessageEnabled}
             onChange={(v) => set({ dailyMessageEnabled: v })}
           />
@@ -336,6 +336,22 @@ export function SettingsPage() {
               max={23}
               value={settings.dailyMessageHour}
               onChange={(e) => set({ dailyMessageHour: Number(e.target.value) })}
+            />
+          </Field>
+          <Field label="每天最多问候次数" hint="每个用户每天最多发送几次每日问候，默认 1">
+            <Input
+              type="number"
+              min={1}
+              value={settings.dailyMessageMaxPerDay}
+              onChange={(e) => set({ dailyMessageMaxPerDay: Number(e.target.value) })}
+            />
+          </Field>
+          <Field label="两次问候最小间隔（分钟）" hint="次数大于 1 时生效，避免刚发完又发，默认 240">
+            <Input
+              type="number"
+              min={1}
+              value={settings.dailyMessageMinGapMinutes}
+              onChange={(e) => set({ dailyMessageMinGapMinutes: Number(e.target.value) })}
             />
           </Field>
         </CardContent>
@@ -365,6 +381,12 @@ export function SettingsPage() {
               onChange={(e) => set({ contextRecentRounds: Number(e.target.value) })}
             />
           </Field>
+          <ToggleRow
+            label="实时记忆（对话中提炼事实）"
+            hint="对话中命中约定/偏好/重要信息时立即写入长期记忆，下一轮即可想起，无需等到每日整理"
+            checked={settings.realtimeFactEnabled}
+            onChange={(v) => set({ realtimeFactEnabled: v })}
+          />
         </CardContent>
       </Card>
 

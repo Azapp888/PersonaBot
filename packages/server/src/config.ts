@@ -88,6 +88,10 @@ export const config = {
     timezone: str("TIMEZONE", "Asia/Shanghai"),
     dailyMessageEnabled: true,
     dailyMessageHour: num("DAILY_MESSAGE_HOUR", 9),
+    // 每个用户每天最多发送的每日问候条数
+    dailyMessageMaxPerDay: num("DAILY_MESSAGE_MAX_PER_DAY", 1),
+    // 同一用户两次每日问候之间的最小间隔（分钟）
+    dailyMessageMinGapMinutes: num("DAILY_MESSAGE_MIN_GAP_MINUTES", 240),
     contextRecentRounds: num("CONTEXT_RECENT_ROUNDS", 10),
     contextSummaryEnabled: true,
     // 会话历史保留的最大消息条数（超出后裁剪最旧的，避免单会话 JSON 无限增长）
@@ -112,6 +116,8 @@ export const config = {
     memoryCoreImportance: num("MEMORY_CORE_IMPORTANCE", 8),
     // 核心记忆注入条数上限
     memoryCoreMaxFacts: num("MEMORY_CORE_MAX_FACTS", 40),
+    // 对话中实时提炼原子事实（约定/偏好/重要事件）
+    realtimeFactEnabled: true,
     // 一键更新：展示用仓库地址与跟踪分支（实际更新以本地 git remote.origin 为准）
     updateRepoUrl: str("UPDATE_REPO_URL", "https://github.com/Azapp888/PersonaBot"),
     updateBranch: str("UPDATE_BRANCH", "main"),

@@ -40,6 +40,8 @@ function defaultSettings(): AppSettings {
     timezone: config.defaults.timezone,
     dailyMessageEnabled: config.defaults.dailyMessageEnabled,
     dailyMessageHour: config.defaults.dailyMessageHour,
+    dailyMessageMaxPerDay: config.defaults.dailyMessageMaxPerDay,
+    dailyMessageMinGapMinutes: config.defaults.dailyMessageMinGapMinutes,
     contextRecentRounds: config.defaults.contextRecentRounds,
     contextSummaryEnabled: config.defaults.contextSummaryEnabled,
     conversationMaxMessages: config.defaults.conversationMaxMessages,
@@ -57,6 +59,7 @@ function defaultSettings(): AppSettings {
     memoryDailyRetainDays: config.defaults.memoryDailyRetainDays,
     memoryCoreImportance: config.defaults.memoryCoreImportance,
     memoryCoreMaxFacts: config.defaults.memoryCoreMaxFacts,
+    realtimeFactEnabled: config.defaults.realtimeFactEnabled,
     updateRepoUrl: config.defaults.updateRepoUrl,
     updateBranch: config.defaults.updateBranch,
   };

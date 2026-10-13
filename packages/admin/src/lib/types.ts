@@ -121,6 +121,7 @@ export interface Memory {
   importance: number;
   pinned: boolean;
   kind: MemoryKind;
+  origin: "daily" | "realtime";
   consolidatedInto: string | null;
   createdAt: number;
 }
@@ -164,6 +165,8 @@ export interface AppSettings {
   timezone: string;
   dailyMessageEnabled: boolean;
   dailyMessageHour: number;
+  dailyMessageMaxPerDay: number;
+  dailyMessageMinGapMinutes: number;
   contextRecentRounds: number;
   contextSummaryEnabled: boolean;
   conversationMaxMessages: number;
@@ -181,6 +184,7 @@ export interface AppSettings {
   memoryDailyRetainDays: number;
   memoryCoreImportance: number;
   memoryCoreMaxFacts: number;
+  realtimeFactEnabled: boolean;
   updateRepoUrl: string;
   updateBranch: string;
 }

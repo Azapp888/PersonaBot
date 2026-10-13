@@ -98,6 +98,8 @@ export interface Memory {
   /** 是否受保护（永不剪枝 / 常驻注入）。约定、承诺、重要偏好默认受保护。 */
   pinned: boolean;
   kind: MemoryKind;
+  /** 记忆来源：daily=每日整理，realtime=对话中实时提炼。 */
+  origin: "daily" | "realtime";
   /** 已被哪条上层记忆浓缩吸收（用于剪枝追踪），未浓缩时为 null。 */
   consolidatedInto: string | null;
   createdAt: number;
@@ -161,6 +163,10 @@ export interface UserProfile {
   lastInteractionAt: number | null;
   lastProactiveAt: number | null;
   lastDailyAt: number | null;
+  /** 当日已发送的每日问候条数。 */
+  dailyCount: number;
+  /** dailyCount 对应的日期（YYYY-MM-DD），跨天自动归零。 */
+  dailyCountDate: string | null;
 }
 
 export interface DailyStats {
@@ -215,6 +221,10 @@ export interface AppSettings {
   timezone: string;
   dailyMessageEnabled: boolean;
   dailyMessageHour: number;
+  /** 每个用户每天最多发送的每日问候条数。 */
+  dailyMessageMaxPerDay: number;
+  /** 同一用户两次每日问候之间的最小间隔（分钟）。 */
+  dailyMessageMinGapMinutes: number;
   contextRecentRounds: number;
   contextSummaryEnabled: boolean;
   conversationMaxMessages: number;
@@ -236,6 +246,8 @@ export interface AppSettings {
   memoryCoreImportance: number;
   /** 核心记忆注入条数上限。 */
   memoryCoreMaxFacts: number;
+  /** 对话中实时提炼原子事实（约定/偏好/重要事件）并立即写入记忆，默认开启。 */
+  realtimeFactEnabled: boolean;
   /** 一键更新：用于展示的仓库地址（实际以本地 git remote 为准）。 */
   updateRepoUrl: string;
   /** 一键更新：跟踪的分支，默认 main。 */

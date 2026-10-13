@@ -97,3 +97,40 @@ test("检索：无关键词命中时返回空", async () => {
   const hits = retrieveRelevantMemories(PERSONA, USER, "毫无关联的内容zzz", 4);
   assert.equal(hits.length, 0);
 });
+
+test("实时记忆门控：短消息或未命中信号词不触发", async () => {
+  const { shouldExtract } = await import("../src/memory/realtime");
+  assert.equal(shouldExtract("嗯"), false);
+  assert.equal(shouldExtract("哈哈哈哈哈哈"), false);
+  assert.equal(shouldExtract("我们约好周六一起去看电影"), true);
+  assert.equal(shouldExtract("我喜欢喝美式咖啡但不喜欢加糖"), true);
+});
+
+test("实时记忆 origin 标记为 realtime，且每日整理不会误删", async () => {
+  const { memoryRepo } = await import("../src/db/repos/memories");
+  memoryRepo.create({
+    personaId: PERSONA,
+    userId: USER,
+    type: "fact",
+    content: "用户习惯晚上 11 点睡",
+    sourceDate: "2026-02-01",
+    importance: 7,
+    pinned: true,
+    kind: "preference",
+    origin: "realtime",
+  });
+  // 模拟每日整理清理同日 daily 事实：不应删除 realtime 事实
+  memoryRepo.removeByTypeDate(PERSONA, USER, "fact", "2026-02-01", "daily");
+  const still = memoryRepo
+    .listByUser(PERSONA, USER)
+    .filter((m) => m.origin === "realtime" && m.content.includes("晚上 11 点睡"));
+  assert.equal(still.length, 1);
+});
+
+test("每日问候计数：同日累加，跨天归零", async () => {
+  const { profileRepo } = await import("../src/db/repos/profiles");
+  assert.equal(profileRepo.recordDailySend(PERSONA, "u2", "2026-03-01"), 1);
+  assert.equal(profileRepo.recordDailySend(PERSONA, "u2", "2026-03-01"), 2);
+  assert.equal(profileRepo.recordDailySend(PERSONA, "u2", "2026-03-02"), 1);
+});
+

@@ -134,15 +134,26 @@ interface DailyDecision {
   reason: string;
 }
 
-/** 判断该用户此刻是否应收到每日问候：每天最多一次，尽量落在其活跃时段。 */
+/** 判断该用户此刻是否应收到每日问候：每天最多 settings.dailyMessageMaxPerDay 次，尽量落在其活跃时段。 */
 function decideDaily(profile: UserProfile, settings: AppSettings): DailyDecision {
   const snap = systemClock.snapshot(settings.timezone);
+  const maxPerDay = Math.max(1, settings.dailyMessageMaxPerDay);
+  const sentToday = profile.dailyCountDate === snap.date ? profile.dailyCount : 0;
+  if (sentToday >= maxPerDay) {
+    return { send: false, reason: `今日问候已达上限（${sentToday}/${maxPerDay}）` };
+  }
+  const nowTs = systemClock.now();
+  // 多次问候时限制最小间隔，避免刚发完又发
   if (profile.lastDailyAt) {
-    const last = systemClock.snapshotAt(profile.lastDailyAt, settings.timezone);
-    if (last.date === snap.date) return { send: false, reason: "今日已发送" };
+    const gapMs = Math.max(1, settings.dailyMessageMinGapMinutes) * 60 * 1000;
+    if (nowTs - profile.lastDailyAt < gapMs) {
+      return {
+        send: false,
+        reason: `距离上次问候不足 ${settings.dailyMessageMinGapMinutes} 分钟`,
+      };
+    }
   }
   // 距离每日发送窗口的判定基于真实当前时间；互动时间与当前时间都用时间戳比较，避免时区混用
-  const nowTs = systemClock.now();
   if (profile.lastInteractionAt && nowTs - profile.lastInteractionAt < 30 * 60 * 1000) {
     return { send: false, reason: "用户 30 分钟内刚互动，暂不打扰" };
   }
@@ -220,7 +231,7 @@ export async function runDailyGreetings(force = false): Promise<ProactiveRunResu
         continue;
       }
       await deliver(persona, bot, profile.userId, reply, result);
-      profileRepo.touchDaily(persona.id, profile.userId);
+      profileRepo.recordDailySend(persona.id, profile.userId, systemClock.snapshot(settings.timezone).date);
       await sleep(120);
     }
   }

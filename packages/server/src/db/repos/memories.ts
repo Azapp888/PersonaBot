@@ -20,6 +20,7 @@ function map(row: any): Memory {
     importance: row.importance ?? 5,
     pinned: !!row.pinned,
     kind: toKind(row.kind),
+    origin: row.origin === "realtime" ? "realtime" : "daily",
     consolidatedInto: row.consolidated_into ?? null,
     createdAt: row.created_at,
   };
@@ -34,6 +35,7 @@ export interface MemoryInput {
   importance?: number;
   pinned?: boolean;
   kind?: MemoryKind;
+  origin?: "daily" | "realtime";
   consolidatedInto?: string | null;
 }
 
@@ -118,8 +120,8 @@ export const memoryRepo = {
     const id = newId("mem_");
     this.db()
       .prepare(
-        `INSERT INTO memories (id, persona_id, user_id, type, content, source_date, importance, pinned, kind, consolidated_into, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO memories (id, persona_id, user_id, type, content, source_date, importance, pinned, kind, origin, consolidated_into, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -131,6 +133,7 @@ export const memoryRepo = {
         input.importance ?? 5,
         input.pinned ? 1 : 0,
         toKind(input.kind),
+        input.origin === "realtime" ? "realtime" : "daily",
         input.consolidatedInto ?? null,
         now(),
       );
@@ -165,8 +168,14 @@ export const memoryRepo = {
   remove(id: string): void {
     this.db().prepare(`DELETE FROM memories WHERE id = ?`).run(id);
   },
-  /** 删除某类型在某 sourceDate 的记录（用于重算原子事实）。 */
-  removeByTypeDate(personaId: string, userId: string, type: MemoryType, sourceDate: string): void {
+  /** 删除某类型在某 sourceDate 的记录（用于重算原子事实）。可指定 origin 只删每日整理的。 */
+  removeByTypeDate(personaId: string, userId: string, type: MemoryType, sourceDate: string, origin?: "daily" | "realtime"): void {
+    if (origin) {
+      this.db()
+        .prepare(`DELETE FROM memories WHERE persona_id = ? AND user_id = ? AND type = ? AND source_date = ? AND origin = ?`)
+        .run(personaId, userId, type, sourceDate, origin);
+      return;
+    }
     this.db()
       .prepare(`DELETE FROM memories WHERE persona_id = ? AND user_id = ? AND type = ? AND source_date = ?`)
       .run(personaId, userId, type, sourceDate);

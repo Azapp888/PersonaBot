@@ -21,6 +21,8 @@ function map(row: any): UserProfile {
     lastInteractionAt: row.last_interaction_at,
     lastProactiveAt: row.last_proactive_at,
     lastDailyAt: row.last_daily_at ?? null,
+    dailyCount: row.daily_count ?? 0,
+    dailyCountDate: row.daily_count_date ?? null,
   };
 }
 
@@ -67,5 +69,16 @@ export const profileRepo = {
   touchDaily(personaId: string, userId: string, ts = Date.now()): void {
     const profile = this.ensure(personaId, userId);
     this.db().prepare(`UPDATE user_profiles SET last_daily_at = ? WHERE id = ?`).run(ts, profile.id);
+  },
+  /**
+   * 记录一次每日问候发送：跨天自动把计数归零后再 +1，并返回新的当日计数。
+   */
+  recordDailySend(personaId: string, userId: string, date: string, ts = Date.now()): number {
+    const profile = this.ensure(personaId, userId);
+    const next = profile.dailyCountDate === date ? profile.dailyCount + 1 : 1;
+    this.db()
+      .prepare(`UPDATE user_profiles SET last_daily_at = ?, daily_count = ?, daily_count_date = ? WHERE id = ?`)
+      .run(ts, next, date, profile.id);
+    return next;
   },
 };

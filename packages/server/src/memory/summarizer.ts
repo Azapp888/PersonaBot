@@ -145,7 +145,8 @@ export async function generateDailyMemory(persona: Persona, userId: string, date
   // 提炼原子事实并落库：日记忆会被剪枝，原子事实按重要性长期保留
   const facts = await extractFacts(persona, text, sourceDate);
   if (facts.length) {
-    memoryRepo.removeByTypeDate(persona.id, userId, "fact", sourceDate);
+    // 只清理同日的「每日整理」事实，保留实时记忆写入的事实
+    memoryRepo.removeByTypeDate(persona.id, userId, "fact", sourceDate, "daily");
     for (const fact of facts) {
       memoryRepo.create({
         personaId: persona.id,
@@ -156,6 +157,7 @@ export async function generateDailyMemory(persona: Persona, userId: string, date
         importance: fact.importance,
         pinned: fact.pinned,
         kind: fact.kind,
+        origin: "daily",
       });
     }
   }

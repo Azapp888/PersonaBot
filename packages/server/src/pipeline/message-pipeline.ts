@@ -8,6 +8,7 @@ import { resolveProviderForPersona } from "../llm/factory";
 import { assembleSystemPrompt } from "../persona/prompt";
 import { buildMemoryInjection, syncMemoryFiles } from "../memory/service";
 import { extractUserHabits } from "../memory/profile";
+import { captureRealtimeFacts } from "../memory/realtime";
 import { generatePainting, canPaint, type PaintingResult } from "../painting/service";
 import { notifyUserReplied } from "../proactive/service";
 import { QQApiClient } from "../qq/client";
@@ -221,6 +222,9 @@ export async function generateReply(
     messages: 2,
   });
   syncMemoryFiles(persona, userId);
+
+  // 实时记忆：命中重要信息时立即落库（异步，不阻塞回复），下一轮即可想起
+  void captureRealtimeFacts(persona, userId, userText, reply).catch(() => undefined);
 
   // 异步更新用户画像，不阻塞回复
   void extractUserHabits(persona, userId).catch(() => undefined);
