@@ -20,6 +20,7 @@ const DEFAULT_BASES: Record<string, string> = {
   openai: "https://api.openai.com/v1",
   deepseek: "https://api.deepseek.com/v1",
   anthropic: "https://api.anthropic.com",
+  volcengine: "https://ark.cn-beijing.volces.com/api/v3",
 };
 
 /**

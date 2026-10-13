@@ -14,8 +14,14 @@ export interface OpenAICompatibleOptions {
   apiBase: string;
   model: string;
   name?: string;
-  /** 是否使用 deepseek 风格的缓存字段 */
-  cacheStyle?: "openai" | "deepseek";
+  /**
+   * 缓存字段风格提示。仅作为兜底顺序参考：
+   * - "deepseek"：优先读 prompt_cache_hit_tokens / prompt_cache_miss_tokens
+   * - "volcengine"：火山方舟（豆包），优先读 prompt_tokens_details.cached_tokens，兼容 deepseek 字段
+   * - "openai"：优先读 prompt_tokens_details.cached_tokens
+   * 实际解析始终按「探测式」兜底，避免上游字段差异导致缓存一律记 0。
+   */
+  cacheStyle?: "openai" | "deepseek" | "volcengine";
 }
 
 function toApiMessages(messages: ChatMessage[]): unknown[] {
@@ -39,8 +45,60 @@ function toApiMessages(messages: ChatMessage[]): unknown[] {
   });
 }
 
-function parseToolCalls(raw: any): ToolCall[] {
-  if (!Array.isArray(raw)) return [];
+/**
+ * 探测式解析缓存用量（与具体 Provider 实例无关，便于单测）。
+ *
+ * 各家 OpenAI 兼容网关的缓存字段名并不统一：
+ * - DeepSeek：prompt_cache_hit_tokens / prompt_cache_miss_tokens
+ * - OpenAI / 火山方舟（豆包）：prompt_tokens_details.cached_tokens
+ * - 部分网关：cached_tokens / cache_read_input_tokens（Anthropic 风格）
+ *
+ * 按 cacheStyle 给出优先顺序后逐项兜底，只要任一字段存在即可正确统计，
+ * 避免「字段对不上 → 缓存一律记 0」。
+ */
+export function parseUsage(
+  data: any,
+  cacheStyle: "openai" | "deepseek" | "volcengine" = "openai",
+): { inputTokens: number; outputTokens: number; cacheHitTokens: number; cacheMissTokens: number } {
+  const usage = data?.usage ?? {};
+  const promptTokens = Number(usage.prompt_tokens ?? 0);
+  const details = usage.prompt_tokens_details ?? {};
+  const deepseekHit = usage.prompt_cache_hit_tokens;
+  const deepseekMiss = usage.prompt_cache_miss_tokens;
+  const openaiCached = details.cached_tokens ?? usage.cached_tokens;
+  const anthropicRead = usage.cache_read_input_tokens;
+
+  // 按 cacheStyle 决定优先读哪个字段，其余作为兜底
+  const hitSources =
+    cacheStyle === "deepseek"
+      ? [deepseekHit, openaiCached, anthropicRead]
+      : [openaiCached, deepseekHit, anthropicRead];
+
+  let cacheHitTokens = 0;
+  for (const source of hitSources) {
+    const n = Number(source);
+    if (Number.isFinite(n) && n > 0) {
+      cacheHitTokens = n;
+      break;
+    }
+  }
+
+  // miss 优先用上游显式给出的小字段；否则用 输入 - 命中 推导
+  const explicitMiss = Number(deepseekMiss);
+  const cacheMissTokens =
+    Number.isFinite(explicitMiss) && explicitMiss > 0
+      ? explicitMiss
+      : Math.max(promptTokens - cacheHitTokens, 0);
+
+  return normalizeUsage({
+    inputTokens: promptTokens,
+    outputTokens: Number(usage.completion_tokens ?? 0),
+    cacheHitTokens,
+    cacheMissTokens,
+  });
+}
+
+function parseToolCalls(raw: any): ToolCall[] {  if (!Array.isArray(raw)) return [];
   const calls: ToolCall[] = [];
   for (const c of raw) {
     if (!c) continue;
@@ -63,7 +121,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
   readonly supportsTools = true;
   private readonly apiKey: string;
   private readonly apiBase: string;
-  private readonly cacheStyle: "openai" | "deepseek";
+  private readonly cacheStyle: "openai" | "deepseek" | "volcengine";
 
   constructor(opts: OpenAICompatibleOptions) {
     this.name = opts.name ?? "openai-compatible";
@@ -73,28 +131,19 @@ export class OpenAICompatibleProvider implements LLMProvider {
     this.cacheStyle = opts.cacheStyle ?? "openai";
   }
 
+  /**
+   * 探测式解析缓存用量。
+   *
+   * 各家 OpenAI 兼容网关返回的缓存字段名并不统一：
+   * - DeepSeek：prompt_cache_hit_tokens / prompt_cache_miss_tokens
+   * - OpenAI / 火山方舟（豆包）：prompt_tokens_details.cached_tokens
+   * - 部分网关：cached_tokens / cache_read_input_tokens（Anthropic 风格）
+   *
+   * 这里不再只按 provider 猜一种，而是按 cacheStyle 给出优先顺序后逐项兜底，
+   * 只要任一字段存在即可正确统计，避免「字段对不上 → 一律记 0」。
+   */
   private buildUsage(data: any) {
-    const usage = data?.usage ?? {};
-    const cachedFromOpenAI = usage?.prompt_tokens_details?.cached_tokens;
-    const deepseekHit = usage?.prompt_cache_hit_tokens;
-    const deepseekMiss = usage?.prompt_cache_miss_tokens;
-
-    let cacheHitTokens = 0;
-    let cacheMissTokens = 0;
-    if (this.cacheStyle === "deepseek") {
-      cacheHitTokens = Number(deepseekHit ?? 0);
-      cacheMissTokens = Number(deepseekMiss ?? Math.max((usage.prompt_tokens ?? 0) - cacheHitTokens, 0));
-    } else {
-      cacheHitTokens = Number(cachedFromOpenAI ?? 0);
-      cacheMissTokens = Math.max((usage.prompt_tokens ?? 0) - cacheHitTokens, 0);
-    }
-
-    return normalizeUsage({
-      inputTokens: Number(usage.prompt_tokens ?? 0),
-      outputTokens: Number(usage.completion_tokens ?? 0),
-      cacheHitTokens,
-      cacheMissTokens,
-    });
+    return parseUsage(data, this.cacheStyle);
   }
 
   private async request(data: any, tools: ToolDefinition[] | undefined, options: LLMChatOptions): Promise<any> {

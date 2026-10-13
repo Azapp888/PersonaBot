@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { systemClock, timeContextLine } from "../src/utils/clock";
+import { systemClock, timeContextLine, timeContextLineMinute } from "../src/utils/clock";
 
 test("systemClock.snapshot 返回完整字段", () => {
   const snap = systemClock.snapshot("Asia/Shanghai");
@@ -34,4 +34,15 @@ test("timeContextLine 含当前时间与时区", () => {
   assert.ok(line.includes("当前时间"));
   assert.ok(line.includes("Asia/Shanghai"));
   assert.ok(line.includes("UTC+08:00"));
+});
+
+test("timeContextLineMinute 精确到分钟且不含秒", () => {
+  // 2026-01-01T00:34:56Z -> 北京时间 08:34
+  const line = timeContextLineMinute("Asia/Shanghai", Date.parse("2026-01-01T00:34:56Z"));
+  assert.ok(line.includes("2026-01-01 08:34"));
+  // 同一分钟内的不同秒，必须产生完全一致的文本（缓存前缀稳定）
+  const sameMinute = timeContextLineMinute("Asia/Shanghai", Date.parse("2026-01-01T00:34:02Z"));
+  assert.equal(line, sameMinute);
+  // 不含秒级时间片段
+  assert.ok(!line.includes(":56"));
 });

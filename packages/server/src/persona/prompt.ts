@@ -1,6 +1,6 @@
 import type { Persona } from "../types";
 import { getSkillContent } from "../skills/manager";
-import { systemClock, timeContextLine } from "../utils/clock";
+import { systemClock, timeContextLineMinute } from "../utils/clock";
 import { renderState, type ConversationState } from "../context/state";
 
 export interface MemoryFiles {
@@ -61,17 +61,30 @@ export function buildStablePrefix(persona: Persona): string {
 }
 
 /**
- * 动态后缀：当前时间 + 记忆档案（三个可编辑 md 文件）+ 相关记忆 + 状态。
- * 放在 system prompt 末尾，作为已预热请求的"前缀扩展"。
+ * 动态后缀：记忆档案 + 相关记忆 + 状态 + 当前时间。
  *
- * 时间始终注入：所有模型动作都必须基于真实当前时间下定论。
+ * 为最大化 prompt cache 命中率，这里遵循两条铁律：
+ * 1. 「静态在前，动态在后」——按内容变化频率从低到高排列：
+ *    记忆档案（低频）→ 核心记忆（低频）→ 日程（每天一变）
+ *    → 相关记忆（每轮可能变）→ 对话摘要 → 当前状态（每轮多变）
+ *    → 当前时间（每轮必变，精确到分钟，放在整个 prompt 的最末尾）。
+ *    只要时间在最后，它前面的所有内容就构成一个稳定的可复用前缀。
+ * 2. 「稳定性优先」——尽可能让同一分钟内的多次请求字节级一致；清空的可选段落直接省略，
+ *    避免用空行等固定占位制造假差异。
  */
 export function buildDynamicSuffix(persona: Persona, ctx: PromptContext = {}): string {
   const lines: string[] = [];
   const now = ctx.now ?? systemClock.now();
 
-  lines.push("", "# 当前上下文");
-  lines.push(timeContextLine(ctx.timezone, now));
+  // 依变化频率注入：低频在前，高频在后。
+
+  const files = ctx.memoryFiles;
+  if (files && (files.memory?.trim() || files.user?.trim() || files.personaState?.trim())) {
+    lines.push("", "# 记忆档案（由后台维护，可直接编辑，是你长期记住用户与自身设定的依据）");
+    if (files.memory?.trim()) lines.push("## MEMORY.md\n" + files.memory.trim());
+    if (files.user?.trim()) lines.push("## USER.md\n" + files.user.trim());
+    if (files.personaState?.trim()) lines.push("## persona-state.md\n" + files.personaState.trim());
+  }
 
   if (ctx.coreMemories?.trim()) {
     lines.push("", "# 核心记忆（永久保留，务必遵守，不得遗忘或与之矛盾）");
@@ -81,14 +94,6 @@ export function buildDynamicSuffix(persona: Persona, ctx: PromptContext = {}): s
   if (ctx.schedule?.trim()) {
     lines.push("", "# 你今天的日程（务必让言行符合当前时段）");
     lines.push(ctx.schedule.trim());
-  }
-
-  const files = ctx.memoryFiles;
-  if (files && (files.memory?.trim() || files.user?.trim() || files.personaState?.trim())) {
-    lines.push("", "# 记忆档案（由后台维护，可直接编辑，是你长期记住用户与自身设定的依据）");
-    if (files.memory?.trim()) lines.push("## MEMORY.md\n" + files.memory.trim());
-    if (files.user?.trim()) lines.push("## USER.md\n" + files.user.trim());
-    if (files.personaState?.trim()) lines.push("## persona-state.md\n" + files.personaState.trim());
   }
 
   if (ctx.relevant?.trim()) {
@@ -109,13 +114,19 @@ export function buildDynamicSuffix(persona: Persona, ctx: PromptContext = {}): s
     );
   }
 
-  // 当前状态放最后，利用近因效应强化对“未完成任务/情绪”的遵守
+  // 当前状态放动态段末、时间之前：利用近因效应强化对“未完成任务/情绪”的遵守
   if (ctx.conversationState) {
     const rendered = renderState(ctx.conversationState);
     if (rendered) {
       lines.push("", "# 当前状态（务必遵守，不得与其矛盾）", rendered);
     }
   }
+
+  // 当前时间固定放在 system prompt 最末尾：它是唯一每轮必变的内容，
+  // 放在末尾后其前面的全部内容都成为稳定前缀，可被 prompt cache 复用。
+  // 精确到分钟（不含秒），进一步降低同分钟内的抖动。
+  lines.push("", "# 当前时间");
+  lines.push(timeContextLineMinute(ctx.timezone, now));
 
   return lines.join("\n");
 }

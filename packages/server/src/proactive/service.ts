@@ -14,7 +14,6 @@ import { logger } from "../logger";
 import type { Bot, Persona, UserProfile, AppSettings } from "../types";
 import { formatDate, sleep } from "../utils/id";
 import { systemClock, timeContextLine } from "../utils/clock";
-
 const sentSinceReply = new Map<string, number>();
 const HOUR = 60 * 60 * 1000;
 

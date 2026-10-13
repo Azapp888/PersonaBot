@@ -79,6 +79,7 @@ export function retrieveRelevantMemories(
     content: c.row.content,
     score: WEIGHT_RELEVANCE * relNorm[i] + WEIGHT_IMPORTANCE * c.importance + WEIGHT_RECENCY * c.recency,
   }));
-  scored.sort((a, b) => b.score - a.score);
+  // 分数相同时用 content 稳定排序，避免返回顺序抖动破坏 prompt cache 前缀
+  scored.sort((a, b) => b.score - a.score || a.content.localeCompare(b.content));
   return scored.slice(0, topK);
 }

@@ -21,6 +21,7 @@ const providerDefaults: Record<string, { base: string; model: string }> = {
   openai: { base: "https://api.openai.com/v1", model: "gpt-4o-mini" },
   deepseek: { base: "https://api.deepseek.com/v1", model: "deepseek-chat" },
   anthropic: { base: "https://api.anthropic.com", model: "claude-3-5-sonnet-20241022" },
+  volcengine: { base: "https://ark.cn-beijing.volces.com/api/v3", model: "doubao-seed-1-6-250615" },
   custom: { base: "", model: "" },
   mock: { base: "", model: "mock-roleplay" },
 };
@@ -29,6 +30,7 @@ const providerLabels: Record<string, string> = {
   openai: "OpenAI",
   deepseek: "DeepSeek",
   anthropic: "Anthropic Claude",
+  volcengine: "火山引擎方舟（豆包）",
   custom: "自定义（OpenAI 兼容）",
   mock: "Mock（本地联调）",
 };
@@ -320,6 +322,7 @@ export function ModelsPage() {
               >
                 <option value="deepseek">DeepSeek</option>
                 <option value="openai">OpenAI</option>
+                <option value="volcengine">火山引擎方舟（豆包）</option>
                 <option value="anthropic">Anthropic Claude</option>
                 <option value="custom">自定义（OpenAI 兼容）</option>
                 <option value="mock">Mock（本地联调）</option>

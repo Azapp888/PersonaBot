@@ -143,6 +143,19 @@ export function timeContextLine(timeZone?: string, ts: number = Date.now()): str
 }
 
 /**
+ * 精确到分钟的"当前时间"上下文行。
+ *
+ * 用于注入 system prompt 末尾：秒级变化会让缓存前缀在每一轮都从变化处失效，
+ * 归一化到分钟可让同一分钟内的多次请求前缀字节级一致，显著提高 prompt cache 命中。
+ * 格式不含秒，且分钟为 00 时同样保留（避免格式抖动）。
+ */
+export function timeContextLineMinute(timeZone?: string, ts: number = Date.now()): string {
+  const s = build(ts, timeZone);
+  const minute = s.time.slice(0, 5);
+  return `当前时间：${s.date} ${minute} ${s.weekday}（时区 ${s.timezone}，${offsetLabel(s.utcOffsetMinutes)}）`;
+}
+
+/**
  * 统一系统时钟。
  *
  * 每次调用都实时读取宿主机时间，不做任何缓存，确保每次请求（含网关消息）

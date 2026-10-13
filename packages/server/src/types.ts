@@ -85,7 +85,7 @@ export interface PersonaSchedule {
   createdAt: number;
 }
 
-export type ModelProvider = "openai" | "deepseek" | "anthropic" | "mock" | "custom";
+export type ModelProvider = "openai" | "deepseek" | "anthropic" | "volcengine" | "mock" | "custom";
 
 export interface ModelRecord {
   id: string;

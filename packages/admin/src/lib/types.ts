@@ -1,4 +1,4 @@
-export type ModelProvider = "openai" | "deepseek" | "anthropic" | "mock" | "custom";
+export type ModelProvider = "openai" | "deepseek" | "anthropic" | "volcengine" | "mock" | "custom";
 export type MemoryType = "daily" | "three_day" | "biweekly" | "monthly" | "imported" | "fact";
 
 export type MemoryKind = "agreement" | "preference" | "fact" | "event" | "trivial";

@@ -48,6 +48,13 @@ export const PROVIDER_VISION: Record<string, ProviderVisionSpec> = {
     knownTextOnlyModels: [],
     note: "Anthropic Messages API：content 数组元素 {type:'image',source:{type:'base64',media_type,data}} 或 {type:'url',url}。",
   },
+  volcengine: {
+    supportsVision: true,
+    ...OPENAI_STYLE,
+    knownVisionModels: [/doubao.*(vision|vl|seed-1-6|seed-1\.6)/, /doubao-1-5-vision/, /doubao-vision/, /-vl\b/],
+    knownTextOnlyModels: [],
+    note: "火山引擎方舟：OpenAI 兼容 Chat Completions，content 数组 + image_url（https 或 data:URL）。",
+  },
   custom: {
     supportsVision: true,
     ...OPENAI_STYLE,

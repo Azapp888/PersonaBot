@@ -10,7 +10,15 @@ const DEFAULT_BASES: Record<string, string> = {
   openai: "https://api.openai.com/v1",
   deepseek: "https://api.deepseek.com/v1",
   anthropic: "https://api.anthropic.com",
+  volcengine: "https://ark.cn-beijing.volces.com/api/v3",
 };
+
+/** 火山引擎方舟（豆包）的模型命名/端点特征，用于自动识别微信/兼容网关。 */
+function isVolcengine(model: ModelRecord): boolean {
+  if (model.provider === "volcengine") return true;
+  if (/volces\.com|volcengine/i.test(model.apiBase ?? "")) return true;
+  return /^doubao-|^ep-\d/i.test(model.modelId);
+}
 
 export function createProviderFromModel(model: ModelRecord): LLMProvider {
   const apiKey = modelRepo.decryptedKey(model);
@@ -29,10 +37,25 @@ export function createProviderFromModel(model: ModelRecord): LLMProvider {
         name: "deepseek",
         cacheStyle: "deepseek",
       });
+    case "volcengine":
+      return new OpenAICompatibleProvider({
+        apiKey,
+        apiBase,
+        model: model.modelId,
+        name: "volcengine",
+        cacheStyle: "volcengine",
+      });
     case "openai":
     case "custom":
     default:
-      return new OpenAICompatibleProvider({ apiKey, apiBase, model: model.modelId, name: model.provider });
+      // 兼容网关（custom）可能是火山方舟，按特征识别以选用正确的缓存字段
+      return new OpenAICompatibleProvider({
+        apiKey,
+        apiBase,
+        model: model.modelId,
+        name: model.provider,
+        cacheStyle: isVolcengine(model) ? "volcengine" : "openai",
+      });
   }
 }
 
