@@ -8,6 +8,7 @@ import { syncSkillsFromGithub } from "../skills/manager";
 import { settingsService } from "../settings/service";
 import { logger } from "../logger";
 import { formatDate, addDays } from "../utils/id";
+import { resolveIanaTimezone } from "../utils/clock";
 import {
   generateBiweeklyMemory,
   generateDailyMemory,
@@ -97,7 +98,8 @@ function scheduleSkillUpdate(): void {
 
 export function startScheduler(): void {
   // 所有定时任务跟随用户配置的时区，避免容器默认 UTC 导致「00:00」跑到北京时间早 8 点。
-  const timezone = settingsService.get().timezone;
+  // 注意：必须解析成真实 IANA 名再传给 node-cron，别名 "server" 会让它抛错导致调度器崩溃。
+  const timezone = resolveIanaTimezone(settingsService.get().timezone);
   const schedule = (expr: string, fn: () => void): ScheduledTask =>
     cron.schedule(expr, fn, timezone ? { timezone } : undefined);
 

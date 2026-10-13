@@ -12,7 +12,7 @@ import { settingsService } from "../settings/service";
 import { logger } from "../logger";
 import type { Bot, Persona, UserProfile, AppSettings } from "../types";
 import { formatDate, sleep } from "../utils/id";
-import { systemClock } from "../utils/clock";
+import { systemClock, timeContextLine } from "../utils/clock";
 
 const sentSinceReply = new Map<string, number>();
 const HOUR = 60 * 60 * 1000;
@@ -115,11 +115,13 @@ async function generateProactive(persona: Persona, userId: string, instruction: 
   });
   const conv = conversationRepo.ensure(persona.id, userId);
   const history = conv.messages.slice(-10);
+  const now = systemClock.now();
+  const instructionWithTime = `${timeContextLine(settings.timezone, now)}\n${instruction}`;
 
   try {
     const { provider, model } = resolveProviderForPersona(persona);
     const result = await provider.chat(
-      [{ role: "system", content: full }, ...history, { role: "user", content: instruction }],
+      [{ role: "system", content: full }, ...history, { role: "user", content: instructionWithTime }],
       { temperature: persona.modelConfig.temperature ?? model?.temperature, maxTokens: persona.modelConfig.maxTokens },
     );
     return result.content.trim();

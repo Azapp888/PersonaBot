@@ -43,6 +43,30 @@ function normalizeTz(timeZone?: string): string | undefined {
   return t;
 }
 
+/**
+ * 解析出可用于 process.env.TZ / cron 调度器的具体 IANA 时区名。
+ * - "server"/"system"/"local"/空 → 返回服务器实际时区（IANA）；
+ * - 合法 IANA 名 → 原样返回；
+ * - 非法时区名 → 返回 undefined（调用方应回退为不指定，避免抛错崩溃）。
+ *
+ * node-cron 不认识 "server" 这类别名，必须用真实 IANA 名，否则会抛
+ * `Invalid time zone specified` 导致调度器启动失败。
+ */
+export function resolveIanaTimezone(timeZone?: string): string | undefined {
+  const normalized = normalizeTz(timeZone);
+  if (!normalized) {
+    const local = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return local || undefined;
+  }
+  try {
+    // 触发一次格式化以校验时区名合法性
+    new Intl.DateTimeFormat("en-US", { timeZone: normalized }).format(new Date());
+    return normalized;
+  } catch {
+    return undefined;
+  }
+}
+
 function offsetMinutes(ts: number, timeZone?: string): number {
   try {
     const dtf = new Intl.DateTimeFormat("en-US", { timeZone: normalizeTz(timeZone), timeZoneName: "longOffset" });

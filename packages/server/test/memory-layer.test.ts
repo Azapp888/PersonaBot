@@ -134,3 +134,16 @@ test("每日问候计数：同日累加，跨天归零", async () => {
   assert.equal(profileRepo.recordDailySend(PERSONA, "u2", "2026-03-02"), 1);
 });
 
+test("时区解析：server 别名与非法值都不会传给调度器", async () => {
+  const { resolveIanaTimezone } = await import("../src/utils/clock");
+  // 合法 IANA 名原样返回
+  assert.equal(resolveIanaTimezone("Asia/Shanghai"), "Asia/Shanghai");
+  // server 别名解析为服务器实际 IANA 时区（容器里通常是 UTC，也是合法 IANA 名）
+  const server = resolveIanaTimezone("server");
+  assert.equal(server, Intl.DateTimeFormat().resolvedOptions().timeZone);
+  // 非法时区名返回 undefined，避免 node-cron 抛错崩溃
+  assert.equal(resolveIanaTimezone("not-a-timezone"), undefined);
+  assert.equal(resolveIanaTimezone(""), server);
+});
+
+
