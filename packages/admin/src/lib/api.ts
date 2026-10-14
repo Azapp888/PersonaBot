@@ -8,6 +8,7 @@ import type {
   Persona,
   PersonaSchedule,
   ProactiveRunResult,
+  ProviderGroup,
   ScheduleSegment,
   Skill,
   SystemTime,
@@ -102,6 +103,9 @@ export const api = {
 
   // models
   models: () => request<ModelRecord[]>("GET", "/api/models"),
+  providerGroups: () => request<{ groups: ProviderGroup[]; total: number }>("GET", "/api/models/providers"),
+  metadataStatus: () => request<{ ready: boolean; models: number; source: string }>("GET", "/api/models/metadata-status"),
+  refreshMetadata: () => request<{ ok: boolean; ready: boolean; models: number }>("POST", "/api/models/metadata-refresh", {}),
   createModel: (data: any) => request<ModelRecord>("POST", "/api/models", data),
   createModelsBatch: (data: {
     provider: string;

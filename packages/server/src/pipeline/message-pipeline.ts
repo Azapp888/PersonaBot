@@ -22,6 +22,7 @@ import { systemClock } from "../utils/clock";
 import { buildConversationContext } from "../context/manager";
 import { buildGuardrail, violatesGuardrail, sanitizeReply } from "../context/state";
 import { buildFileContext, renderFileContext, buildImageParts } from "../attachments/service";
+import { pickQQImages, mediaPlaceholder, QQ_IMAGE_MAX_BYTES } from "../qq/capabilities";
 import { detectShellCommand, formatShellReply, runAgentLoop } from "../agent";
 import { isUserAllowedForShell, runShellCommand } from "../agent/shell";
 import { filterText } from "../moderation/filter";
@@ -385,8 +386,13 @@ class MessagePipeline {
         this.batches.delete(key);
         return;
       }
+      // 按 QQ 开放平台约束收敛图片：仅图片类型，单条最多 5 张
       const imageAtts: QQAttachment[] = imageUrls.map((url) => ({ url }));
-      const { parts, skipped } = await buildImageParts(imageAtts, settings.fileMaxBytes * 4);
+      const { images, overflow } = pickQQImages(imageAtts);
+      if (overflow > 0) {
+        logger.info({ key, overflow }, "qq attachment count exceeds platform limit, extra images ignored");
+      }
+      const { parts, skipped } = await buildImageParts(images, QQ_IMAGE_MAX_BYTES);
       imageParts = parts;
       if (!imageParts.length) {
         logger.warn({ key, skipped }, "all images failed to download");
@@ -395,6 +401,10 @@ class MessagePipeline {
           this.batches.delete(key);
           return;
         }
+      }
+      // 纯图片消息没有正文：注入平台占位符，保证模型仍能起一轮对话
+      if (!merged.trim() && !fileContext && imageParts.length) {
+        merged = mediaPlaceholder(imageAtts) ?? "(image)";
       }
     }
 

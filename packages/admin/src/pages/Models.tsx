@@ -53,11 +53,27 @@ export function ModelsPage() {
   const [modelSearch, setModelSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [addingBatch, setAddingBatch] = useState(false);
+  const [meta, setMeta] = useState<{ ready: boolean; models: number } | null>(null);
+  const [refreshingMeta, setRefreshingMeta] = useState(false);
 
   const load = () => api.models().then(setModels);
   useEffect(() => {
     load().catch(() => undefined);
+    api.metadataStatus().then(setMeta).catch(() => undefined);
   }, []);
+
+  const refreshMetadata = async () => {
+    setRefreshingMeta(true);
+    try {
+      const res = await api.refreshMetadata();
+      setMeta({ ready: res.ready, models: res.models });
+      push(`元数据已刷新：${res.models} 个模型（来源 models.dev）`, "success");
+    } catch (err) {
+      push((err as Error).message, "error");
+    } finally {
+      setRefreshingMeta(false);
+    }
+  };
 
   const openCreate = () => {
     setEditingId(null);
@@ -198,19 +214,33 @@ export function ModelsPage() {
     return discovered.filter((m) => m.id.toLowerCase().includes(q));
   }, [discovered, modelSearch]);
 
-  // 模型列表：先按搜索过滤，再按 provider 分组汇聚
+  // 模型列表：先按搜索过滤，再按「提供商地址」分组（同地址同组、不同密钥分列）
   const grouped = useMemo(() => {
     const q = listFilter.trim().toLowerCase();
     const filtered = q
-      ? models.filter((m) => m.name.toLowerCase().includes(q) || m.modelId.toLowerCase().includes(q) || m.provider.toLowerCase().includes(q))
+      ? models.filter((m) => {
+          const addr = m.providerAddr ?? "";
+          return (
+            m.name.toLowerCase().includes(q) ||
+            m.modelId.toLowerCase().includes(q) ||
+            m.provider.toLowerCase().includes(q) ||
+            addr.toLowerCase().includes(q)
+          );
+        })
       : models;
-    const map = new Map<string, ModelRecord[]>();
+    const map = new Map<string, { label: string; addr: string; known: boolean; items: ModelRecord[] }>();
     for (const m of filtered) {
-      const arr = map.get(m.provider) ?? [];
-      arr.push(m);
-      map.set(m.provider, arr);
+      const key = m.providerKey ?? m.provider;
+      const entry = map.get(key) ?? {
+        label: m.providerLabel ?? providerLabels[m.provider] ?? m.provider,
+        addr: m.providerAddr ?? "",
+        known: m.providerKnown ?? false,
+        items: [],
+      };
+      entry.items.push(m);
+      map.set(key, entry);
     }
-    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    return Array.from(map.entries()).sort((a, b) => b[1].items.length - a[1].items.length || a[0].localeCompare(b[0]));
   }, [models, listFilter]);
 
   const toggleGroup = (provider: string) => setCollapsed((c) => ({ ...c, [provider]: !c[provider] }));
@@ -233,6 +263,10 @@ export function ModelsPage() {
             <Button size="sm" variant="outline" onClick={scanVision} disabled={scanning}>
               <ScanEye className="h-3.5 w-3.5" /> {scanning ? "扫描中" : "检测读图能力"}
             </Button>
+            <Button size="sm" variant="outline" onClick={refreshMetadata} disabled={refreshingMeta} title="刷新 models.dev 模型元数据（读图能力的第一手依据）">
+              <RefreshCw className={refreshingMeta ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+              {meta?.ready ? `元数据 ${meta.models}` : "刷新元数据"}
+            </Button>
             <Button size="sm" onClick={openCreate}>
               <Plus className="h-3.5 w-3.5" /> 新建模型
             </Button>
@@ -252,13 +286,13 @@ export function ModelsPage() {
               </tr>
             </thead>
             <tbody>
-              {grouped.map(([provider, items]) => (
+              {grouped.map(([key, group]) => (
                 <FragmentGroup
-                  key={provider}
-                  provider={provider}
-                  items={items}
-                  collapsed={!!collapsed[provider]}
-                  onToggle={() => toggleGroup(provider)}
+                  key={key}
+                  groupKey={key}
+                  group={group}
+                  collapsed={!!collapsed[key]}
+                  onToggle={() => toggleGroup(key)}
                   onTest={test}
                   onEdit={openEdit}
                   onDelete={(m) => {
@@ -440,8 +474,8 @@ export function ModelsPage() {
 }
 
 function FragmentGroup({
-  provider,
-  items,
+  groupKey,
+  group,
   collapsed,
   onToggle,
   onTest,
@@ -449,8 +483,8 @@ function FragmentGroup({
   onDelete,
   onToggleEnabled,
 }: {
-  provider: string;
-  items: ModelRecord[];
+  groupKey: string;
+  group: { label: string; addr: string; known: boolean; items: ModelRecord[] };
   collapsed: boolean;
   onToggle: () => void;
   onTest: (m: ModelRecord) => void;
@@ -458,16 +492,21 @@ function FragmentGroup({
   onDelete: (m: ModelRecord) => void;
   onToggleEnabled: (m: ModelRecord, v: boolean) => void;
 }) {
+  const items = group.items;
+  // 不同密钥视为不同凭据，分列展示其数量
+  const credentials = new Set(items.filter((m) => m.apiKeySet).map((m) => m.id)).size;
   return (
     <>
       <tr className="border-b border-rule bg-ink/[0.035]">
         <td colSpan={7} className="px-4 py-2">
-          <button type="button" onClick={onToggle} className="flex items-center gap-2 text-left">
+          <button type="button" onClick={onToggle} className="flex w-full items-center gap-2 text-left">
             {collapsed ? <ChevronRight className="h-3.5 w-3.5 text-muted" /> : <ChevronDown className="h-3.5 w-3.5 text-muted" />}
-            <span className="font-display text-[12px] font-medium uppercase tracking-[0.08em] text-ink">
-              {providerLabels[provider] ?? provider}
+            <span className="font-display text-[12px] font-medium uppercase tracking-[0.08em] text-ink">{group.label}</span>
+            {!group.known && <span className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-alert">未识别地址</span>}
+            <span className="truncate font-mono text-[11px] text-muted">{group.addr || groupKey}</span>
+            <span className="ml-auto shrink-0 font-mono text-[11px] text-muted">
+              {items.length} 个模型 · {credentials} 个凭据
             </span>
-            <span className="font-mono text-[11px] text-muted">{items.length} 个模型</span>
           </button>
         </td>
       </tr>

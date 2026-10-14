@@ -3,6 +3,7 @@ import { getDb } from "../index";
 import type { ModelRecord, ModelProvider } from "../../types";
 import { newId, now } from "../../utils/id";
 import { decryptSecret, encryptSecret } from "../../utils/crypto";
+import { normalizeBase } from "../../llm/provider-classify";
 
 function map(row: any): ModelRecord {
   return {
@@ -109,6 +110,23 @@ export const modelRepo = {
       .prepare(`SELECT * FROM models WHERE provider = ? AND api_key IS NOT NULL AND api_key != '' ORDER BY created_at DESC`)
       .all(provider) as any[];
     for (const row of rows) {
+      const key = decryptSecret(row.api_key ?? "");
+      if (key) return key;
+    }
+    return null;
+  },
+  /**
+   * 同一「提供商地址」下已存储的第一个可用密钥（明文），用于新模型复用。
+   * 以归一化 apiBase 为分组事实：地址相同即可复用密钥，与 provider 名无关。
+   */
+  findKeyByBase(apiBase: string): string | null {
+    const rows = this.db()
+      .prepare(`SELECT * FROM models WHERE api_base IS NOT NULL AND api_base != '' ORDER BY created_at DESC`)
+      .all() as any[];
+    const normalized = normalizeBase(apiBase);
+    if (!normalized) return null;
+    for (const row of rows) {
+      if (normalizeBase(row.api_base) !== normalized) continue;
       const key = decryptSecret(row.api_key ?? "");
       if (key) return key;
     }

@@ -3,9 +3,12 @@ import { modelRepo } from "../db/repos/models";
 import { createProviderFromModel } from "../llm/factory";
 import { discoverModels } from "../llm/discover";
 import { scanModelsVision } from "../llm/vision-scan";
+import { classify, normalizeBase, type ProviderGroupView } from "../llm/provider-classify";
+import { catalogModelCount, catalogReady, loadCatalog } from "../llm/models-dev";
 import type { ModelRecord } from "../types";
 
 function present(model: ModelRecord) {
+  const group = classify(model);
   return {
     id: model.id,
     name: model.name,
@@ -17,13 +20,67 @@ function present(model: ModelRecord) {
     enabled: model.enabled,
     supportsVision: model.supportsVision,
     apiKeySet: !!model.apiKey,
+    // 按「提供商地址」归类的派生信息，供前端分组与展示
+    providerKey: group.key,
+    providerLabel: group.label,
+    providerAddr: group.addr,
+    providerKnown: group.known,
     createdAt: model.createdAt,
     updatedAt: model.updatedAt,
   };
 }
 
+/** 按归一化 apiBase 把模型聚成「提供商地址分组」，密钥数按不同 apiKey 存活性去重。 */
+function buildProviderGroups(models: ModelRecord[]): ProviderGroupView[] {
+  const map = new Map<string, ProviderGroupView & { keySet: Set<string> }>();
+  for (const m of models) {
+    const g = classify(m);
+    let entry = map.get(g.key);
+    if (!entry) {
+      entry = {
+        key: g.key,
+        label: g.label,
+        addr: g.addr,
+        vendor: g.vendor,
+        known: g.known,
+        models: 0,
+        credentials: 0,
+        visionModels: 0,
+        keySet: new Set<string>(),
+      };
+      map.set(g.key, entry);
+    }
+    entry.models += 1;
+    if (m.supportsVision) entry.visionModels += 1;
+    // 以「密文指纹」去重：同一密钥多处存储只算一个凭据，不同密钥分别计入
+    if (m.apiKey) entry.keySet.add(m.apiKey);
+  }
+  return Array.from(map.values())
+    .map(({ keySet, ...rest }) => ({ ...rest, credentials: keySet.size }))
+    .sort((a, b) => b.models - a.models || a.label.localeCompare(b.label));
+}
+
 export async function modelRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/models", { preHandler: [app.authenticate] }, async () => modelRepo.list().map(present));
+
+  // 按「提供商地址（apiBase）」归类的分组概览：同地址同组，密钥数分列。
+  app.get("/api/models/providers", { preHandler: [app.authenticate] }, async () => {
+    const models = modelRepo.list();
+    return { groups: buildProviderGroups(models), total: models.length };
+  });
+
+  // 元数据状态：models.dev 目录是否已加载、收录模型数（用于前端提示判定来源）。
+  app.get("/api/models/metadata-status", { preHandler: [app.authenticate] }, async () => ({
+    ready: catalogReady(),
+    models: catalogModelCount(),
+    source: "models.dev",
+  }));
+
+  // 手动刷新 models.dev 元数据目录。
+  app.post("/api/models/metadata-refresh", { preHandler: [app.authenticate] }, async () => {
+    await loadCatalog(true);
+    return { ok: true, ready: catalogReady(), models: catalogModelCount() };
+  });
 
   // 手动触发读图能力扫描：检测所有（或指定）模型的视觉支持并写回。
   app.post("/api/models/vision-scan", { preHandler: [app.authenticate] }, async (request, reply) => {
@@ -40,14 +97,19 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // 检测上游提供方的可用模型：优先用表单中刚输入的 apiKey / apiBase，未填则复用同提供商已保存的配置。
+  // 检测上游提供方的可用模型：优先用表单中刚输入的 apiKey / apiBase，
+  // 未填 apiKey 时先按「同一 apiBase 地址」复用密钥，再回退到同 provider 已保存的配置。
   app.post("/api/models/discover", { preHandler: [app.authenticate] }, async (request, reply) => {
     const body = request.body as any;
     if (!body?.provider) {
       return reply.code(400).send({ error: "bad_request", message: "provider 必填" });
     }
-    const apiKey = body.apiKey || modelRepo.findProviderKey(body.provider) || "";
     const apiBase = body.apiBase || modelRepo.findProviderApiBase(body.provider) || null;
+    const apiKey =
+      body.apiKey ||
+      (apiBase ? modelRepo.findKeyByBase(apiBase) : null) ||
+      modelRepo.findProviderKey(body.provider) ||
+      "";
     try {
       const models = await discoverModels({ provider: body.provider, apiKey, apiBase });
       return { ok: true, models, reusedKey: !!apiKey && !body.apiKey };
@@ -93,18 +155,30 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
     }
     const created: ReturnType<typeof present>[] = [];
     const skipped: string[] = [];
-    // 同一提供商的密钥/地址一致：表单未填时复用已有模型上的配置
-    const providerKey = body.apiKey || modelRepo.findProviderKey(body.provider) || null;
+    // 同一「提供商地址」的密钥/地址一致：表单未填时，优先按 apiBase 复用，再回退同 provider
     const providerApiBase = body.apiBase || modelRepo.findProviderApiBase(body.provider) || null;
+    const providerKey =
+      body.apiKey ||
+      (providerApiBase ? modelRepo.findKeyByBase(providerApiBase) : null) ||
+      modelRepo.findProviderKey(body.provider) ||
+      null;
+    // 分组键：优先按归一化 apiBase 去重，缺地址时回退到 provider
+    const groupKey = providerApiBase ? `addr:${normalizeBase(providerApiBase)}` : `provider:${body.provider}`;
+    const existingKeys = new Set(
+      modelRepo
+        .list()
+        .filter((m) => (providerApiBase ? `addr:${normalizeBase(m.apiBase)}` === groupKey : m.provider === body.provider))
+        .map((m) => m.modelId),
+    );
     for (const item of items) {
       const modelId = typeof item === "string" ? item : item?.modelId;
       if (!modelId) continue;
       const name = (typeof item === "object" && item?.name) || modelId;
-      const existing = modelRepo.list().find((m) => m.provider === body.provider && m.modelId === modelId);
-      if (existing) {
+      if (existingKeys.has(modelId)) {
         skipped.push(modelId);
         continue;
       }
+      existingKeys.add(modelId);
       created.push(
         present(
           modelRepo.create({

@@ -1,6 +1,7 @@
 import type { ChatMessage, ModelProvider, ModelRecord } from "../types";
 import { LLMError } from "./provider";
 import type { LLMProvider } from "./provider";
+import { lookupVisionFromMetadata } from "./models-dev";
 
 /**
  * 各提供商的「读图（多模态）」接口知识库。
@@ -88,14 +89,42 @@ export function inferVisionFromName(provider: string, modelId: string): boolean 
   return null;
 }
 
+export interface VisionResolution {
+  supported: boolean | null;
+  /** 判定来源：metadata=models.dev 元数据；heuristic=命名/提供商知识库；probe=真实探测。 */
+  source: "metadata" | "heuristic" | "probe";
+  reason?: string;
+}
+
+/**
+ * 命名层面的静态判定：先查 models.dev 权威元数据（attachment / input 模态），
+ * 命中即采信；未命中再回退到提供商知识库的正则推断。
+ * 返回 null 表示静态信息不足，需要进一步真实探测。
+ */
+export function resolveVisionByName(provider: string, modelId: string): VisionResolution | null {
+  const meta = lookupVisionFromMetadata(modelId);
+  if (meta) {
+    return {
+      supported: meta.supported,
+      source: "metadata",
+      reason: `models.dev 元数据（${meta.via === "exact" ? "精确" : "前缀"}命中 ${meta.matched}）`,
+    };
+  }
+  const inferred = inferVisionFromName(provider, modelId);
+  if (inferred !== null) {
+    return { supported: inferred, source: "heuristic", reason: "依据模型命名与提供商知识库判定" };
+  }
+  return null;
+}
+
 /** 1x1 透明 PNG（base64），用于视觉能力探测，体积最小。 */
 export const PROBE_IMAGE_DATA_URL =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
 
 export interface VisionProbeResult {
   supported: boolean;
-  /** 'probe' = 实测得出；'heuristic' = 依据模型命名推断。 */
-  source: "probe" | "heuristic";
+  /** 'probe' = 实测得出；'metadata' = models.dev 元数据；'heuristic' = 依据模型命名推断。 */
+  source: "probe" | "metadata" | "heuristic";
   reason?: string;
 }
 
@@ -140,8 +169,8 @@ function looksLikeVisionRejection(err: LLMError): boolean {
 
 /**
  * 综合判断单个模型的视觉能力：
- * 1) 先凭提供商知识库 + 模型命名快速判定；
- * 2) 命名无法确定时，用真实 Provider 发一张 1x1 图片实测；
+ * 1) 先查 models.dev 元数据（权威），未命中再按提供商知识库 + 模型命名快速判定；
+ * 2) 静态信息不足时，用真实 Provider 发一张 1x1 图片实测；
  * 3) 实测遇网络/鉴权问题则返回 unknown（supported=null）。
  */
 export async function detectModelVision(
@@ -149,9 +178,9 @@ export async function detectModelVision(
   providerName: string,
   modelId: string,
 ): Promise<VisionProbeResult | { supported: null; source: "heuristic"; reason: string }> {
-  const inferred = inferVisionFromName(providerName, modelId);
-  if (inferred !== null) {
-    return { supported: inferred, source: "heuristic", reason: "依据模型命名与提供商知识库判定" };
+  const resolved = resolveVisionByName(providerName, modelId);
+  if (resolved) {
+    return { supported: resolved.supported as boolean, source: resolved.source, reason: resolved.reason };
   }
   try {
     const supported = await probeVisionSupport(provider);

@@ -118,8 +118,24 @@ export interface ModelRecord {
   enabled: boolean;
   supportsVision: boolean;
   apiKeySet: boolean;
+  /** 按「提供商地址」归类的派生字段 */
+  providerKey?: string;
+  providerLabel?: string;
+  providerAddr?: string;
+  providerKnown?: boolean;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface ProviderGroup {
+  key: string;
+  label: string;
+  addr: string;
+  vendor: string;
+  known: boolean;
+  models: number;
+  credentials: number;
+  visionModels: number;
 }
 
 export interface DiscoveredModel {

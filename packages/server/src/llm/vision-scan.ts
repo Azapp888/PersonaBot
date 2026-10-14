@@ -1,6 +1,7 @@
 import { modelRepo } from "../db/repos/models";
 import { createProviderFromModel } from "./factory";
 import { detectModelVision, providerOf, visionSpecFor, type ModelForVision } from "./vision";
+import { loadCatalog } from "./models-dev";
 import { logger } from "../logger";
 
 export interface VisionScanItem {
@@ -11,7 +12,7 @@ export interface VisionScanItem {
   previous: boolean;
   detected: boolean | null;
   changed: boolean;
-  source: "probe" | "heuristic";
+  source: "probe" | "metadata" | "heuristic";
   reason?: string;
   error?: string;
 }
@@ -45,6 +46,9 @@ export async function scanModelsVision(options: VisionScanOptions = {}): Promise
   const { onlyEnabled = true, persist = true, probe = true, concurrency = 3 } = options;
   const models = onlyEnabled ? modelRepo.listEnabled() : modelRepo.list();
   const items: VisionScanItem[] = [];
+
+  // 先加载 models.dev 元数据，使静态判定尽可能权威，减少不必要的真实探测。
+  await loadCatalog();
 
   let cursor = 0;
   const worker = async () => {
