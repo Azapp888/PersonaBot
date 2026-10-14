@@ -35,10 +35,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           <div
             key={t.id}
             className={cn(
-              "animate-in rounded-xl border px-4 py-3 text-sm shadow-lg backdrop-blur",
-              t.type === "success" && "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/90 dark:text-emerald-200",
-              t.type === "error" && "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/90 dark:text-red-200",
-              t.type === "info" && "border-border bg-background text-foreground dark:border-slate-700 dark:bg-slate-900",
+              "animate-in border-l-[3px] bg-panel px-4 py-3 text-[13px] leading-relaxed text-ink shadow-[4px_4px_0_0_hsl(var(--ink)/0.14)]",
+              t.type === "success" && "border-location",
+              t.type === "error" && "border-alert",
+              t.type === "info" && "border-ink/40",
             )}
           >
             {t.message}

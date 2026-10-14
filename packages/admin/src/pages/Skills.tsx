@@ -84,38 +84,38 @@ export function SkillsPage() {
           </div>
           <div className="flex items-end">
             <Button onClick={sync} disabled={syncing} className="w-full">
-              <CloudDownload className="h-4 w-4" /> {syncing ? "同步中..." : "立即同步"}
+              <CloudDownload className="h-3.5 w-3.5" /> {syncing ? "同步中" : "立即同步"}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground md:col-span-4">
+          <p className="font-mono text-[12px] leading-relaxed text-muted md:col-span-4">
             约定：仓库中的每个 .md 文件会被同步为一个 Skill，文件名作为技能名。
           </p>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader>
           <CardTitle>技能插件</CardTitle>
           <Button size="sm" onClick={openCreate}>
-            <Plus className="h-4 w-4" /> 新建技能
+            <Plus className="h-3.5 w-3.5" /> 新建技能
           </Button>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {skills.map((s) => (
-            <div key={s.id} className="rounded-lg border border-border p-4 dark:border-slate-800">
+            <div key={s.id} className="border border-rule bg-paper p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium">{s.name}</span>
+                  <span className="font-display text-[14px] font-medium tracking-[0.02em] text-ink">{s.name}</span>
                   <Badge variant={typeVariant[s.type]}>{s.type}</Badge>
                 </div>
                 <Switch checked={s.enabled} onCheckedChange={(v) => api.updateSkill(s.id, { enabled: v }).then(load)} />
               </div>
-              <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{s.description}</p>
-              <div className="mt-3 flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">更新于 {formatDateTime(s.updatedAt)}</span>
+              <p className="mt-2 line-clamp-2 text-[12px] text-muted">{s.description}</p>
+              <div className="mt-3 flex items-center justify-between border-t border-rule pt-3">
+                <span className="font-mono text-[11px] text-muted">更新于 {formatDateTime(s.updatedAt)}</span>
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(s)}>
-                    <Pencil className="h-4 w-4" />
+                  <Button variant="ghost" size="sm" onClick={() => openEdit(s)} aria-label="编辑">
+                    <Pencil className="h-3.5 w-3.5" />
                   </Button>
                   {s.type !== "builtin" && (
                     <Button
@@ -124,8 +124,9 @@ export function SkillsPage() {
                       onClick={() => {
                         if (confirm(`确认删除技能「${s.name}」？`)) api.deleteSkill(s.id).then(load);
                       }}
+                      aria-label="删除"
                     >
-                      <Trash2 className="h-4 w-4 text-red-500" />
+                      <Trash2 className="h-3.5 w-3.5 text-alert" />
                     </Button>
                   )}
                 </div>

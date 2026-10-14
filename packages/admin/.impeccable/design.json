@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-14T15:20:00.000Z",
+  "title": "Design System: PersonaBot Admin",
+  "extensions": {
+    "colorMeta": {
+      "stamp": {
+        "role": "primary",
+        "displayName": "Fountain Red",
+        "canonical": "oklch(48% 0.15 30)",
+        "tonalRamp": ["#2e0c05", "#57160c", "#802014", "#a92a1b", "#b43622", "#d4644f", "#e69883", "#f6d4c9"]
+      },
+      "location": {
+        "role": "secondary",
+        "displayName": "Scene Green",
+        "canonical": "oklch(41% 0.07 155)",
+        "tonalRamp": ["#0b1c13", "#173324", "#234b36", "#316147", "#4a7d60", "#6ea183", "#9bc3ab", "#cde3d6"]
+      },
+      "alert": {
+        "role": "tertiary",
+        "displayName": "Craft Amber",
+        "canonical": "oklch(48% 0.09 75)",
+        "tonalRamp": ["#251802", "#4a3004", "#6f4906", "#935f06", "#b57c1f", "#cf9c46", "#e3bd7c", "#f6e0bc"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#171512",
+        "tonalRamp": ["#0c0b0a", "#171512", "#2c2925", "#413c36", "#565049", "#8a8379", "#b7b0a6", "#ded8ce"]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "#f4f1ea",
+        "tonalRamp": ["#17150f", "#2f2b20", "#4c4635", "#6f6750", "#9a9382", "#c5bfb2", "#dcd7cc", "#f4f1ea"]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Rule",
+        "canonical": "#cdc4b3",
+        "tonalRamp": ["#3a352a", "#5c5644", "#7e765f", "#9d947c", "#b8af9a", "#cdc4b3", "#ddd6c8", "#eeeadf"]
+      },
+      "panel": {
+        "role": "neutral",
+        "displayName": "Panel",
+        "canonical": "#faf8f5",
+        "tonalRamp": ["#2a2823", "#47443c", "#615d53", "#7d786c", "#989286", "#b4ad9f", "#d6d0c5", "#faf8f5"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page titles and large figure values only. Condensed signage, uppercase, tracked." },
+      "title": { "displayName": "Title", "purpose": "Section headers and modal titles. Uppercase condensed, one step below display." },
+      "body": { "displayName": "Body", "purpose": "All Chinese prose, form values, table body. The quiet humanist CJK face." },
+      "data": { "displayName": "Data", "purpose": "System-produced values: IDs, timestamps, counts, token totals, status stamps. Plex Mono, tabular." }
+    },
+    "shadows": [
+      { "name": "sheet-offset", "value": "6px 6px 0 hsl(var(--ink) / 0.18)", "purpose": "Hard paper-offset under a modal laid on the page. The only structural shadow." },
+      { "name": "toast-offset", "value": "4px 4px 0 hsl(var(--ink) / 0.16)", "purpose": "Lighter paper-offset under toasts and popovers." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Default easing for hover, focus, and colour transitions." },
+      { "name": "sheet-in", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Short damped slide-in when a sheet or modal arrives." },
+      { "name": "duration-fast", "value": "120ms", "purpose": "Hover and focus colour/rule transitions." },
+      { "name": "duration-sheet", "value": "260ms", "purpose": "Modal and drawer entrance." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The committed action on a form or modal. Fountain-red fill, square-ish, mono uppercase.",
+      "html": "<button class=\"ds-btn-primary\">保存</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 16px; border: 1px solid #b43622; border-radius: 3px; background: #b43622; color: #ffffff; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; transition: background 120ms cubic-bezier(0.4,0,0.2,1), border-color 120ms cubic-bezier(0.4,0,0.2,1); } .ds-btn-primary:hover { background: #94301b; border-color: #94301b; } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px #f4f1ea, 0 0 0 4px hsl(8 68% 42% / 0.45); } .ds-btn-primary:active { background: #802a18; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary action. Transparent with a 1px rule border; fills 4% ink on hover.",
+      "html": "<button class=\"ds-btn-outline\">取消</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 16px; border: 1px solid #cdc4b3; border-radius: 3px; background: transparent; color: #171512; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; transition: background 120ms cubic-bezier(0.4,0,0.2,1), border-color 120ms cubic-bezier(0.4,0,0.2,1); } .ds-btn-outline:hover { background: hsl(0 0% 9% / 0.04); border-color: #171512; } .ds-btn-outline:focus-visible { outline: none; box-shadow: 0 0 0 2px #f4f1ea, 0 0 0 4px hsl(8 68% 42% / 0.45); }"
+    },
+    {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Dangerous action. Not a red button: alert-tinted border and text, fills amber 10% on hover.",
+      "html": "<button class=\"ds-btn-danger\">删除角色</button>",
+      "css": ".ds-btn-danger { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 16px; border: 1px solid #935f06; border-radius: 3px; background: transparent; color: #935f06; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; transition: background 120ms cubic-bezier(0.4,0,0.2,1); } .ds-btn-danger:hover { background: hsl(38 92% 30% / 0.1); } .ds-btn-danger:focus-visible { outline: none; box-shadow: 0 0 0 2px #f4f1ea, 0 0 0 4px hsl(38 92% 30% / 0.4); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Standard field. White background sits forward of the panel; focus shifts the stroke to fountain-red.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"角色名称\" value=\"林晚照\" />",
+      "css": ".ds-input { display: block; width: 100%; height: 36px; padding: 0 12px; border: 1px solid #cdc4b3; border-radius: 3px; background: #ffffff; color: #171512; font-family: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif; font-size: 13.5px; line-height: 1.6; transition: border-color 120ms cubic-bezier(0.4,0,0.2,1), box-shadow 120ms cubic-bezier(0.4,0,0.2,1); } .ds-input::placeholder { color: #565049; } .ds-input:focus-visible { outline: none; border-color: #b43622; box-shadow: 0 0 0 1px #b43622; }"
+    },
+    {
+      "name": "Nav Item",
+      "kind": "nav",
+      "refersTo": "button-outline",
+      "description": "Call-sheet rail row: icon, label, and a right-aligned mono section code; 3px fountain-red left marker when active.",
+      "html": "<a class=\"ds-nav-item ds-nav-item--active\" href=\"#\"><svg class=\"ds-nav-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"1\"></rect><path d=\"M3 9h18M8 4v16\"></path></svg><span class=\"ds-nav-label\">角色管理</span><span class=\"ds-nav-code\">03</span></a>",
+      "css": ".ds-nav-item { position: relative; display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 14px 0 16px; color: hsl(40 33% 95% / 0.55); font-family: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif; font-size: 13.5px; text-decoration: none; border-left: 3px solid transparent; transition: color 120ms cubic-bezier(0.4,0,0.2,1), background 120ms cubic-bezier(0.4,0,0.2,1); } .ds-nav-item:hover { color: hsl(40 33% 95% / 0.85); background: hsl(40 33% 95% / 0.05); } .ds-nav-item--active { color: #f4f1ea; background: hsl(40 33% 95% / 0.08); border-left-color: #b43622; } .ds-nav-icon { width: 17px; height: 17px; flex: none; } .ds-nav-label { flex: 1 1 auto; } .ds-nav-code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.06em; color: hsl(40 33% 95% / 0.4); }"
+    },
+    {
+      "name": "Stamp Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Rubber-stamp status: rectangle, 1px border, no fill, mono uppercase. Variants: stamp, location, alert, neutral.",
+      "html": "<span class=\"ds-stamp ds-stamp--location\">在线</span> <span class=\"ds-stamp ds-stamp--alert\">重连中</span> <span class=\"ds-stamp\">未配置</span>",
+      "css": ".ds-stamp { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border: 1px solid currentColor; border-radius: 0; background: transparent; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: #b43622; } .ds-stamp--location { color: #316147; } .ds-stamp--alert { color: #935f06; } .ds-stamp--neutral { color: #565049; border-color: #cdc4b3; }"
+    },
+    {
+      "name": "Section Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "A ruled block on panel stock: 1px rule border, square corners, header split by a hairline. Never nests another card.",
+      "html": "<section class=\"ds-card\"><header class=\"ds-card-head\"><h3 class=\"ds-card-title\">角色设置</h3></header><div class=\"ds-card-body\"><p style=\"margin:0;color:#565049;font-size:13.5px;line-height:1.6\">分组靠 1px 规则线与留白，而不是卡片套卡片。</p></div></section>",
+      "css": ".ds-card { border: 1px solid #cdc4b3; border-radius: 0; background: #faf8f5; } .ds-card-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #cdc4b3; } .ds-card-title { margin: 0; font-family: 'Oswald', system-ui, sans-serif; font-size: 16px; font-weight: 500; line-height: 1.2; letter-spacing: 0.06em; text-transform: uppercase; color: #171512; } .ds-card-body { padding: 16px; }"
+    },
+    {
+      "name": "Figure Cell",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "Signature element: a ruled ledger cell with a mono call-label eyebrow, a large Oswald value, and a mono sub-line. Sits in a 4-up ruled strip.",
+      "html": "<div class=\"ds-figure\"><span class=\"ds-figure-label\">今日对话</span><span class=\"ds-figure-value\">1,284</span><span class=\"ds-figure-sub\">+12% vs 昨日</span></div>",
+      "css": ".ds-figure { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-left: 1px solid #cdc4b3; background: #faf8f5; } .ds-figure:first-child { border-left: none; } .ds-figure-label { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; font-weight: 400; letter-spacing: 0.16em; text-transform: uppercase; color: #565049; } .ds-figure-value { font-family: 'Oswald', system-ui, sans-serif; font-size: 21px; font-weight: 500; line-height: 1.1; letter-spacing: 0.05em; color: #171512; font-variant-numeric: tabular-nums; } .ds-figure-sub { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.06em; color: #565049; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Greenroom Call Sheet",
+    "overview": "The admin is a production-day document, not a dashboard. Every surface behaves like a printed call sheet pinned to the greenroom wall: a ruled ledger of who is on today, what they're running, and what changed. The page is paper; the numbers are stamped in ink; the one red stamp marks what is live. Nothing floats, nothing glows.\n\nLayout is a fixed index rail plus a single ruled column of sections. Information is grouped by hairline rules rather than by cards-within-cards; a section is a bordered block, and everything inside it sits on one plane. Density is high and deliberate — this is a working document an operator scans, so the eye is carried by type and rule weight, not by containers.\n\nThe material stance is matte and physical. Cream paper in daylight, near-black ink at night (\"night shoot\"), with the same red and green accents in both. Motion is one authored gesture: a short damped slide-in when a sheet or modal arrives. There is no gradient, no glass, no drop shadow as decoration.",
+    "keyCharacteristics": [
+      "One flat plane per section; depth is carried by rule weight and tonal panel, never by stacked cards.",
+      "A single red stamp (#b43622) marks the live/active thing on a screen; green marks healthy connection.",
+      "Data — IDs, timestamps, counts, token totals, clock — is mono, uppercase where it labels, tabular where it counts.",
+      "Corners are square. 0–6px, and only controls get the top of that range.",
+      "The rail keeps the ink constant across themes; only the paper flips."
+    ],
+    "rules": [
+      { "name": "The One Stamp Rule", "body": "Red marks exactly one thing per screen — what is live right now. If two things compete for the stamp, one of them is wrong.", "section": "colors" },
+      { "name": "The Ink-Line Rule", "body": "Relationships between elements are drawn with a 1px rule border or with space. Never with a panel background change alone, and never with a card inside a card.", "section": "colors" },
+      { "name": "The Mono-Is-Machine-Rule", "body": "Any value the system produced or an ID it references is mono. Any sentence a human reads is sans. If a string is both, it is mono and the prose moves beside it.", "section": "typography" },
+      { "name": "The Signage Heading Rule", "body": "Headings are display-condensed, uppercase, and tracked. If a heading would need a lowercase Chinese translation that breaks the line, shorten the Chinese instead of dropping the case.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat at rest. The only shadow is the hard paper-offset on a sheet that has been laid on top of another (modal, toast) — never on hover, never on cards.", "section": "elevation" },
+      { "name": "The Square-Stamp Rule", "body": "Status is a rectangle with a border and uppercase mono text. A pill or a coloured dot is a different vocabulary and does not belong here.", "section": "shapes" }
+    ],
+    "dos": [
+      "Do draw grouping with 1px rule borders and space; keep one flat plane per section.",
+      "Do set every system-produced value, ID, timestamp, and count in IBM Plex Mono with tabular numerals.",
+      "Do reserve the red stamp for the single live/committed thing on a screen.",
+      "Do keep corners square (0px) on surfaces and 3–4px only on interactive controls.",
+      "Do carry depth with the hard paper-offset shadow on sheets laid on top of others."
+    ],
+    "donts": [
+      "Don't nest a card inside a card; use a rule or spacing instead.",
+      "Don't use pills, dots, gradients, glass/blur panels, or diffused shadows.",
+      "Don't set Chinese prose in the display or mono face; body text stays in the system CJK sans.",
+      "Don't let the rail invert with the theme; it is ink in both daylight and night shoot.",
+      "Don't introduce a fifth hue for destructive actions; amber alert already carries caution and destructive."
+    ]
+  }
+}

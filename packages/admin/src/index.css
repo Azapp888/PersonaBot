@@ -2,6 +2,72 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Self-hosted faces (no hosted font stylesheet). Chinese body uses the system
+   CJK sans stack, which Operate surfaces are permitted to rely on. */
+@font-face {
+  font-family: "Oswald";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/oswald-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Oswald";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/oswald-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Oswald";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/oswald-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+}
+
+/* ============================================================
+   通告单 / Greenroom Call Sheet — design tokens
+   Light = production-day paper. Dark = night shoot.
+   ============================================================ */
+:root {
+  --paper: 42 30% 94%;       /* #f4f1ea 案头纸面 */
+  --panel: 40 33% 97%;       /* 内容面板，比纸略亮 */
+  --ink: 34 14% 9%;          /* #171512 近黑墨 */
+  --muted: 34 12% 30%;       /* 次要文字，达 AA */
+  --rule: 38 20% 78%;        /* 1px 分隔线 */
+  --stamp: 8 68% 42%;        /* #b5341f 套红 — 强调/活动，达 AA */
+  --location: 145 32% 28%;   /* #316147 场记绿 — 在线/成功，达 AA */
+  --alert: 38 92% 30%;       /* 琥珀 — 警告，达 AA */
+  --field: 0 0% 100%;        /* 输入底 */
+}
+
+html.dark {
+  --paper: 34 16% 8%;        /* #14120f 夜拍墨底 */
+  --panel: 34 14% 11%;       /* 面板略亮于底 */
+  --ink: 40 30% 92%;         /* 纸色文字 */
+  --muted: 38 14% 72%;       /* 达 AA */
+  --rule: 36 10% 24%;
+  --stamp: 10 72% 62%;       /* 夜间套红提亮，保证对比 */
+  --location: 145 34% 60%;
+  --alert: 40 84% 62%;
+  --field: 34 12% 15%;
+}
+
 @layer base {
   * {
     -webkit-tap-highlight-color: transparent;
@@ -14,23 +80,50 @@
     text-size-adjust: 100%;
   }
   body {
-    @apply bg-slate-50 text-foreground;
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    @apply bg-paper text-ink;
+    font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", sans-serif;
+    font-feature-settings: "tnum" 1;
     overscroll-behavior-y: none;
   }
-  html.dark body {
-    @apply bg-slate-950 text-slate-100;
-  }
   ::selection {
-    @apply bg-primary/20;
+    background: hsl(var(--stamp) / 0.22);
   }
-  /* Prevent iOS zoom on focus by keeping form controls >= 16px */
+  /* Browser surfaces carry the world: caret + focus ring from the palette */
+  input,
+  textarea,
+  select {
+    caret-color: hsl(var(--stamp));
+  }
+  /* iOS zoom guard */
   @media (max-width: 640px) {
     input,
     select,
     textarea {
       font-size: 16px;
     }
+  }
+}
+
+@layer components {
+  /* A stamped section label — the recurring call-sheet eyebrow replacement */
+  .call-label {
+    @apply font-mono text-[11px] uppercase tracking-[0.16em] text-muted;
+  }
+  /* Ledger rule divider */
+  .call-rule {
+    @apply border-b border-rule;
+  }
+  /* The rail keeps the world's ink constant across themes: a fixed dark
+     clapperboard on which paper flips. Pin the palette locally so accents
+     do not invert with the content theme. */
+  .rail {
+    --paper: 40 30% 92%;
+    --ink: 34 14% 9%;
+    --muted: 40 22% 64%;
+    --rule: 34 10% 22%;
+    --stamp: 10 74% 64%;
+    --location: 145 34% 60%;
+    --alert: 40 84% 62%;
   }
 }
 
@@ -48,15 +141,16 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+  /* The single authored motion: a damped sheet slide-in, no overshoot */
   .animate-in {
-    animation: pb-fade-in 0.28s ease-out both;
+    animation: pb-sheet-in 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
 }
 
-@keyframes pb-fade-in {
+@keyframes pb-sheet-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(5px);
   }
   to {
     opacity: 1;
@@ -64,19 +158,19 @@
   }
 }
 
-/* Subtle desktop scrollbars */
+/* Scrollbars themed from the palette */
 @media (min-width: 1024px) {
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 11px;
+    height: 11px;
   }
   ::-webkit-scrollbar-thumb {
-    background-color: hsl(220 13% 82%);
-    border-radius: 9999px;
+    background-color: hsl(var(--rule));
+    border-radius: 0;
     border: 3px solid transparent;
     background-clip: content-box;
   }
-  html.dark ::-webkit-scrollbar-thumb {
-    background-color: hsl(217 33% 24%);
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted) / 0.6);
   }
 }

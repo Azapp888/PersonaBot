@@ -19,11 +19,11 @@ import { useToast } from "@/components/ui/toast";
 import { formatDateTime } from "@/lib/utils";
 
 const stateMap: Record<string, { label: string; variant: any }> = {
-  connected: { label: "已连接", variant: "success" },
+  connected: { label: "在线", variant: "success" },
   connecting: { label: "连接中", variant: "warning" },
   reconnecting: { label: "重连中", variant: "warning" },
   error: { label: "异常", variant: "destructive" },
-  stopped: { label: "已停止", variant: "secondary" },
+  stopped: { label: "停止", variant: "secondary" },
 };
 
 const emptyForm = { name: "", appId: "", clientSecret: "", personaId: "", modelId: "", enabled: true, agentEnabled: false };
@@ -105,78 +105,79 @@ export function BotsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader>
           <CardTitle>接入指引</CardTitle>
+          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted">4 步</span>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <p>
-            1. 前往 QQ 开放平台（<span className="text-primary">q.qq.com</span>）创建机器人，选择「QQ 机器人」并完成主体认证。
-          </p>
-          <p>2. 在「开发设置」中获取 AppID 与 ClientSecret。</p>
-          <p>3. 在下方点击「新建 Bot」，填写 AppID、ClientSecret 并绑定一个角色人格。</p>
-          <p>4. 本系统通过 WebSocket 网关接收事件，无需配置公网回调地址。</p>
+        <CardContent>
+          <ol className="space-y-1.5 text-[13px] leading-relaxed text-muted">
+            <li>1. 前往 QQ 开放平台（q.qq.com）创建机器人，选择「QQ 机器人」并完成主体认证。</li>
+            <li>2. 在「开发设置」中获取 AppID 与 ClientSecret。</li>
+            <li>3. 点击「新建 Bot」，填写 AppID、ClientSecret 并绑定一个角色人格。</li>
+            <li>4. 本系统通过 WebSocket 网关接收事件，无需配置公网回调地址。</li>
+          </ol>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader>
           <CardTitle>Bot 列表</CardTitle>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => api.reloadBots().then(load).then(() => push("已重载网关"))}>
-              <RefreshCw className="h-4 w-4" /> 重载
+              <RefreshCw className="h-3.5 w-3.5" /> 重载
             </Button>
             <Button size="sm" onClick={openCreate}>
-              <Plus className="h-4 w-4" /> 新建 Bot
+              <Plus className="h-3.5 w-3.5" /> 新建 Bot
             </Button>
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto p-0">
-          <table className="w-full min-w-[720px] text-sm">
-            <thead className="border-b border-border text-left text-xs uppercase text-muted-foreground dark:border-slate-800">
-              <tr>
-                <th className="px-4 py-3">名称</th>
-                <th className="px-4 py-3">AppID</th>
-                <th className="px-4 py-3">绑定角色</th>
-                <th className="px-4 py-3">使用模型</th>
-                <th className="px-4 py-3">状态</th>
-                <th className="px-4 py-3">启用</th>
-                <th className="px-4 py-3">服务器 Agent</th>
-                <th className="px-4 py-3">Token 过期</th>
-                <th className="px-4 py-3 text-right">操作</th>
+          <table className="w-full min-w-[760px] text-[13.5px]">
+            <thead>
+              <tr className="border-b border-rule text-left">
+                <th className="call-label px-4 py-2.5 font-normal">名称</th>
+                <th className="call-label px-4 py-2.5 font-normal">AppID</th>
+                <th className="call-label px-4 py-2.5 font-normal">绑定角色</th>
+                <th className="call-label px-4 py-2.5 font-normal">使用模型</th>
+                <th className="call-label px-4 py-2.5 font-normal">状态</th>
+                <th className="call-label px-4 py-2.5 font-normal">启用</th>
+                <th className="call-label px-4 py-2.5 font-normal">Agent</th>
+                <th className="call-label px-4 py-2.5 font-normal">Token 过期</th>
+                <th className="call-label px-4 py-2.5 text-right font-normal">操作</th>
               </tr>
             </thead>
             <tbody>
               {bots.map((bot) => {
                 const st = stateMap[bot.gatewayState ?? "stopped"] ?? stateMap.stopped;
                 return (
-                  <tr key={bot.id} className="border-b border-border last:border-0 dark:border-slate-800">
-                    <td className="px-4 py-3 font-medium">{bot.name}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{bot.appId}</td>
-                    <td className="px-4 py-3">{bot.personaName ?? <span className="text-muted-foreground">未绑定</span>}</td>
-                    <td className="px-4 py-3 text-xs">
-                      {bot.modelName ?? <span className="text-muted-foreground">跟随角色</span>}
+                  <tr key={bot.id} className="border-b border-rule last:border-0">
+                    <td className="px-4 py-3 font-medium text-ink">{bot.name}</td>
+                    <td className="px-4 py-3 font-mono text-[11.5px] text-muted">{bot.appId}</td>
+                    <td className="px-4 py-3">{bot.personaName ?? <span className="text-muted">未绑定</span>}</td>
+                    <td className="px-4 py-3 font-mono text-[11.5px]">
+                      {bot.modelName ?? <span className="font-sans text-muted">跟随角色</span>}
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={st.variant}>{st.label}</Badge>
-                      {bot.lastError && <div className="mt-1 text-xs text-red-500">{bot.lastError}</div>}
+                      {bot.lastError && <div className="mt-1 font-mono text-[10.5px] text-alert">{bot.lastError}</div>}
                     </td>
                     <td className="px-4 py-3">
                       <Switch checked={bot.enabled} onCheckedChange={() => api.toggleBot(bot.id).then(load)} />
                     </td>
                     <td className="px-4 py-3">
                       {bot.agentEnabled ? (
-                        <Badge variant="destructive">已启用</Badge>
+                        <Badge variant="warning">已启用</Badge>
                       ) : (
-                        <span className="text-xs text-muted-foreground">关闭</span>
+                        <span className="font-mono text-[11px] text-muted">关闭</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{formatDateTime(bot.tokenExpiresAt)}</td>
+                    <td className="px-4 py-3 font-mono text-[11px] text-muted">{formatDateTime(bot.tokenExpiresAt)}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => api.restartBot(bot.id).then(() => push("重启中"))}>
-                          <RotateCw className="h-4 w-4" />
+                        <Button variant="ghost" size="sm" onClick={() => api.restartBot(bot.id).then(() => push("重启中"))} aria-label="重启">
+                          <RotateCw className="h-3.5 w-3.5" />
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => openEdit(bot)}>
                           编辑
@@ -187,8 +188,9 @@ export function BotsPage() {
                           onClick={() => {
                             if (confirm(`确认删除 Bot「${bot.name}」？`)) api.deleteBot(bot.id).then(load);
                           }}
+                          aria-label="删除"
                         >
-                          <Trash2 className="h-4 w-4 text-red-500" />
+                          <Trash2 className="h-3.5 w-3.5 text-alert" />
                         </Button>
                       </div>
                     </td>
@@ -197,7 +199,7 @@ export function BotsPage() {
               })}
               {bots.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-4 py-12 text-center font-mono text-[12px] text-muted">
                     还没有 Bot，点击「新建 Bot」开始接入。
                   </td>
                 </tr>
@@ -217,7 +219,7 @@ export function BotsPage() {
               取消
             </Button>
             <Button onClick={save} disabled={saving}>
-              {saving ? "保存中..." : "保存"}
+              {saving ? "保存中" : "保存"}
             </Button>
           </>
         }
@@ -232,7 +234,7 @@ export function BotsPage() {
             <Input value={form.appId} onChange={(e) => setForm({ ...form, appId: e.target.value })} placeholder="QQ 开放平台 AppID" />
           </div>
           <div>
-            <Label>ClientSecret {editing && <span className="text-xs text-muted-foreground">（留空表示不修改）</span>}</Label>
+            <Label>ClientSecret {editing && <span className="normal-case tracking-normal">（留空表示不修改）</span>}</Label>
             <Input
               type="password"
               value={form.clientSecret}
@@ -261,20 +263,20 @@ export function BotsPage() {
                 </option>
               ))}
             </Select>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-[12px] leading-relaxed text-muted">
               模型按 Bot 分配，优先于角色上的模型设置；留空则回退到角色配置。
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Switch checked={form.enabled} onCheckedChange={(v) => setForm({ ...form, enabled: v })} />
-            <span className="text-sm">启用该 Bot</span>
+            <span className="text-[13px]">启用该 Bot</span>
           </div>
-          <div className="space-y-2 rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-900/60 dark:bg-red-950/30">
+          <div className="space-y-2 border-l-[3px] border-alert bg-alert/10 p-3">
             <div className="flex items-center gap-2">
               <Switch checked={form.agentEnabled} onCheckedChange={(v) => setForm({ ...form, agentEnabled: v })} />
-              <span className="text-sm font-medium">启用服务器本地 Agent（可运行 shell 命令）</span>
+              <span className="text-[13px] font-medium text-ink">启用服务器本地 Agent（可运行 shell 命令）</span>
             </div>
-            <p className="text-xs text-red-600 dark:text-red-400">
+            <p className="text-[12px] leading-relaxed text-alert">
               开启后，该 Bot 可调用服务器本机 shell：用户在聊天里以「/sh 命令」触发，或由模型自主决定执行。
               请仅在可信对话场景下使用，任何能向该 Bot 发消息的人都可能触发命令执行。
             </p>

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>剧本监理记录</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#101418;--ink:#e8e2d4;--rule:#2a3138;--pencil:#7a8b6f;--red:#c06b4a;--muted:#7b8690}
+  *{margin:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);font-family:"Noto Sans SC",sans-serif;height:100vh;overflow:hidden;display:flex}
+  .rail{width:220px;border-right:1px solid var(--rule);padding:18px 0;flex-shrink:0}
+  .brand{font-size:20px;font-weight:700;padding:0 18px 14px;border-bottom:1px solid var(--rule)}
+  .brand b{color:var(--red)}
+  .nav a{display:block;padding:10px 18px;color:#aeb6bd;text-decoration:none;font-size:14px}
+  .nav a.on{background:#171d22;color:#fff;border-left:2px solid var(--red)}
+  .main{flex:1;padding:22px 30px;overflow:hidden}
+  h1{font-size:22px;font-weight:700;margin-bottom:2px}
+  .sub{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);letter-spacing:.1em;margin-bottom:20px}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .col h2{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;margin-bottom:10px}
+  .row{border-bottom:1px solid var(--rule);padding:11px 0;display:flex;gap:12px}
+  .sc{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--pencil);width:66px;flex-shrink:0}
+  .txt{font-size:13px;line-height:1.5}
+  .txt b{color:#fff;font-weight:500}
+  .mark{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--red);letter-spacing:.08em}
+</style></head>
+<body>
+  <aside class="rail">
+    <div class="brand">Persona<b>Bot</b></div>
+    <nav class="nav">
+      <a class="on">仪表盘</a><a>Bot 管理</a><a>角色管理</a><a>模型管理</a>
+      <a>记忆管理</a><a>统计</a><a>技能</a><a>系统设置</a>
+    </nav>
+  </aside>
+  <main class="main">
+    <h1>连续性记录</h1>
+    <div class="sub">CONTINUITY LOG · 2026-10-14 · 角色 3 · 场次 42</div>
+    <div class="cols">
+      <div class="col">
+        <h2>角色状态 · 时间线</h2>
+        <div class="row"><span class="sc">场 040</span><span class="txt"><b>林晚星</b> 刚下早班，情绪平稳。<span class="mark">— 与前场一致</span></span></div>
+        <div class="row"><span class="sc">场 041</span><span class="txt"><b>苏清欢</b> 提到店里新到一批豆子。<span class="mark">▲ 新增记忆</span></span></div>
+        <div class="row"><span class="sc">场 042</span><span class="txt"><b>陈屿</b> 在准备周五的观测活动。<span class="mark">▲ 日程注入</span></span></div>
+      </div>
+      <div class="col">
+        <h2>今日统计</h2>
+        <div class="row"><span class="sc">TOKEN</span><span class="txt">128k <span class="mark">较昨日 -4%</span></span></div>
+        <div class="row"><span class="sc">CACHE</span><span class="txt">86% <span class="mark">命中</span></span></div>
+        <div class="row"><span class="sc">MSG</span><span class="txt">42 <span class="mark">3 Bot</span></span></div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

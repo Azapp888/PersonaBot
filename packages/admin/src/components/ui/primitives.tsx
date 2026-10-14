@@ -5,17 +5,21 @@ type ButtonVariant = "default" | "secondary" | "outline" | "ghost" | "destructiv
 type ButtonSize = "default" | "sm" | "lg" | "icon";
 
 const variantClasses: Record<ButtonVariant, string> = {
-  default: "bg-primary text-primary-foreground hover:bg-primary/90",
-  secondary: "bg-muted text-foreground hover:bg-muted/70",
-  outline: "border border-border bg-transparent hover:bg-muted",
-  ghost: "hover:bg-muted",
-  destructive: "bg-red-600 text-white hover:bg-red-700",
+  default:
+    "bg-stamp text-white hover:bg-stamp/90 active:bg-stamp focus-visible:ring-stamp/45",
+  secondary:
+    "bg-ink text-paper hover:bg-ink/90 focus-visible:ring-ink/40",
+  outline:
+    "border border-rule bg-transparent text-ink hover:bg-ink/[0.04] focus-visible:ring-ink/25",
+  ghost: "text-ink hover:bg-ink/[0.06] focus-visible:ring-ink/25",
+  destructive:
+    "border border-alert/50 text-alert hover:bg-alert/10 focus-visible:ring-alert/40",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  default: "h-10 px-4 py-2 text-sm sm:h-9",
-  sm: "h-9 px-3 text-xs",
-  lg: "h-11 px-6 text-base",
+  default: "h-10 px-4 text-sm sm:h-9",
+  sm: "h-8 px-3 text-xs",
+  lg: "h-11 px-6 text-sm",
   icon: "h-10 w-10 sm:h-9 sm:w-9",
 };
 
@@ -29,7 +33,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     <button
       ref={ref}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:pointer-events-none disabled:opacity-50",
+        "inline-flex items-center justify-center gap-2 rounded font-mono text-[13px] font-medium uppercase tracking-[0.06em] transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-paper",
+        "disabled:pointer-events-none disabled:opacity-45",
         variantClasses[variant],
         sizeClasses[size],
         className,
@@ -40,87 +46,76 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 );
 Button.displayName = "Button";
 
+const fieldBase =
+  "w-full rounded border border-rule bg-field px-3 text-sm text-ink placeholder:text-muted transition-colors focus-visible:outline-none focus-visible:border-stamp focus-visible:ring-1 focus-visible:ring-stamp/40 disabled:opacity-50";
+
 export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
   ({ className, ...props }, ref) => (
-    <input
-      ref={ref}
-      className={cn(
-        "flex h-11 w-full rounded-md border border-border bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50 dark:bg-slate-900 dark:border-slate-700 sm:h-9",
-        className,
-      )}
-      {...props}
-    />
+    <input ref={ref} className={cn(fieldBase, "h-10 py-1 sm:h-9", className)} {...props} />
   ),
 );
 Input.displayName = "Input";
 
 export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
   ({ className, ...props }, ref) => (
-    <textarea
-      ref={ref}
-      className={cn(
-        "flex min-h-[80px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50 dark:bg-slate-900 dark:border-slate-700",
-        className,
-      )}
-      {...props}
-    />
+    <textarea ref={ref} className={cn(fieldBase, "min-h-[80px] py-2 leading-relaxed", className)} {...props} />
   ),
 );
 Textarea.displayName = "Textarea";
 
 export const Label = ({ className, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => (
-  <label className={cn("mb-1.5 block text-sm font-medium text-foreground", className)} {...props} />
+  <label
+    className={cn("mb-1.5 block font-mono text-[11px] uppercase tracking-[0.1em] text-muted", className)}
+    {...props}
+  />
 );
 
 export const Select = React.forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement>>(
   ({ className, children, ...props }, ref) => (
-    <select
-      ref={ref}
-      className={cn(
-        "flex h-11 w-full rounded-md border border-border bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:bg-slate-900 dark:border-slate-700 sm:h-9",
-        className,
-      )}
-      {...props}
-    >
+    <select ref={ref} className={cn(fieldBase, "h-10 py-1 sm:h-9", className)} {...props}>
       {children}
     </select>
   ),
 );
 Select.displayName = "Select";
 
+/** A call-sheet section: ruled panel, no nested cards. */
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("border border-rule bg-panel", className)} {...props} />;
+}
+
+export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn(
-        "rounded-xl border border-border bg-background text-foreground shadow-sm dark:bg-slate-900 dark:border-slate-800",
-        className,
-      )}
+      className={cn("flex flex-wrap items-baseline justify-between gap-x-3 gap-y-2 border-b border-rule px-4 py-3", className)}
       {...props}
     />
   );
 }
 
-export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("flex flex-col gap-1 border-b border-border p-4 dark:border-slate-800 lg:p-5", className)} {...props} />;
-}
-
 export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h3 className={cn("text-base font-semibold leading-none", className)} {...props} />;
+  return (
+    <h2
+      className={cn("font-display text-[16px] font-medium uppercase tracking-[0.06em] text-ink", className)}
+      {...props}
+    />
+  );
 }
 
 export function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("p-4 lg:p-5", className)} {...props} />;
+  return <div className={cn("p-4", className)} {...props} />;
 }
 
 type BadgeVariant = "default" | "success" | "warning" | "destructive" | "secondary";
 const badgeVariants: Record<BadgeVariant, string> = {
-  default: "bg-primary/10 text-primary",
-  success: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-  warning: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-  destructive: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
-  secondary: "bg-muted text-muted-foreground",
+  default: "border-stamp/40 text-stamp",
+  success: "border-location/40 text-location",
+  warning: "border-alert/50 text-alert",
+  destructive: "border-alert/50 text-alert",
+  secondary: "border-rule text-muted",
 };
 
+/** Status stamp — square, ruled, never a pill. */
 export function Badge({
   variant = "default",
   className,
@@ -128,7 +123,11 @@ export function Badge({
 }: React.HTMLAttributes<HTMLSpanElement> & { variant?: BadgeVariant }) {
   return (
     <span
-      className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", badgeVariants[variant], className)}
+      className={cn(
+        "inline-flex items-center gap-1 border px-1.5 py-0.5 font-mono text-[11px] font-medium uppercase tracking-[0.08em]",
+        badgeVariants[variant],
+        className,
+      )}
       {...props}
     />
   );
@@ -151,14 +150,14 @@ export function Switch({
       disabled={disabled}
       onClick={() => onCheckedChange(!checked)}
       className={cn(
-        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50",
-        checked ? "bg-primary" : "bg-slate-300 dark:bg-slate-700",
+        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-sm border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stamp/40 disabled:opacity-50",
+        checked ? "border-stamp bg-stamp" : "border-rule bg-ink/[0.08]",
       )}
     >
       <span
         className={cn(
-          "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
-          checked ? "translate-x-[22px]" : "translate-x-0.5",
+          "inline-block h-4 w-4 transform rounded-[2px] bg-white transition-transform",
+          checked ? "translate-x-[18px]" : "translate-x-0.5",
         )}
       />
     </button>

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>目录编号厂牌</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Archivo:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#111;--ink:#f2f0ec;--rule:#2a2a2a;--yellow:#e8b923;--blue:#1a6fb0;--muted:#777}
+  *{margin:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);font-family:"Archivo",system-ui,sans-serif;height:100vh;overflow:hidden;display:flex}
+  .rail{width:230px;border-right:1px solid var(--rule);padding:20px 0;flex-shrink:0}
+  .brand{font-family:"IBM Plex Mono",monospace;font-size:16px;letter-spacing:.14em;padding:0 20px 16px;border-bottom:1px solid var(--rule)}
+  .brand b{color:var(--yellow)}
+  .nav a{display:flex;gap:10px;padding:10px 20px;color:#a0a0a0;text-decoration:none;font-size:14px}
+  .nav a.on{color:#fff;background:#191919}
+  .nav a .c{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--yellow)}
+  .main{flex:1;padding:24px 30px;overflow:hidden}
+  h1{font-size:22px;letter-spacing:.02em;margin-bottom:2px}
+  .sub{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);letter-spacing:.1em;margin-bottom:22px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.14em;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--rule)}
+  td{padding:13px 10px;border-bottom:1px solid var(--rule)}
+  .id{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--yellow)}
+  .t{font-family:"IBM Plex Mono",font-size:11px;color:var(--muted)}
+  .st{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.08em}
+  .on{color:var(--blue)} .off{color:#666}
+</style></head>
+<body>
+  <aside class="rail">
+    <div class="brand">PERSONA<b>BOT</b></div>
+    <nav class="nav">
+      <a class="on"><span class="c">FAC01</span>仪表盘</a><a><span class="c">FAC02</span>Bot 管理</a>
+      <a><span class="c">FAC03</span>角色管理</a><a><span class="c">FAC04</span>模型管理</a>
+      <a><span class="c">FAC05</span>记忆管理</a><a><span class="c">FAC06</span>统计</a>
+      <a><span class="c">FAC07</span>技能</a><a><span class="c">FAC08</span>系统设置</a>
+    </nav>
+  </aside>
+  <main class="main">
+    <h1>Bot 目录</h1>
+    <div class="sub">CATALOGUE · 3 ENTRIES · 2 ACTIVE</div>
+    <table>
+      <thead><tr><th>编号</th><th>名称</th><th>角色</th><th>模型</th><th>状态</th></tr></thead>
+      <tbody>
+        <tr><td class="id">bot_fb10</td><td>晚星电台</td><td>林晚星</td><td class="t">doubao-pro-32k</td><td class="st on">● ACTIVE</td></tr>
+        <tr><td class="id">bot_de9c</td><td>星野观测</td><td>陈屿</td><td class="t">deepseek-chat</td><td class="st off">○ IDLE</td></tr>
+        <tr><td class="id">bot_9583</td><td>清欢咖啡</td><td>苏清欢</td><td class="t">gpt-4o-mini</td><td class="st on">● ACTIVE</td></tr>
+      </tbody>
+    </table>
+  </main>
+</body>
+</html>

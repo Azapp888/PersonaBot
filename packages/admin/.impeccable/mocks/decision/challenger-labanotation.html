@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>拉班舞谱</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--paper:#fbfbf8;--ink:#111;--hatch:#c9c9c9;--band:#eee}
+  *{margin:0;box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);font-family:"Noto Sans SC",sans-serif;height:100vh;overflow:hidden;display:flex}
+  .rail{width:200px;padding:22px 0;border-right:1px solid var(--hatch)}
+  .brand{font-size:18px;font-weight:700;padding:0 20px 14px;border-bottom:1px solid var(--hatch)}
+  .nav a{display:block;padding:9px 20px;font-size:13px;color:#444;text-decoration:none;border-left:2px solid transparent}
+  .nav a.on{border-left-color:var(--ink);font-weight:600;background:var(--band)}
+  .score{flex:1;display:flex;justify-content:center;align-items:center;position:relative}
+  .staff{width:420px}
+  .staff h1{font-size:16px;text-align:center;margin-bottom:16px;letter-spacing:.1em}
+  .block{display:flex;gap:10px;margin-bottom:8px;align-items:stretch}
+  .sym{width:70px;text-align:center;font-family:"IBM Plex Mono",monospace;font-size:10px;padding-top:2px;color:#666}
+  .bar{flex:1;border:1px solid var(--ink);display:flex;flex-direction:column;justify-content:space-between;padding:4px}
+  .fill{height:8px;margin:2px 6px}
+  .hatch{height:8px;margin:2px 6px;background:repeating-linear-gradient(45deg,var(--hatch) 0 2px,transparent 2px 4px)}
+  .solid{height:8px;margin:2px 6px;background:var(--ink)}
+  .dot{height:8px;margin:2px 6px;background:radial-gradient(var(--ink) 1px,transparent 1px) 0 0/4px 4px}
+  .band{position:absolute;top:0;bottom:0;width:130px;background:var(--band);left:50%;transform:translateX(-50%);z-index:-1}
+</style></head>
+<body>
+  <aside class="rail"><div class="brand">PersonaBot</div>
+    <nav class="nav"><a class="on">仪表盘</a><a>Bot 管理</a><a>角色管理</a><a>模型管理</a>
+    <a>记忆管理</a><a>统计</a><a>技能</a><a>系统设置</a></nav></aside>
+  <div class="score"><div class="staff">
+    <h1>角色状态谱</h1>
+    <div class="block"><div class="sym">林晚星</div><div class="bar"><div class="solid"></div><div class="hatch"></div><div class="dot"></div></div></div>
+    <div class="block"><div class="sym">陈屿</div><div class="bar"><div class="dot"></div><div class="solid"></div><div class="hatch"></div></div></div>
+    <div class="block"><div class="sym">苏清欢</div><div class="bar"><div class="hatch"></div><div class="dot"></div><div class="solid"></div></div></div>
+  </div></div>
+</body>
+</html>

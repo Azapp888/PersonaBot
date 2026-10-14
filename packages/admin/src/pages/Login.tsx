@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button, Input, Label } from "@/components/ui/primitives";
 
@@ -28,56 +28,55 @@ export function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-purple-950 p-4">
-      <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-primary/30 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-indigo-500/20 blur-3xl" />
-
-      <div className="animate-in relative w-full max-w-sm rounded-2xl border border-white/10 bg-white/[0.06] p-7 shadow-2xl backdrop-blur-xl sm:p-8">
-        <div className="mb-7 flex flex-col items-center gap-3 text-center text-white">
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/20 ring-1 ring-primary/40">
-            <Sparkles className="h-7 w-7 text-primary" />
-          </span>
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">
-              Persona<span className="text-primary">Bot</span> 管理后台
-            </h1>
-            <p className="mt-1 text-xs text-slate-400">轻量级角色扮演 QQ Bot 管理系统</p>
+    <div className="flex min-h-screen items-center justify-center bg-ink p-4">
+      <div className="animate-in w-full max-w-sm">
+        <div className="border border-paper/15 bg-paper">
+          <div className="flex items-baseline justify-between border-b border-rule px-5 py-3">
+            <span className="font-display text-[20px] font-semibold uppercase tracking-[0.08em] text-ink">
+              Persona<span className="text-stamp">Bot</span>
+            </span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">Call Sheet</span>
           </div>
+          <div className="px-5 py-5">
+            <p className="mb-5 text-[12.5px] leading-relaxed text-muted">
+              轻量级角色扮演 QQ Bot 管理系统。请核对身份后进入后台。
+            </p>
+            <form onSubmit={submit} className="space-y-4">
+              <div>
+                <Label htmlFor="login-user">用户名</Label>
+                <Input
+                  id="login-user"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="admin"
+                  autoFocus
+                  autoComplete="username"
+                />
+              </div>
+              <div>
+                <Label htmlFor="login-pass">密码</Label>
+                <Input
+                  id="login-pass"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="请输入密码"
+                  autoComplete="current-password"
+                />
+              </div>
+              {error && (
+                <div className="border-l-[3px] border-alert bg-alert/10 px-3 py-2 text-[13px] text-alert">{error}</div>
+              )}
+              <Button type="submit" size="lg" className="w-full" disabled={loading}>
+                {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                {loading ? "登录中" : "签到登录"}
+              </Button>
+            </form>
+          </div>
+          <p className="border-t border-rule px-5 py-3 font-mono text-[10.5px] leading-relaxed text-muted">
+            默认账号见 .env 中的 ADMIN_USERNAME / ADMIN_PASSWORD
+          </p>
         </div>
-
-        <form onSubmit={submit} className="space-y-4">
-          <div>
-            <Label className="text-slate-300">用户名</Label>
-            <Input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="admin"
-              autoFocus
-              autoComplete="username"
-            />
-          </div>
-          <div>
-            <Label className="text-slate-300">密码</Label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="请输入密码"
-              autoComplete="current-password"
-            />
-          </div>
-          {error && <div className="rounded-lg bg-red-500/15 px-3 py-2 text-sm text-red-300">{error}</div>}
-          <Button type="submit" size="lg" className="w-full" disabled={loading}>
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            {loading ? "登录中..." : "登录"}
-          </Button>
-        </form>
-
-        <p className="mt-5 text-center text-xs leading-relaxed text-slate-500">
-          默认账号见 .env 中的
-          <br />
-          ADMIN_USERNAME / ADMIN_PASSWORD
-        </p>
       </div>
     </div>
   );

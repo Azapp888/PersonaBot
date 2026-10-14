@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>通告单 · PersonaBot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f4f1ea; --ink:#171512; --rule:#c9c2b3; --red:#c8452f;
+    --green:#3f6b52; --muted:#6b6459; --card:#fbf9f4;
+  }
+  *{margin:0;box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);
+    font-family:"Noto Sans SC",system-ui,sans-serif;height:100vh;overflow:hidden;display:flex}
+  .rail{width:232px;background:var(--ink);color:var(--paper);flex-shrink:0;padding:20px 0}
+  .brand{font-family:"Oswald",sans-serif;font-size:22px;letter-spacing:.04em;
+    text-transform:uppercase;padding:0 20px 16px;border-bottom:1px solid #33302a}
+  .brand b{color:var(--red)}
+  .rail .sec{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.18em;
+    color:#8a8276;text-transform:uppercase;padding:18px 20px 8px}
+  .nav a{display:flex;justify-content:space-between;align-items:baseline;padding:11px 20px;
+    color:#cfc9bd;text-decoration:none;font-size:14px;border-left:3px solid transparent}
+  .nav a.on{background:#22201b;color:#fff;border-left-color:var(--red)}
+  .nav a .n{font-family:"IBM Plex Mono",monospace;font-size:10px;color:#8a8276}
+  .nav a.on .n{color:var(--red)}
+  .main{flex:1;display:flex;flex-direction:column;min-width:0}
+  .top{border-bottom:2px solid var(--ink);padding:14px 28px;display:flex;
+    justify-content:space-between;align-items:flex-end}
+  .top h1{font-family:"Oswald",sans-serif;font-size:26px;letter-spacing:.04em;text-transform:uppercase}
+  .top .meta{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);
+    text-align:right;line-height:1.6;text-transform:uppercase;letter-spacing:.08em}
+  .top .meta b{color:var(--red)}
+  .sheet{padding:22px 28px;overflow:hidden}
+  .sheet h2{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--muted);text-align:left;padding:6px 10px;
+    border-bottom:1px solid var(--rule)}
+  td{padding:11px 10px;border-bottom:1px solid var(--rule);vertical-align:middle}
+  .code{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted)}
+  .who{font-weight:700}
+  .who small{display:block;font-weight:400;font-size:11.5px;color:var(--muted);margin-top:2px}
+  .t{font-family:"Oswald",sans-serif;font-size:17px;letter-spacing:.03em}
+  .tag{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:10.5px;
+    letter-spacing:.1em;text-transform:uppercase;padding:2px 7px;border:1px solid currentColor}
+  .tag.on{color:var(--green)} .tag.off{color:var(--muted)} .tag.sched{color:var(--red)}
+  .grid2{display:grid;grid-template-columns:1.35fr 1fr;gap:26px;margin-top:24px}
+  .slot{display:flex;gap:12px;padding:9px 0;border-bottom:1px dashed var(--rule);font-size:13px}
+  .slot .h{font-family:"Oswald",sans-serif;font-size:15px;width:62px;flex-shrink:0}
+  .slot .s{color:var(--muted)}
+  .now{background:var(--red);color:#fff;padding:1px 6px;font-family:"IBM Plex Mono",monospace;
+    font-size:10px;letter-spacing:.1em;margin-left:8px}
+</style>
+</head>
+<body>
+  <aside class="rail">
+    <div class="brand">Persona<b>Bot</b></div>
+    <div class="sec">今日通告 · Daily Sheet</div>
+    <nav class="nav">
+      <a class="on"><span>仪表盘</span><span class="n">01</span></a>
+      <a><span>Bot 管理</span><span class="n">02</span></a>
+      <a><span>角色管理</span><span class="n">03</span></a>
+      <a><span>模型管理</span><span class="n">04</span></a>
+      <a><span>记忆管理</span><span class="n">05</span></a>
+      <a><span>统计</span><span class="n">06</span></a>
+      <a><span>技能</span><span class="n">07</span></a>
+      <a><span>系统设置</span><span class="n">08</span></a>
+    </nav>
+  </aside>
+  <main class="main">
+    <header class="top">
+      <h1>今日通告单</h1>
+      <div class="meta">
+        日期 <b>2026-10-14</b> 周二<br>
+        工况 <b>3 / 3</b> Bot 在线 · 时区 UTC+08:00
+      </div>
+    </header>
+    <section class="sheet">
+      <h2>今日排期 · Call Times</h2>
+      <table>
+        <thead><tr>
+          <th>编号</th><th>角色 / Bot</th><th>模型</th><th>开工</th><th>状态</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td class="code">bot_fb10</td>
+            <td class="who">林晚星<small>晚星电台 · 深夜电台主播</small></td>
+            <td class="code">doubao-pro-32k</td>
+            <td class="t">22:00</td>
+            <td><span class="tag on">在线</span></td>
+          </tr>
+          <tr>
+            <td class="code">bot_de9c</td>
+            <td class="who">陈屿<small>星野观测 · 大学天文社社长</small></td>
+            <td class="code">deepseek-chat</td>
+            <td class="t">18:30</td>
+            <td><span class="tag off">离线</span></td>
+          </tr>
+          <tr>
+            <td class="code">bot_9583</td>
+            <td class="who">苏清欢<small>清欢咖啡 · 独立咖啡馆店主</small></td>
+            <td class="code">gpt-4o-mini</td>
+            <td class="t">07:30</td>
+            <td><span class="tag on">在线</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="grid2">
+        <div>
+          <h2>林晚星 · 今日日程</h2>
+          <div class="slot"><span class="h">08:00</span><span class="s">起床、收拾房间，听一会儿早间新闻</span></div>
+          <div class="slot"><span class="h">14:00</span><span class="s">台里对稿，准备今晚的节目单</span></div>
+          <div class="slot"><span class="h">22:00</span><span class="s">深夜电台开播，念听众来信</span><span class="now">此刻</span></div>
+        </div>
+        <div>
+          <h2>今日统计</h2>
+          <div class="slot"><span class="h">128<span style="font-size:10px">k</span></span><span class="s">Token 消耗</span></div>
+          <div class="slot"><span class="h">86%</span><span class="s">缓存命中率</span></div>
+          <div class="slot"><span class="h">42</span><span class="s">消息数</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

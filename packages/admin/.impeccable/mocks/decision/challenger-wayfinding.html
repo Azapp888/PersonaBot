@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>机场标识系统</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Archivo:wght@500;700&family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{--yellow:#f5c400;--ink:#111;--blue:#1a6fb0;--white:#fff}
+  *{margin:0;box-sizing:border-box}
+  body{background:#ececec;color:var(--ink);font-family:"Noto Sans SC",sans-serif;height:100vh;overflow:hidden}
+  .band{background:var(--yellow);padding:14px 28px;display:flex;justify-content:space-between;align-items:center}
+  .band .brand{font-family:"Archivo",sans-serif;font-weight:700;font-size:22px;letter-spacing:.02em}
+  .band .num{font-family:"IBM Plex Mono",monospace;font-weight:500;font-size:13px}
+  .bar{background:#111;color:#fff;display:flex;gap:0;font-size:13px}
+  .bar a{padding:12px 22px;color:#ddd;text-decoration:none;border-right:1px solid #333}
+  .bar a.on{background:var(--blue);color:#fff;font-weight:700}
+  .main{padding:26px 30px}
+  .panel{background:#fff;margin-bottom:14px;display:flex;align-items:stretch;border-left:10px solid var(--yellow)}
+  .panel .gate{background:var(--yellow);width:120px;display:flex;align-items:center;justify-content:center;
+    font-family:"Archivo",sans-serif;font-weight:700;font-size:40px}
+  .panel .body{flex:1;padding:16px 22px;display:flex;justify-content:space-between;align-items:center}
+  .panel .nm{font-size:19px;font-weight:700}
+  .panel .nm small{display:block;font-weight:400;font-size:12px;color:#666;margin-top:2px}
+  .panel .rt{font-family:"IBM Plex Mono",monospace;font-size:12px;text-align:right}
+  .go{color:var(--blue)}
+</style></head>
+<body>
+  <div class="band"><span class="brand">PersonaBot 管理后台</span><span class="num">2026-10-14 · UTC+08:00</span></div>
+  <nav class="bar"><a class="on">仪表盘</a><a>Bot 管理</a><a>角色管理</a><a>模型管理</a><a>记忆管理</a><a>统计</a><a>技能</a><a>系统设置</a></nav>
+  <div class="main">
+    <div class="panel"><div class="gate">01</div><div class="body">
+      <div class="nm">晚星电台<small>林晚星 · 深夜电台主播</small></div>
+      <div class="rt">doubao-pro-32k<br><span class="go">● 在线</span></div></div></div>
+    <div class="panel"><div class="gate">02</div><div class="body">
+      <div class="nm">星野观测<small>陈屿 · 大学天文社社长</small></div>
+      <div class="rt">deepseek-chat<br><span style="color:#999">○ 离线</span></div></div></div>
+    <div class="panel"><div class="gate">03</div><div class="body">
+      <div class="nm">清欢咖啡<small>苏清欢 · 独立咖啡馆店主</small></div>
+      <div class="rt">gpt-4o-mini<br><span class="go">● 在线</span></div></div></div>
+  </div>
+</body>
+</html>

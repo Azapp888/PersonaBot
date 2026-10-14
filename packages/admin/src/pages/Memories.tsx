@@ -204,7 +204,7 @@ export function MemoriesPage() {
           </div>
           <div className="flex items-end gap-2">
             <Button variant="outline" onClick={() => reload()}>
-              <RefreshCw className="h-4 w-4" /> 刷新
+              <RefreshCw className="h-3.5 w-3.5" /> 刷新
             </Button>
           </div>
         </CardContent>
@@ -215,7 +215,7 @@ export function MemoriesPage() {
           <CardTitle>导入历史记忆</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-[13px] leading-relaxed text-muted">
             上传你与「{personas.find((p) => p.id === personaId)?.name ?? "角色"}」过往的聊天记录或记忆文件（.txt / .md / .json / .csv），AI
             会自动识别关键信息并整理为记忆条目。
           </p>
@@ -236,10 +236,10 @@ export function MemoriesPage() {
                 multiple
                 accept=".txt,.md,.markdown,.json,.csv,.log,text/*"
                 onChange={(e) => setImportFiles(Array.from(e.target.files ?? []))}
-                className="block w-full cursor-pointer rounded-md border border-border bg-background text-sm file:mr-3 file:cursor-pointer file:rounded-l-md file:border-0 file:bg-muted file:px-3 file:py-2.5 file:text-sm file:font-medium dark:border-slate-700 dark:bg-slate-900"
+                className="block w-full cursor-pointer border border-rule bg-field text-[13px] text-ink file:mr-3 file:cursor-pointer file:border-0 file:border-r file:border-rule file:bg-ink/[0.05] file:px-3 file:py-2.5 file:font-mono file:text-[11px] file:uppercase file:tracking-[0.06em] file:text-ink"
               />
               {importFiles.length > 0 && (
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1 font-mono text-[11px] text-muted">
                   已选 {importFiles.length} 个文件：{importFiles.map((f) => f.name).join("、")}
                 </p>
               )}
@@ -256,20 +256,20 @@ export function MemoriesPage() {
           </div>
           <div className="flex justify-end">
             <Button onClick={runImport} disabled={importing}>
-              <Upload className="h-4 w-4" /> {importing ? "AI 解析中..." : "AI 解析并导入"}
+              <Upload className="h-3.5 w-3.5" /> {importing ? "AI 解析中" : "AI 解析并导入"}
             </Button>
           </div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader>
           <CardTitle>手动触发总结</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           {(["daily", "three_day", "biweekly", "monthly"] as MemoryType[]).map((t) => (
             <Button key={t} variant="outline" size="sm" onClick={() => trigger(t)}>
-              <Wand2 className="h-4 w-4" /> 生成{typeLabels[t]}
+              <Wand2 className="h-3.5 w-3.5" /> 生成{typeLabels[t]}
             </Button>
           ))}
         </CardContent>
@@ -279,15 +279,15 @@ export function MemoriesPage() {
         <div className="space-y-4 lg:col-span-2">
           {memories.map((m) => (
             <Card key={m.id}>
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="default">{typeLabels[m.type]}</Badge>
                   {m.type === "fact" && <Badge variant="secondary">{kindLabels[m.kind]}</Badge>}
                   {m.type === "fact" && (
-                    <span className="text-xs text-muted-foreground">重要性 {m.importance}</span>
+                    <span className="font-mono text-[10.5px] text-muted">重要性 {m.importance}</span>
                   )}
                   {m.pinned && <Badge variant="warning">永久保留</Badge>}
-                  <span className="text-xs text-muted-foreground">{m.sourceDate}</span>
+                  <span className="font-mono text-[10.5px] text-muted">{m.sourceDate}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   {m.type === "fact" && (
@@ -304,7 +304,7 @@ export function MemoriesPage() {
                       <Pin className="h-3.5 w-3.5" />
                     </Button>
                   )}
-                  <span className="text-xs text-muted-foreground">{formatDateTime(m.createdAt)}</span>
+                  <span className="font-mono text-[10.5px] text-muted">{formatDateTime(m.createdAt)}</span>
                 </div>
               </CardHeader>
               <CardContent>
@@ -329,7 +329,7 @@ export function MemoriesPage() {
               </CardContent>
             </Card>
           ))}
-          {memories.length === 0 && <p className="text-sm text-muted-foreground">暂无记忆记录。</p>}
+          {memories.length === 0 && <p className="font-mono text-[12px] text-muted">暂无记忆记录。</p>}
         </div>
 
         <Card>
@@ -337,20 +337,20 @@ export function MemoriesPage() {
             <CardTitle>记忆文件</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {files.length === 0 && <p className="text-sm text-muted-foreground">暂无文件（选择用户后显示）。</p>}
+            {files.length === 0 && <p className="font-mono text-[12px] text-muted">暂无文件（选择用户后显示）。</p>}
             {files.map((f) => (
               <button
                 key={f}
                 onClick={() => openFile(f)}
-                className="flex w-full items-center gap-2 rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-muted dark:border-slate-800"
+                className="flex w-full items-center gap-2 border border-rule px-3 py-2 text-left text-[13px] transition-colors hover:bg-ink/[0.03]"
               >
-                <FileText className="h-4 w-4" /> {f}
+                <FileText className="h-3.5 w-3.5 text-muted" /> <span className="font-mono text-[12px]">{f}</span>
               </button>
             ))}
             {fileContent && (
               <div className="mt-3">
                 <div className="mb-1 flex items-center justify-between">
-                  <span className="text-xs font-medium text-muted-foreground">{fileContent.name}</span>
+                  <span className="font-mono text-[11px] text-muted">{fileContent.name}</span>
                   {fileContent.userEdited ? (
                     <Badge variant="warning">已手动编辑</Badge>
                   ) : (
@@ -358,19 +358,19 @@ export function MemoriesPage() {
                   )}
                 </div>
                 <Textarea
-                  className="min-h-[280px] font-mono text-xs"
+                  className="min-h-[280px] font-mono text-[11.5px]"
                   value={fileDraft}
                   onChange={(e) => setFileDraft(e.target.value)}
                 />
                 {fileContent.userEdited && (
-                  <label className="mt-2 flex cursor-pointer items-center justify-between rounded-md border border-border px-3 py-2 text-sm dark:border-slate-800">
+                  <label className="mt-2 flex cursor-pointer items-center justify-between border border-rule px-3 py-2 text-[13px]">
                     <span>
                       允许 AI 追加
-                      <span className="ml-1 text-xs text-muted-foreground">（保留原文，只累积新内容）</span>
+                      <span className="ml-1 font-mono text-[11px] text-muted">（保留原文，只累积新内容）</span>
                     </span>
                     <input
                       type="checkbox"
-                      className="h-4 w-4 accent-primary"
+                      className="h-4 w-4 accent-stamp"
                       checked={fileContent.appendEnabled}
                       onChange={toggleAppend}
                     />
@@ -384,7 +384,7 @@ export function MemoriesPage() {
                     <Save className="h-3.5 w-3.5" /> 保存
                   </Button>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1 text-[12px] leading-relaxed text-muted">
                   这三个文件会作为记忆直接注入模型；手动保存后不会被自动总结覆盖。开启「允许 AI 追加」后，每日记忆会累积到文件末尾的追加区，原文保持不变。
                 </p>
               </div>

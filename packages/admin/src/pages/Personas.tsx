@@ -123,29 +123,29 @@ export function PersonasPage() {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader>
           <CardTitle>角色列表</CardTitle>
           <Button size="sm" onClick={openCreate}>
-            <Plus className="h-4 w-4" /> 新建角色
+            <Plus className="h-3.5 w-3.5" /> 新建角色
           </Button>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {personas.map((p) => (
-            <div key={p.id} className="rounded-lg border border-border p-4 dark:border-slate-800">
+            <div key={p.id} className="border border-rule bg-paper p-4">
               <div className="flex items-center gap-3">
                 {p.avatar ? (
                   <img src={p.avatar} alt={p.name} className="h-10 w-10 rounded-full object-cover" />
                 ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/15 text-primary">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full border border-stamp/40 font-display text-[15px] text-stamp">
                     {p.name.slice(0, 1)}
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="truncate font-medium">{p.name}</span>
+                    <span className="truncate font-display text-[14px] font-medium tracking-[0.02em] text-ink">{p.name}</span>
                     <Badge variant={p.enabled ? "success" : "secondary"}>{p.enabled ? "启用" : "停用"}</Badge>
                   </div>
-                  <p className="truncate text-xs text-muted-foreground">{p.description || "暂无简介"}</p>
+                  <p className="truncate text-[12px] text-muted">{p.description || "暂无简介"}</p>
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-1">
@@ -164,7 +164,7 @@ export function PersonasPage() {
                 })}
                 {p.personality.canPaint && <Badge variant="warning">会画画</Badge>}
               </div>
-              <div className="mt-4 flex gap-1">
+              <div className="mt-4 flex gap-1 border-t border-rule pt-3">
                 <Button variant="outline" size="sm" onClick={() => openEdit(p)}>
                   <Pencil className="h-3.5 w-3.5" /> 编辑
                 </Button>
@@ -198,13 +198,14 @@ export function PersonasPage() {
                   onClick={() => {
                     if (confirm(`确认删除角色「${p.name}」？相关记忆与会话也会被删除。`)) api.deletePersona(p.id).then(load);
                   }}
+                  aria-label="删除"
                 >
-                  <Trash2 className="h-4 w-4 text-red-500" />
+                  <Trash2 className="h-3.5 w-3.5 text-alert" />
                 </Button>
               </div>
             </div>
           ))}
-          {personas.length === 0 && <p className="text-sm text-muted-foreground">还没有角色，点击「新建角色」开始创建人格。</p>}
+          {personas.length === 0 && <p className="font-mono text-[12px] text-muted">还没有角色，点击「新建角色」开始创建人格。</p>}
         </CardContent>
       </Card>
 
@@ -258,7 +259,7 @@ export function PersonasPage() {
               onChange={(e) => setForm({ ...form, scheduleTemplate: e.target.value })}
               placeholder="例：就读于XX中学高二，周一到周五 7:30-12:00 上课，12:00-14:00 午休，14:00-17:30 上课，19:00-22:00 晚自习，23:30 睡觉；周末睡懒觉、写作业、出去玩。&#10;留空则由 AI 按角色身份自动编排每日日程。"
             />
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-[12px] leading-relaxed text-muted">
               每天 0 点会据此生成「今日日程」，角色言行会随当前时段变化，避免身份不一致。
             </p>
           </section>
@@ -307,21 +308,22 @@ export function PersonasPage() {
               {skills.map((s) => {
                 const checked = form.skills.includes(s.id);
                 return (
-                  <label key={s.id} className="flex items-center gap-2 rounded-md border border-border p-2 text-sm dark:border-slate-800">
+                  <label key={s.id} className="flex items-center gap-2 border border-rule p-2 text-[13px]">
                     <input
                       type="checkbox"
                       checked={checked}
+                      className="accent-stamp"
                       onChange={(e) => {
                         const next = e.target.checked ? [...form.skills, s.id] : form.skills.filter((x) => x !== s.id);
                         setForm({ ...form, skills: next });
                       }}
                     />
-                    <span className="font-medium">{s.name}</span>
+                    <span className="font-medium text-ink">{s.name}</span>
                     <Badge variant="secondary">{s.type}</Badge>
                   </label>
                 );
               })}
-              {skills.length === 0 && <p className="text-sm text-muted-foreground">暂无技能，可在「技能」页添加。</p>}
+              {skills.length === 0 && <p className="font-mono text-[12px] text-muted">暂无技能，可在「技能」页添加。</p>}
             </div>
           </section>
 
@@ -338,7 +340,7 @@ export function PersonasPage() {
             </div>
             <div className="space-y-3">
               {form.commands.map((c, i) => (
-                <div key={i} className="grid grid-cols-1 gap-2 rounded-md border border-border p-3 md:grid-cols-4 dark:border-slate-800">
+                <div key={i} className="grid grid-cols-1 gap-2 border border-rule p-3 md:grid-cols-4">
                   <Input placeholder="命令名称" value={c.name} onChange={(e) => updateCommand(i, { name: e.target.value })} />
                   <Input placeholder="触发词" value={c.trigger} onChange={(e) => updateCommand(i, { trigger: e.target.value })} />
                   <Input placeholder="描述" value={c.description} onChange={(e) => updateCommand(i, { description: e.target.value })} />
@@ -348,8 +350,9 @@ export function PersonasPage() {
                       variant="ghost"
                       size="icon"
                       onClick={() => setForm({ ...form, commands: form.commands.filter((_, idx) => idx !== i) })}
+                      aria-label="删除命令"
                     >
-                      <Trash2 className="h-4 w-4 text-red-500" />
+                      <Trash2 className="h-3.5 w-3.5 text-alert" />
                     </Button>
                   </div>
                 </div>
@@ -435,24 +438,24 @@ export function PersonasPage() {
 
           <div className="flex items-center gap-2">
             <Switch checked={form.enabled} onCheckedChange={(v) => setForm({ ...form, enabled: v })} />
-            <span className="text-sm">启用该角色</span>
+            <span className="text-[13px]">启用该角色</span>
           </div>
         </div>
       </Modal>
 
       <Modal open={simOpen} onClose={() => setSimOpen(false)} title={`模拟对话 · ${simPersona?.name ?? ""}`} size="lg">
         <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-[12px] leading-relaxed text-muted">
             在本地直接与该角色对话，验证人格提示词、记忆注入与模型配置（不需要 QQ 凭据）。
           </p>
           <Textarea value={simMessage} onChange={(e) => setSimMessage(e.target.value)} placeholder="输入你想说的话..." />
           <div className="flex justify-end">
             <Button onClick={runSim} disabled={simLoading || !simMessage}>
-              <Send className="h-4 w-4" /> {simLoading ? "生成中..." : "发送"}
+              <Send className="h-3.5 w-3.5" /> {simLoading ? "生成中" : "发送"}
             </Button>
           </div>
           {simReply && (
-            <div className="rounded-md border border-border bg-muted/40 p-3 text-sm whitespace-pre-wrap dark:border-slate-800">
+            <div className="border-l-[3px] border-location bg-location/[0.06] p-3 text-[13px] leading-relaxed whitespace-pre-wrap">
               {simReply}
             </div>
           )}
@@ -492,7 +495,7 @@ export function PersonasPage() {
       >
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-[12px] leading-relaxed text-muted">
               角色每天 0 点自动生成今日日程，言行会随当前时段变化。也可在此手动调整。
             </p>
             <Button
@@ -512,11 +515,11 @@ export function PersonasPage() {
                 }
               }}
             >
-              <RefreshCw className="h-3.5 w-3.5" /> {schLoading ? "处理中..." : "重新生成"}
+              <RefreshCw className="h-3.5 w-3.5" /> {schLoading ? "处理中" : "重新生成"}
             </Button>
           </div>
           {schSegments.length === 0 && (
-            <p className="text-sm text-muted-foreground">暂无日程，点击「重新生成」让 AI 按角色身份编排今天。</p>
+            <p className="font-mono text-[12px] text-muted">暂无日程，点击「重新生成」让 AI 按角色身份编排今天。</p>
           )}
           <div className="space-y-2">
             {schSegments.map((seg, i) => (

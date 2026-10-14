@@ -218,39 +218,37 @@ export function ModelsPage() {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center">
           <CardTitle>模型列表</CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
               <Input
                 value={listFilter}
                 onChange={(e) => setListFilter(e.target.value)}
-                placeholder="搜索模型/提供商"
+                placeholder="搜索模型 / 提供商"
                 className="w-full pl-8 sm:w-56"
               />
             </div>
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={scanVision} disabled={scanning}>
-                <ScanEye className="h-4 w-4" /> {scanning ? "扫描中..." : "检测读图能力"}
-              </Button>
-              <Button size="sm" onClick={openCreate}>
-                <Plus className="h-4 w-4" /> 新建模型
-              </Button>
-            </div>
+            <Button size="sm" variant="outline" onClick={scanVision} disabled={scanning}>
+              <ScanEye className="h-3.5 w-3.5" /> {scanning ? "扫描中" : "检测读图能力"}
+            </Button>
+            <Button size="sm" onClick={openCreate}>
+              <Plus className="h-3.5 w-3.5" /> 新建模型
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto p-0">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead className="border-b border-border text-left text-xs uppercase text-muted-foreground dark:border-slate-800">
-              <tr>
-                <th className="px-4 py-3">名称</th>
-                <th className="px-4 py-3">模型 ID</th>
-                <th className="px-4 py-3">API Key</th>
-                <th className="px-4 py-3">读图</th>
-                <th className="px-4 py-3">温度</th>
-                <th className="px-4 py-3">启用</th>
-                <th className="px-4 py-3 text-right">操作</th>
+          <table className="w-full min-w-[760px] text-[13.5px]">
+            <thead>
+              <tr className="border-b border-rule text-left">
+                <th className="call-label px-4 py-2.5 font-normal">名称</th>
+                <th className="call-label px-4 py-2.5 font-normal">模型 ID</th>
+                <th className="call-label px-4 py-2.5 font-normal">API Key</th>
+                <th className="call-label px-4 py-2.5 font-normal">读图</th>
+                <th className="call-label px-4 py-2.5 font-normal">温度</th>
+                <th className="call-label px-4 py-2.5 font-normal">启用</th>
+                <th className="call-label px-4 py-2.5 text-right font-normal">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -271,14 +269,14 @@ export function ModelsPage() {
               ))}
               {models.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-12 text-center font-mono text-[12px] text-muted">
                     还没有模型。可以先用 provider 为 mock 的模型进行本地联调。
                   </td>
                 </tr>
               )}
               {models.length > 0 && grouped.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-12 text-center font-mono text-[12px] text-muted">
                     没有匹配的模型。
                   </td>
                 </tr>
@@ -338,20 +336,20 @@ export function ModelsPage() {
             <Input value={form.apiBase} onChange={(e) => setForm({ ...form, apiBase: e.target.value })} placeholder="留空使用默认地址" />
           </div>
           <div>
-            <Label>API Key {editingId && <span className="text-xs text-muted-foreground">（留空表示不修改）</span>}</Label>
+            <Label>API Key {editingId && <span className="normal-case tracking-normal">（留空表示不修改）</span>}</Label>
             <Input type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} />
           </div>
 
-          <div className="rounded-lg border border-border p-3 dark:border-slate-800">
-            <div className="flex items-center justify-between gap-2">
+          <div className="border border-rule bg-ink/[0.02] p-3">
+            <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-sm font-medium">可用模型检测</div>
-                <div className="text-xs text-muted-foreground">
+                <div className="font-display text-[13px] font-medium uppercase tracking-[0.06em] text-ink">可用模型检测</div>
+                <div className="mt-0.5 text-[12px] leading-relaxed text-muted">
                   根据上方 Provider / API Base / API Key 拉取上游模型列表{editingId ? "（API Key 留空则复用已保存的）" : ""}。
                 </div>
               </div>
               <Button size="sm" variant="outline" onClick={discover} disabled={discovering}>
-                <RefreshCw className={discovering ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+                <RefreshCw className={discovering ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
                 {discovering ? "检测中" : "检测可用模型"}
               </Button>
             </div>
@@ -360,7 +358,7 @@ export function ModelsPage() {
               <div className="mt-3 space-y-2">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <div className="relative flex-1">
-                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
                     <Input
                       value={modelSearch}
                       onChange={(e) => setModelSearch(e.target.value)}
@@ -378,36 +376,36 @@ export function ModelsPage() {
                       {filteredDiscovered.length > 0 && filteredDiscovered.every((m) => selected.has(m.id)) ? "取消全选" : "全选"}
                     </Button>
                     <Button size="sm" onClick={addSelected} disabled={selected.size === 0 || addingBatch}>
-                      {addingBatch ? "加入中..." : `加入所选（${selected.size}）`}
+                      {addingBatch ? "加入中" : `加入所选（${selected.size}）`}
                     </Button>
                   </div>
                 </div>
-                <div className="max-h-56 overflow-y-auto rounded-md border border-border dark:border-slate-800">
+                <div className="max-h-56 overflow-y-auto border border-rule">
                   {filteredDiscovered.length === 0 && (
-                    <div className="px-3 py-6 text-center text-xs text-muted-foreground">没有匹配的模型</div>
+                    <div className="px-3 py-6 text-center font-mono text-[11px] text-muted">没有匹配的模型</div>
                   )}
                   {filteredDiscovered.map((m) => {
                     const checked = selected.has(m.id);
                     return (
                       <label
                         key={m.id}
-                        className={`flex w-full cursor-pointer items-center gap-2.5 border-b border-border px-3 py-2 text-left text-sm transition-colors last:border-0 hover:bg-muted dark:border-slate-800 ${
-                          checked ? "bg-primary/10" : ""
+                        className={`flex w-full cursor-pointer items-center gap-2.5 border-b border-rule px-3 py-2 text-left text-[13px] transition-colors last:border-0 hover:bg-ink/[0.03] ${
+                          checked ? "bg-stamp/[0.07]" : ""
                         }`}
                       >
                         <input
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggleSelect(m.id)}
-                          className="h-4 w-4 shrink-0 accent-primary"
+                          className="h-4 w-4 shrink-0 accent-stamp"
                         />
-                        <span className="truncate font-mono text-xs">{m.id}</span>
-                        {m.ownedBy && <span className="ml-auto shrink-0 text-xs text-muted-foreground">{m.ownedBy}</span>}
+                        <span className="truncate font-mono text-[11.5px]">{m.id}</span>
+                        {m.ownedBy && <span className="ml-auto shrink-0 font-mono text-[10.5px] text-muted">{m.ownedBy}</span>}
                       </label>
                     );
                   })}
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[12px] leading-relaxed text-muted">
                   勾选要加入的模型后点「加入所选」，会按当前 Provider / API Base / API Key 批量创建；已存在的会自动跳过。
                 </p>
               </div>
@@ -426,13 +424,13 @@ export function ModelsPage() {
           </div>
           <div className="flex items-center gap-2">
             <Switch checked={form.enabled} onCheckedChange={(v) => setForm({ ...form, enabled: v })} />
-            <span className="text-sm">启用该模型</span>
+            <span className="text-[13px]">启用该模型</span>
           </div>
           <div className="flex items-center gap-2">
             <Switch checked={form.supportsVision} onCheckedChange={(v) => setForm({ ...form, supportsVision: v })} />
-            <span className="text-sm">
+            <span className="text-[13px]">
               支持读图（多模态）
-              <span className="ml-1 text-xs text-muted-foreground">开启后才会把用户图片发给该模型</span>
+              <span className="ml-1 font-mono text-[11px] text-muted">开启后才会把用户图片发给该模型</span>
             </span>
           </div>
         </div>
@@ -462,38 +460,40 @@ function FragmentGroup({
 }) {
   return (
     <>
-      <tr className="border-b border-border bg-muted/40 dark:border-slate-800">
+      <tr className="border-b border-rule bg-ink/[0.035]">
         <td colSpan={7} className="px-4 py-2">
-          <button type="button" onClick={onToggle} className="flex items-center gap-2 text-left text-sm font-semibold">
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            <Badge variant="secondary">{providerLabels[provider] ?? provider}</Badge>
-            <span className="text-xs font-normal text-muted-foreground">{items.length} 个模型</span>
+          <button type="button" onClick={onToggle} className="flex items-center gap-2 text-left">
+            {collapsed ? <ChevronRight className="h-3.5 w-3.5 text-muted" /> : <ChevronDown className="h-3.5 w-3.5 text-muted" />}
+            <span className="font-display text-[12px] font-medium uppercase tracking-[0.08em] text-ink">
+              {providerLabels[provider] ?? provider}
+            </span>
+            <span className="font-mono text-[11px] text-muted">{items.length} 个模型</span>
           </button>
         </td>
       </tr>
       {!collapsed &&
         items.map((m) => (
-          <tr key={m.id} className="border-b border-border last:border-0 dark:border-slate-800">
-            <td className="px-4 py-3 font-medium">{m.name}</td>
-            <td className="px-4 py-3 font-mono text-xs">{m.modelId}</td>
+          <tr key={m.id} className="border-b border-rule last:border-0">
+            <td className="px-4 py-3 font-medium text-ink">{m.name}</td>
+            <td className="px-4 py-3 font-mono text-[11.5px] text-muted">{m.modelId}</td>
             <td className="px-4 py-3">{m.apiKeySet ? <Badge variant="success">已配置</Badge> : <Badge variant="warning">未配置</Badge>}</td>
             <td className="px-4 py-3">
               {m.supportsVision ? <Badge variant="success">支持</Badge> : <Badge variant="secondary">不支持</Badge>}
             </td>
-            <td className="px-4 py-3">{m.temperature}</td>
+            <td className="px-4 py-3 font-mono text-[11.5px] text-muted">{m.temperature}</td>
             <td className="px-4 py-3">
               <Switch checked={m.enabled} onCheckedChange={(v) => onToggleEnabled(m, v)} />
             </td>
             <td className="px-4 py-3">
               <div className="flex justify-end gap-1">
-                <Button variant="ghost" size="sm" onClick={() => onTest(m)}>
-                  <FlaskConical className="h-4 w-4" />
+                <Button variant="ghost" size="sm" onClick={() => onTest(m)} aria-label="测试">
+                  <FlaskConical className="h-3.5 w-3.5" />
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => onEdit(m)}>
-                  <Pencil className="h-4 w-4" />
+                <Button variant="ghost" size="sm" onClick={() => onEdit(m)} aria-label="编辑">
+                  <Pencil className="h-3.5 w-3.5" />
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => onDelete(m)}>
-                  <Trash2 className="h-4 w-4 text-red-500" />
+                <Button variant="ghost" size="sm" onClick={() => onDelete(m)} aria-label="删除">
+                  <Trash2 className="h-3.5 w-3.5 text-alert" />
                 </Button>
               </div>
             </td>

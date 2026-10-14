@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>软件手册页签板</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{--paper:#f7f5f0;--ink:#1d1c1a;--rule:#d8d3ca;--blue:#2b5fa8;--muted:#7d766a}
+  *{margin:0;box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);font-family:"Noto Sans SC",sans-serif;height:100vh;overflow:hidden;display:flex}
+  .tabs{width:210px;padding:26px 0 0;flex-shrink:0}
+  .brand{font-size:20px;font-weight:700;padding:0 22px 16px}
+  .brand b{color:var(--blue)}
+  .tabs a{display:block;margin:0 0 4px 14px;padding:10px 16px;background:var(--paper);
+    border:1px solid var(--rule);border-right:none;border-radius:6px 0 0 6px;font-size:14px;color:#4a463e;text-decoration:none}
+  .tabs a.on{background:#fff;color:var(--ink);font-weight:700;border-left:3px solid var(--blue);margin-left:8px}
+  .main{flex:1;background:#fff;border:1px solid var(--rule);margin:20px;border-radius:8px;padding:24px 30px;overflow:hidden}
+  h1{font-size:21px;font-weight:700;margin-bottom:4px}
+  .sub{font-size:12px;color:var(--muted);margin-bottom:22px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;font-size:11px;color:var(--muted);font-weight:500;padding:8px 10px;border-bottom:1px solid var(--rule)}
+  td{padding:12px 10px;border-bottom:1px solid var(--rule)}
+  .code{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted)}
+  .tag{font-size:11px;padding:2px 8px;border-radius:999px;background:#eef2f8;color:var(--blue)}
+  .tag.off{background:#efece6;color:var(--muted)}
+</style></head>
+<body>
+  <aside class="tabs">
+    <div class="brand">Persona<b>Bot</b></div>
+    <a class="on">仪表盘</a><a>Bot 管理</a><a>角色管理</a><a>模型管理</a>
+    <a>记忆管理</a><a>统计</a><a>技能</a><a>系统设置</a>
+  </aside>
+  <main class="main">
+    <h1>Bot 管理</h1>
+    <div class="sub">共 3 个 Bot · 2 在线</div>
+    <table>
+      <thead><tr><th>名称</th><th>AppID</th><th>角色</th><th>模型</th><th>状态</th></tr></thead>
+      <tbody>
+        <tr><td>晚星电台</td><td class="code">102000001</td><td>林晚星</td><td class="code">doubao-pro-32k</td><td><span class="tag">在线</span></td></tr>
+        <tr><td>星野观测</td><td class="code">102000002</td><td>陈屿</td><td class="code">deepseek-chat</td><td><span class="tag off">离线</span></td></tr>
+        <tr><td>清欢咖啡</td><td class="code">102000003</td><td>苏清欢</td><td class="code">gpt-4o-mini</td><td><span class="tag">在线</span></td></tr>
+      </tbody>
+    </table>
+  </main>
+</body>
+</html>

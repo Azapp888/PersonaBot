@@ -22,7 +22,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
     <div>
       <Label>{label}</Label>
       {children}
-      {hint && <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{hint}</p>}
+      {hint && <p className="mt-1.5 text-[12px] leading-relaxed text-muted">{hint}</p>}
     </div>
   );
 }
@@ -39,10 +39,10 @@ function ToggleRow({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3.5 transition-colors dark:border-slate-800">
+    <div className="flex items-center justify-between gap-3 border border-rule p-3.5 transition-colors">
       <div className="min-w-0">
-        <div className="text-sm font-medium">{label}</div>
-        {hint && <div className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{hint}</div>}
+        <div className="text-[13px] font-medium text-ink">{label}</div>
+        {hint && <div className="mt-0.5 text-[12px] leading-relaxed text-muted">{hint}</div>}
       </div>
       <Switch checked={checked} onCheckedChange={onChange} />
     </div>
@@ -223,7 +223,7 @@ export function SettingsPage() {
     }
   };
 
-  if (!settings) return <div className="text-sm text-muted-foreground">加载中...</div>;
+  if (!settings) return <div className="font-mono text-[12px] text-muted">加载中</div>;
 
   const dirty = snapshot !== "" && JSON.stringify(settings) !== snapshot;
 
@@ -286,13 +286,13 @@ export function SettingsPage() {
               )}
             </Select>
           </Field>
-          <div className="rounded-xl border border-border bg-muted/40 p-3.5 md:col-span-2 dark:border-slate-800 dark:bg-slate-900/40">
+          <div className="border border-rule bg-ink/[0.02] p-3.5 md:col-span-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0">
-                <div className="text-xs text-muted-foreground">
+                <div className="call-label">
                   当前系统时间{tick + serverOffset ? `（${tzLabel(settings.timezone)} · ${offsetLabel(tick + serverOffset, settings.timezone)}）` : ""}
                 </div>
-                <div className="mt-0.5 font-mono text-lg font-semibold tabular-nums">
+                <div className="mt-1 font-mono text-[20px] font-medium tabular-nums text-ink">
                   {formatClock(tick + serverOffset, settings.timezone)}
                 </div>
               </div>
@@ -301,10 +301,10 @@ export function SettingsPage() {
                 size="sm"
                 onClick={() => refreshServerTime().then(() => push("已按服务器时间校准"))}
               >
-                <RefreshCw className="h-4 w-4" /> 重新校准
+                <RefreshCw className="h-3.5 w-3.5" /> 重新校准
               </Button>
             </div>
-            <div className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+            <div className="mt-1.5 text-[12px] leading-relaxed text-muted">
               以服务器实时时间校准，并按上方时区显示。所有模型动作（回复、主动消息、每日问候、记忆整理）都会注入当前真实时间。
             </div>
           </div>
@@ -446,12 +446,12 @@ export function SettingsPage() {
           <div className="md:col-span-2">
             <Label>命令白名单用户</Label>
             <textarea
-              className="mt-1 min-h-[72px] w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring dark:border-slate-800"
+              className="mt-1 min-h-[72px] w-full border border-rule bg-field px-3 py-2 text-[13px] text-ink outline-none placeholder:text-muted focus-visible:border-stamp focus-visible:ring-1 focus-visible:ring-stamp/40"
               placeholder="允许执行服务器命令的 QQ 号，每行一个；留空则不限制"
               value={settings.agentShellAllowedUsers}
               onChange={(e) => set({ agentShellAllowedUsers: e.target.value })}
             />
-            <p className="mt-1 text-xs text-muted-foreground">留空表示所有与 Bot 对话的用户都可触发命令前缀。</p>
+            <p className="mt-1 text-[12px] text-muted">留空表示所有与 Bot 对话的用户都可触发命令前缀。</p>
           </div>
         </CardContent>
       </Card>
@@ -479,12 +479,12 @@ export function SettingsPage() {
           <div className="md:col-span-2">
             <Label>敏感词表</Label>
             <textarea
-              className="mt-1 min-h-[96px] w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring dark:border-slate-800"
+              className="mt-1 min-h-[96px] w-full border border-rule bg-field px-3 py-2 text-[13px] text-ink outline-none placeholder:text-muted focus-visible:border-stamp focus-visible:ring-1 focus-visible:ring-stamp/40"
               placeholder="每行一个词，或用逗号 / 分号分隔"
               value={settings.keywordFilterWords}
               onChange={(e) => set({ keywordFilterWords: e.target.value })}
             />
-            <p className="mt-1 text-xs text-muted-foreground">仅作基础过滤，非内容审查；留空则不生效。</p>
+            <p className="mt-1 text-[12px] text-muted">仅作基础过滤，非内容审查；留空则不生效。</p>
           </div>
         </CardContent>
       </Card>
@@ -600,7 +600,7 @@ export function SettingsPage() {
 
       <div className="hidden justify-end lg:flex">
         <Button onClick={save} disabled={saving}>
-          <Save className="h-4 w-4" /> {saving ? "保存中..." : "保存设置"}
+          <Save className="h-3.5 w-3.5" /> {saving ? "保存中" : "保存设置"}
         </Button>
       </div>
 
@@ -609,35 +609,35 @@ export function SettingsPage() {
           <CardTitle>系统信息与运维操作</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-            <div className="rounded-lg bg-muted/50 p-3 dark:bg-slate-800/50">
-              <div className="text-xs text-muted-foreground">Node 版本</div>
-              <div className="mt-0.5 font-medium">{info?.nodeVersion}</div>
+          <div className="grid grid-cols-2 gap-3 text-[13px] md:grid-cols-4">
+            <div className="border border-rule bg-ink/[0.02] p-3">
+              <div className="call-label">Node 版本</div>
+              <div className="mt-1 font-mono text-[13px] text-ink">{info?.nodeVersion}</div>
             </div>
-            <div className="rounded-lg bg-muted/50 p-3 dark:bg-slate-800/50">
-              <div className="text-xs text-muted-foreground">内存占用</div>
-              <div className="mt-0.5 font-medium">{info?.memoryRssMb} MB</div>
+            <div className="border border-rule bg-ink/[0.02] p-3">
+              <div className="call-label">内存占用</div>
+              <div className="mt-1 font-mono text-[13px] text-ink">{info?.memoryRssMb} MB</div>
             </div>
-            <div className="rounded-lg bg-muted/50 p-3 dark:bg-slate-800/50">
-              <div className="text-xs text-muted-foreground">运行时长</div>
-              <div className="mt-0.5 font-medium">{info?.uptimeSeconds}s</div>
+            <div className="border border-rule bg-ink/[0.02] p-3">
+              <div className="call-label">运行时长</div>
+              <div className="mt-1 font-mono text-[13px] text-ink">{info?.uptimeSeconds}s</div>
             </div>
-            <div className="rounded-lg bg-muted/50 p-3 dark:bg-slate-800/50">
-              <div className="text-xs text-muted-foreground">数据目录</div>
-              <div className="mt-0.5 truncate font-medium" title={info?.dataDir}>
+            <div className="border border-rule bg-ink/[0.02] p-3">
+              <div className="call-label">数据目录</div>
+              <div className="mt-1 truncate font-mono text-[13px] text-ink" title={info?.dataDir}>
                 {info?.dataDir}
               </div>
             </div>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <Button variant="outline" className="w-full sm:w-auto" onClick={runProactive}>
-              <Play className="h-4 w-4" /> 立即执行主动消息
+              <Play className="h-3.5 w-3.5" /> 立即执行主动消息
             </Button>
             <Button variant="outline" className="w-full sm:w-auto" onClick={() => api.refreshTokens().then(() => push("已刷新 Token"))}>
-              <RefreshCw className="h-4 w-4" /> 刷新所有 Token
+              <RefreshCw className="h-3.5 w-3.5" /> 刷新所有 Token
             </Button>
             <Button variant="outline" className="w-full sm:w-auto" onClick={() => api.reloadBots().then(() => push("已重载 Bot 网关"))}>
-              <Server className="h-4 w-4" /> 重载 Bot 网关
+              <Server className="h-3.5 w-3.5" /> 重载 Bot 网关
             </Button>
           </div>
         </CardContent>
@@ -650,8 +650,8 @@ export function SettingsPage() {
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <Button variant="outline" className="w-full sm:w-auto" onClick={checkForUpdate} disabled={checkingUpdate || applyingUpdate}>
-              <RefreshCw className={cn("h-4 w-4", checkingUpdate && "animate-spin")} />
-              {checkingUpdate ? "检查中..." : "检查更新"}
+              <RefreshCw className={cn("h-3.5 w-3.5", checkingUpdate && "animate-spin")} />
+              {checkingUpdate ? "检查中" : "检查更新"}
             </Button>
             {updateInfo?.canAutoUpdate !== false && (
               <Button
@@ -659,33 +659,26 @@ export function SettingsPage() {
                 onClick={applyUpdateNow}
                 disabled={applyingUpdate || checkingUpdate || !updateInfo?.available || updateInfo.mode !== "git"}
               >
-                <Download className="h-4 w-4" />
-                {applyingUpdate ? "更新中..." : "一键更新"}
+                <Download className="h-3.5 w-3.5" />
+                {applyingUpdate ? "更新中" : "一键更新"}
               </Button>
             )}
           </div>
 
           {updateInfo && (
-            <div className="rounded-xl border border-border bg-muted/40 p-3.5 text-sm dark:border-slate-800 dark:bg-slate-900/40">
+            <div className="border border-rule bg-ink/[0.02] p-3.5 text-[13px]">
               <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className={cn(
-                    "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                    updateInfo.available
-                      ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-200"
-                      : updateInfo.ok
-                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
-                        : "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-200",
-                  )}
+                <Badge
+                  variant={updateInfo.available ? "warning" : updateInfo.ok ? "success" : "destructive"}
                 >
                   {updateInfo.available ? "有新版本" : updateInfo.ok ? "已是最新" : "检查失败"}
-                </span>
+                </Badge>
                 <Badge variant="secondary">
                   部署方式：{updateInfo.mode === "git" ? "Git" : updateInfo.mode === "docker" ? "Docker" : "未知"}
                 </Badge>
-                <span className="text-muted-foreground">{updateInfo.message}</span>
+                <span className="text-muted">{updateInfo.message}</span>
               </div>
-              <div className="mt-2 grid grid-cols-1 gap-1.5 text-xs text-muted-foreground sm:grid-cols-2">
+              <div className="mt-2 grid grid-cols-1 gap-1.5 font-mono text-[11px] text-muted sm:grid-cols-2">
                 <div className="truncate">仓库：{updateInfo.repoUrl || settings.updateRepoUrl || "-"}</div>
                 <div>分支：{updateInfo.branch}</div>
                 <div className="truncate" title={updateInfo.currentCommit ?? ""}>
@@ -701,7 +694,7 @@ export function SettingsPage() {
                 )}
               </div>
               {updateInfo.guidance && (
-                <pre className="mt-3 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/60 p-2.5 text-xs text-muted-foreground dark:bg-slate-800/60">
+                <pre className="mt-3 overflow-auto whitespace-pre-wrap break-all border border-rule bg-field p-2.5 font-mono text-[11px] text-muted">
                   {updateInfo.guidance}
                 </pre>
               )}
@@ -709,21 +702,21 @@ export function SettingsPage() {
           )}
 
           {updateResult && updateResult.steps.length > 0 && (
-            <div className="space-y-2 rounded-xl border border-border p-3.5 dark:border-slate-800">
+            <div className="space-y-2 border border-rule p-3.5">
               {updateResult.steps.map((s, i) => (
-                <div key={i} className="text-sm">
-                  <div className={cn("font-medium", s.ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
-                    {s.ok ? "✓" : "✗"} {s.name}
+                <div key={i} className="text-[13px]">
+                  <div className={cn("font-medium", s.ok ? "text-location" : "text-alert")}>
+                    {s.ok ? "OK" : "FAIL"} · {s.name}
                   </div>
                   {s.output && (
-                    <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/50 p-2 text-xs text-muted-foreground dark:bg-slate-800/50">
+                    <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all border border-rule bg-field p-2 font-mono text-[11px] text-muted">
                       {s.output.slice(0, 4000)}
                     </pre>
                   )}
                 </div>
               ))}
               {updateResult.restartRequired && (
-                <p className="text-xs text-amber-600 dark:text-amber-400">
+                <p className="text-[12px] text-alert">
                   更新完成，请重启服务（如 systemd / pm2 restart 或重新执行启动命令）后生效。
                 </p>
               )}
@@ -731,24 +724,24 @@ export function SettingsPage() {
           )}
 
           {updateResult && updateResult.steps.length === 0 && updateResult.guidance && (
-            <div className="rounded-xl border border-border p-3.5 dark:border-slate-800">
-              <p className="text-sm text-muted-foreground">{updateResult.message}</p>
-              <pre className="mt-2 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/50 p-2.5 text-xs text-muted-foreground dark:bg-slate-800/50">
+            <div className="border border-rule p-3.5">
+              <p className="text-[13px] text-muted">{updateResult.message}</p>
+              <pre className="mt-2 overflow-auto whitespace-pre-wrap break-all border border-rule bg-field p-2.5 font-mono text-[11px] text-muted">
                 {updateResult.guidance}
               </pre>
             </div>
           )}
 
           {updateInfo?.mode === "docker" ? (
-            <p className="text-xs leading-relaxed text-muted-foreground">
+            <p className="text-[12px] leading-relaxed text-muted">
               检测到 Docker 部署：容器内没有 Git 仓库，无法在容器内自动更新。请在宿主机项目目录执行
               {" "}
-              <code className="rounded bg-muted px-1 py-0.5 dark:bg-slate-800">docker compose build --pull && docker compose up -d</code>
+              <code className="border border-rule bg-field px-1 py-0.5 font-mono text-[11px]">docker compose build --pull && docker compose up -d</code>
               {" "}
               完成更新。版本对比基于构建时注入的提交号（GIT_COMMIT）。
             </p>
           ) : (
-            <p className="text-xs leading-relaxed text-muted-foreground">
+            <p className="text-[12px] leading-relaxed text-muted">
               从本机 Git 仓库的 origin 拉取指定分支最新代码，随后自动安装依赖并构建。工作区有未提交改动时会中止，避免覆盖你的修改。更新后需重启服务。
             </p>
           )}
@@ -764,19 +757,15 @@ export function SettingsPage() {
       </Card>
 
       {/* Mobile sticky save bar */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/95 lg:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-rule bg-panel/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-md lg:hidden">
         <Button onClick={save} disabled={saving} size="lg" className="w-full">
-          <Save className="h-4 w-4" />
-          {saving ? "保存中..." : dirty ? "保存设置（有未保存更改）" : "保存设置"}
+          <Save className="h-3.5 w-3.5" />
+          {saving ? "保存中" : dirty ? "保存设置（有未保存更改）" : "保存设置"}
         </Button>
       </div>
 
       {dirty && (
-        <div
-          className={cn(
-            "pointer-events-none fixed right-4 top-[calc(3.5rem+0.75rem)] z-20 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700 shadow-sm dark:bg-amber-900/50 dark:text-amber-200 lg:top-[calc(4rem+0.75rem)]",
-          )}
-        >
+        <div className="pointer-events-none fixed right-4 top-[calc(3.5rem+0.75rem)] z-20 border border-alert/50 bg-alert/10 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.08em] text-alert lg:top-[calc(4rem+0.75rem)]">
           有未保存的更改
         </div>
       )}
