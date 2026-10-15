@@ -13,6 +13,7 @@ import { settingsService } from "../settings/service";
 import { logger } from "../logger";
 import type { Bot, Persona, UserProfile, AppSettings } from "../types";
 import { formatDate, sleep } from "../utils/id";
+import { splitReply } from "../utils/text";
 import { systemClock, timeContextLine } from "../utils/clock";
 const sentSinceReply = new Map<string, number>();
 const HOUR = 60 * 60 * 1000;
@@ -187,8 +188,17 @@ async function deliver(
   result: ProactiveRunResult,
 ): Promise<void> {
   const client = new QQApiClient(bot);
+  const settings = settingsService.get();
   try {
-    await client.sendC2C(userId, reply);
+    // 与被动回复一致：设置开启分行发送时，把多行回复拆成多条消息依次发出。
+    // 主动消息是主动下发（无 msg_id 被动回复次数限制），但仍遵循同一上限配置。
+    const maxParts = Math.max(1, settings.splitMaxMessages);
+    const segments = settings.splitMessages ? splitReply(reply, maxParts) : [reply];
+    const parts = segments.length ? segments : [reply];
+    for (let i = 0; i < parts.length; i++) {
+      await client.sendC2C(userId, parts[i]);
+      if (i < parts.length - 1) await sleep(300);
+    }
     conversationRepo.append(persona.id, userId, [{ role: "assistant", content: reply, timestamp: Date.now() }]);
     logRepo.message({ personaId: persona.id, botId: bot.id, userId, direction: "out", content: reply });
     statsRepo.increment(formatDate(), persona.id, { messages: 1 });
