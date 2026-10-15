@@ -32,14 +32,6 @@ export interface PersonaCommand {
   behavior?: string;
 }
 
-export interface ModelConfig {
-  modelId?: string; // 引用 models 表
-  providerOverride?: string;
-  temperature?: number;
-  maxTokens?: number;
-  topP?: number;
-}
-
 export interface PaintingConfig {
   enabled: boolean;
   style: string; // 画风描述
@@ -59,7 +51,6 @@ export interface Persona {
   skills: string[];
   commands: PersonaCommand[];
   paintingConfig: PaintingConfig;
-  modelConfig: ModelConfig;
   /** 日程底稿（可选）：角色固定的作息规律，作为每日日程生成的基础。 */
   scheduleTemplate: string;
   enabled: boolean;

@@ -3,6 +3,48 @@ import { getDb } from "../index";
 import type { LLMUsage } from "../../types";
 import { newId } from "../../utils/id";
 
+export interface MessageLogFilter {
+  personaId?: string | null;
+  userId?: string | null;
+  direction?: "in" | "out" | null;
+  /** 内容关键字（模糊匹配） */
+  q?: string | null;
+  /** 起始时间戳（含） */
+  since?: number | null;
+  /** 结束时间戳（不含） */
+  until?: number | null;
+}
+
+function buildLogWhere(filter: MessageLogFilter): { clause: string; params: unknown[] } {
+  const conds: string[] = [];
+  const params: unknown[] = [];
+  if (filter.personaId) {
+    conds.push("persona_id = ?");
+    params.push(filter.personaId);
+  }
+  if (filter.userId) {
+    conds.push("user_id = ?");
+    params.push(filter.userId);
+  }
+  if (filter.direction) {
+    conds.push("direction = ?");
+    params.push(filter.direction);
+  }
+  if (filter.q) {
+    conds.push("content LIKE ?");
+    params.push(`%${filter.q}%`);
+  }
+  if (filter.since != null) {
+    conds.push("created_at >= ?");
+    params.push(filter.since);
+  }
+  if (filter.until != null) {
+    conds.push("created_at < ?");
+    params.push(filter.until);
+  }
+  return { clause: conds.length ? `WHERE ${conds.join(" AND ")}` : "", params };
+}
+
 export const logRepo = {
   db(): Database.Database {
     return getDb();
@@ -41,6 +83,26 @@ export const logRepo = {
         `SELECT * FROM message_logs WHERE persona_id = ? AND user_id = ? AND created_at >= ? AND created_at < ? ORDER BY created_at ASC`,
       )
       .all(personaId, userId, since, until);
+  },
+  /** 按条件分页查询消息日志（时间倒序）。 */
+  messageLogs(filter: MessageLogFilter, limit: number, offset: number): any[] {
+    const { clause, params } = buildLogWhere(filter);
+    return this.db()
+      .prepare(`SELECT * FROM message_logs ${clause} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
+      .all(...params, limit, offset);
+  },
+  /** 统计符合条件的消息日志总数。 */
+  countMessageLogs(filter: MessageLogFilter): number {
+    const { clause, params } = buildLogWhere(filter);
+    const row = this.db().prepare(`SELECT COUNT(*) AS c FROM message_logs ${clause}`).get(...params) as any;
+    return row.c;
+  },
+  /** 按条件导出消息日志（时间正序，便于阅读）。 */
+  exportMessageLogs(filter: MessageLogFilter, limit: number): any[] {
+    const { clause, params } = buildLogWhere(filter);
+    return this.db()
+      .prepare(`SELECT * FROM message_logs ${clause} ORDER BY created_at ASC LIMIT ?`)
+      .all(...params, limit);
   },
   usage(entry: {
     modelId?: string | null;

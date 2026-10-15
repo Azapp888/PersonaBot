@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { getDb } from "../index";
-import type { Persona, PaintingConfig, ModelConfig, Personality, PersonaCommand } from "../../types";
+import type { Persona, PaintingConfig, Personality, PersonaCommand } from "../../types";
 import { newId, now } from "../../utils/id";
 import { safeJsonParse, toJson } from "../../utils/json";
 
@@ -11,11 +11,6 @@ const defaultPainting: PaintingConfig = {
   characterDna: "",
   provider: "",
   model: "",
-};
-
-const defaultModelConfig: ModelConfig = {
-  temperature: 0.8,
-  maxTokens: 2048,
 };
 
 const defaultPersonality: Personality = {
@@ -37,7 +32,6 @@ function map(row: any): Persona {
     skills: safeJsonParse<string[]>(row.skills, []),
     commands: safeJsonParse<PersonaCommand[]>(row.commands, []),
     paintingConfig: { ...defaultPainting, ...safeJsonParse<Partial<PaintingConfig>>(row.painting_config, {}) },
-    modelConfig: { ...defaultModelConfig, ...safeJsonParse<Partial<ModelConfig>>(row.model_config, {}) },
     scheduleTemplate: row.schedule_template ?? "",
     enabled: !!row.enabled,
     createdAt: row.created_at,
@@ -54,7 +48,6 @@ export interface PersonaInput {
   skills?: string[];
   commands?: PersonaCommand[];
   paintingConfig?: Partial<PaintingConfig>;
-  modelConfig?: Partial<ModelConfig>;
   scheduleTemplate?: string;
   enabled?: boolean;
 }
@@ -78,8 +71,8 @@ export const personaRepo = {
     const ts = now();
     this.db()
       .prepare(
-        `INSERT INTO personas (id, name, avatar, description, system_prompt, personality, skills, commands, painting_config, model_config, schedule_template, enabled, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO personas (id, name, avatar, description, system_prompt, personality, skills, commands, painting_config, schedule_template, enabled, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -91,7 +84,6 @@ export const personaRepo = {
         toJson(input.skills ?? []),
         toJson(input.commands ?? []),
         toJson({ ...defaultPainting, ...(input.paintingConfig ?? {}) }),
-        toJson({ ...defaultModelConfig, ...(input.modelConfig ?? {}) }),
         input.scheduleTemplate ?? "",
         input.enabled === false ? 0 : 1,
         ts,
@@ -111,13 +103,12 @@ export const personaRepo = {
       skills: input.skills ?? current.skills,
       commands: input.commands ?? current.commands,
       paintingConfig: { ...current.paintingConfig, ...(input.paintingConfig ?? {}) },
-      modelConfig: { ...current.modelConfig, ...(input.modelConfig ?? {}) },
       scheduleTemplate: input.scheduleTemplate ?? current.scheduleTemplate,
       enabled: input.enabled !== undefined ? input.enabled : current.enabled,
     };
     this.db()
       .prepare(
-        `UPDATE personas SET name = ?, avatar = ?, description = ?, system_prompt = ?, personality = ?, skills = ?, commands = ?, painting_config = ?, model_config = ?, schedule_template = ?, enabled = ?, updated_at = ? WHERE id = ?`,
+        `UPDATE personas SET name = ?, avatar = ?, description = ?, system_prompt = ?, personality = ?, skills = ?, commands = ?, painting_config = ?, schedule_template = ?, enabled = ?, updated_at = ? WHERE id = ?`,
       )
       .run(
         merged.name,
@@ -128,7 +119,6 @@ export const personaRepo = {
         toJson(merged.skills),
         toJson(merged.commands),
         toJson(merged.paintingConfig),
-        toJson(merged.modelConfig),
         merged.scheduleTemplate,
         merged.enabled ? 1 : 0,
         now(),

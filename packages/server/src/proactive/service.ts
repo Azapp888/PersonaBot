@@ -125,7 +125,7 @@ async function generateProactive(persona: Persona, userId: string, instruction: 
     const { provider, model } = resolveProviderForBot(bot, persona);
     const result = await provider.chat(
       [{ role: "system", content: full }, ...history, { role: "user", content: instructionWithTime }],
-      { temperature: persona.modelConfig.temperature ?? model?.temperature, maxTokens: persona.modelConfig.maxTokens },
+      { temperature: model?.temperature, maxTokens: model?.maxTokens },
     );
     return result.content.trim();
   } catch (err) {

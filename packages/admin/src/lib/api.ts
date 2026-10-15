@@ -3,6 +3,8 @@ import type {
   Bot,
   DashboardData,
   DiscoveredModel,
+  LogFilterParams,
+  LogPage,
   Memory,
   ModelRecord,
   Persona,
@@ -36,6 +38,14 @@ export class ApiError extends Error {
   ) {
     super(message);
   }
+}
+
+function toQuery(params: object): string {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
+  }
+  return qs.toString();
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -77,6 +87,27 @@ export const api = {
   trends: (days = 14) => request<TrendPoint[]>("GET", `/api/stats/trends?days=${days}`),
   personaTrends: (id: string, days = 14) => request<TrendPoint[]>("GET", `/api/stats/persona/${id}?days=${days}`),
   recentMessages: (limit = 50) => request<any[]>("GET", `/api/stats/messages?limit=${limit}`),
+
+  // logs
+  logs: (params: LogFilterParams & { limit?: number; offset?: number }) =>
+    request<LogPage>("GET", `/api/logs?${toQuery(params)}`),
+  exportLogs: async (format: "json" | "md", params: LogFilterParams) => {
+    const token = getToken();
+    const res = await fetch(`/api/logs/export?${toQuery({ ...params, format })}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: "include",
+    });
+    if (!res.ok) throw new ApiError(res.status, "导出失败");
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `personabot-logs.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
 
   // bots
   bots: () => request<Bot[]>("GET", "/api/bots"),

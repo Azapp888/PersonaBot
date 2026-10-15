@@ -15,7 +15,6 @@ function makePersona(overrides: Partial<Persona> = {}): Persona {
     skills: [],
     commands: [],
     paintingConfig: { enabled: false, style: "", artistReference: "", characterDna: "" },
-    modelConfig: { temperature: 0.8, maxTokens: 2048 },
     scheduleTemplate: "",
     enabled: true,
     createdAt: 0,

@@ -157,7 +157,7 @@ export function BotsPage() {
                     <td className="px-4 py-3 font-mono text-[11.5px] text-muted">{bot.appId}</td>
                     <td className="px-4 py-3">{bot.personaName ?? <span className="text-muted">未绑定</span>}</td>
                     <td className="px-4 py-3 font-mono text-[11.5px]">
-                      {bot.modelName ?? <span className="font-sans text-muted">跟随角色</span>}
+                      {bot.modelName ?? <span className="font-sans text-muted">跟随默认</span>}
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={st.variant}>{st.label}</Badge>
@@ -256,7 +256,7 @@ export function BotsPage() {
           <div>
             <Label>使用模型</Label>
             <Select value={form.modelId} onChange={(e) => setForm({ ...form, modelId: e.target.value })}>
-              <option value="">（跟随角色配置）</option>
+              <option value="">（跟随默认模型）</option>
               {models.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name}（{m.provider}/{m.modelId}）
@@ -264,7 +264,7 @@ export function BotsPage() {
               ))}
             </Select>
             <p className="mt-1 text-[12px] leading-relaxed text-muted">
-              模型按 Bot 分配，优先于角色上的模型设置；留空则回退到角色配置。
+              模型统一在此按 Bot 分配。留空则使用默认模型（模型管理里第一个启用的模型）。
             </p>
           </div>
           <div className="flex items-center gap-2">

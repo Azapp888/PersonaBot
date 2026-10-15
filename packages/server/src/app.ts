@@ -14,6 +14,7 @@ import { statsRoutes } from "./routes/stats";
 import { settingsRoutes } from "./routes/settings";
 import { skillRoutes } from "./routes/skills";
 import { systemRoutes } from "./routes/system";
+import { logRoutes } from "./routes/logs";
 
 function findAdminDist(): string | null {
   const candidates = [
@@ -77,6 +78,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(modelRoutes);
   await app.register(memoryRoutes);
   await app.register(statsRoutes);
+  await app.register(logRoutes);
   await app.register(settingsRoutes);
   await app.register(skillRoutes);
   await app.register(systemRoutes);

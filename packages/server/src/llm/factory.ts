@@ -60,35 +60,36 @@ export function createProviderFromModel(model: ModelRecord): LLMProvider {
 }
 
 /**
- * 依据角色配置解析要使用的 LLM Provider。
- * 优先级：persona.modelConfig.modelId 指定的模型 > 第一个启用的模型 > Mock
+ * 默认模型解析：优先第一个启用的非 mock 模型，其次任意启用模型，最后回退 Mock。
+ * 模型只在「模型管理」中维护、在「Bot 管理」中分配，角色不再持有模型配置。
  */
-export function resolveProviderForPersona(persona: Persona): { provider: LLMProvider; model: ModelRecord | null } {
-  const targetId = persona.modelConfig.modelId;
-  if (targetId) {
-    const model = modelRepo.find(targetId);
-    if (model && model.enabled) {
-      return { provider: createProviderFromModel(model), model };
-    }
-  }
+export function resolveDefaultProvider(): { provider: LLMProvider; model: ModelRecord | null } {
   const models = modelRepo.listEnabled();
   const preferred = models.find((m) => m.provider !== "mock") ?? models[0];
   if (preferred) {
     return { provider: createProviderFromModel(preferred), model: preferred };
   }
-  logger.warn({ personaId: persona.id }, "no enabled model found, falling back to MockProvider");
+  logger.warn("no enabled model found, falling back to MockProvider");
   return { provider: new MockProvider(), model: null };
 }
 
 /**
- * 解析某次对话实际使用的模型：优先按 Bot 分配的模型，Bot 未配置或不可用时回退到角色配置。
+ * 解析后台任务（记忆整理、日程生成、上下文压缩等）使用的 Provider。
+ * 这些任务不绑定具体 Bot，统一使用默认模型。
+ */
+export function resolveProviderForPersona(_persona: Persona): { provider: LLMProvider; model: ModelRecord | null } {
+  return resolveDefaultProvider();
+}
+
+/**
+ * 解析某次对话实际使用的模型：按 Bot 分配的模型；Bot 未配置或不可用时回退到默认模型。
  *
  * 模型分配以 Bot 为单位（同一个角色可被多个 Bot 复用，各 Bot 可用不同模型）。
  * 这里保持纯"选一个可用模型"的语义，不做失败后自动切换其它模型的故障转移。
  */
 export function resolveProviderForBot(
   bot: Pick<Bot, "modelId"> | null | undefined,
-  persona: Persona,
+  _persona: Persona,
 ): { provider: LLMProvider; model: ModelRecord | null } {
   const targetId = bot?.modelId;
   if (targetId) {
@@ -96,7 +97,7 @@ export function resolveProviderForBot(
     if (model && model.enabled) {
       return { provider: createProviderFromModel(model), model };
     }
-    logger.warn({ modelId: targetId }, "bot-configured model unavailable, falling back to persona/default");
+    logger.warn({ modelId: targetId }, "bot-configured model unavailable, falling back to default model");
   }
-  return resolveProviderForPersona(persona);
+  return resolveDefaultProvider();
 }

@@ -15,7 +15,7 @@ before(async () => {
   runMigrations(getDb());
 });
 
-function makePersona(modelId?: string) {
+function makePersona() {
   return {
     id: "per_1",
     name: "阿瑜",
@@ -26,7 +26,6 @@ function makePersona(modelId?: string) {
     skills: [],
     commands: [],
     paintingConfig: { enabled: false, style: "", artistReference: "", characterDna: "" },
-    modelConfig: modelId ? { modelId } : {},
     scheduleTemplate: "",
     enabled: true,
     createdAt: 0,
@@ -34,34 +33,32 @@ function makePersona(modelId?: string) {
   } as any;
 }
 
-test("resolveProviderForBot：Bot 配置的模型优先于角色", async () => {
+test("resolveProviderForBot：Bot 分配的模型优先生效", async () => {
   const { modelRepo } = await import("../src/db/repos/models");
   const { resolveProviderForBot } = await import("../src/llm/factory");
   const botModel = modelRepo.create({ name: "bot用", provider: "mock", modelId: "mock-bot" });
-  const personaModel = modelRepo.create({ name: "角色用", provider: "mock", modelId: "mock-persona" });
+  modelRepo.create({ name: "其它", provider: "mock", modelId: "mock-other" });
 
-  const persona = makePersona(personaModel.id);
-  const { model } = resolveProviderForBot({ modelId: botModel.id }, persona);
+  const { model } = resolveProviderForBot({ modelId: botModel.id }, makePersona());
   assert.equal(model?.id, botModel.id);
 });
 
-test("resolveProviderForBot：Bot 未配置模型时回退到角色模型", async () => {
+test("resolveProviderForBot：Bot 未配置模型时回退到默认模型", async () => {
   const { modelRepo } = await import("../src/db/repos/models");
   const { resolveProviderForBot } = await import("../src/llm/factory");
-  const personaModel = modelRepo.create({ name: "角色用2", provider: "mock", modelId: "mock-persona-2" });
+  // 第一个启用的非 mock 模型即默认模型
+  const defaultModel = modelRepo.create({ name: "默认", provider: "custom", modelId: "default-1" });
 
-  const persona = makePersona(personaModel.id);
-  const { model } = resolveProviderForBot({ modelId: null }, persona);
-  assert.equal(model?.id, personaModel.id);
+  const { model } = resolveProviderForBot({ modelId: null }, makePersona());
+  assert.equal(model?.id, defaultModel.id);
 });
 
-test("resolveProviderForBot：Bot 指向的模型被禁用时回退到角色模型", async () => {
+test("resolveProviderForBot：Bot 指向的模型被禁用时回退到默认模型", async () => {
   const { modelRepo } = await import("../src/db/repos/models");
   const { resolveProviderForBot } = await import("../src/llm/factory");
   const disabled = modelRepo.create({ name: "停用", provider: "mock", modelId: "mock-disabled", enabled: false });
-  const personaModel = modelRepo.create({ name: "角色用3", provider: "mock", modelId: "mock-persona-3" });
 
-  const persona = makePersona(personaModel.id);
-  const { model } = resolveProviderForBot({ modelId: disabled.id }, persona);
-  assert.equal(model?.id, personaModel.id);
+  const { model } = resolveProviderForBot({ modelId: disabled.id }, makePersona());
+  assert.notEqual(model?.id, disabled.id);
+  assert.equal(model?.enabled, true);
 });

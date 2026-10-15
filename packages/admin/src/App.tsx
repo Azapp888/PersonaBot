@@ -12,6 +12,7 @@ const PersonasPage = lazy(() => import("@/pages/Personas").then((m) => ({ defaul
 const ModelsPage = lazy(() => import("@/pages/Models").then((m) => ({ default: m.ModelsPage })));
 const MemoriesPage = lazy(() => import("@/pages/Memories").then((m) => ({ default: m.MemoriesPage })));
 const StatsPage = lazy(() => import("@/pages/Stats").then((m) => ({ default: m.StatsPage })));
+const LogsPage = lazy(() => import("@/pages/Logs").then((m) => ({ default: m.LogsPage })));
 const SkillsPage = lazy(() => import("@/pages/Skills").then((m) => ({ default: m.SkillsPage })));
 const SettingsPage = lazy(() => import("@/pages/Settings").then((m) => ({ default: m.SettingsPage })));
 
@@ -48,6 +49,7 @@ export default function App() {
               <Route path="/models" element={<ModelsPage />} />
               <Route path="/memories" element={<MemoriesPage />} />
               <Route path="/stats" element={<StatsPage />} />
+              <Route path="/logs" element={<LogsPage />} />
               <Route path="/skills" element={<SkillsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />

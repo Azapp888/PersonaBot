@@ -50,13 +50,6 @@ export interface PaintingConfig {
   model?: string;
 }
 
-export interface ModelConfig {
-  modelId?: string;
-  temperature?: number;
-  maxTokens?: number;
-  topP?: number;
-}
-
 export interface Persona {
   id: string;
   name: string;
@@ -67,7 +60,6 @@ export interface Persona {
   skills: string[];
   commands: PersonaCommand[];
   paintingConfig: PaintingConfig;
-  modelConfig: ModelConfig;
   scheduleTemplate: string;
   enabled: boolean;
   createdAt: number;
@@ -157,6 +149,35 @@ export interface Memory {
   origin: "daily" | "realtime";
   consolidatedInto: string | null;
   createdAt: number;
+}
+
+export interface MessageLog {
+  id: string;
+  time: number;
+  iso: string;
+  direction: "in" | "out";
+  userId: string;
+  personaId: string | null;
+  personaName: string | null;
+  botId: string | null;
+  botName: string | null;
+  content: string;
+}
+
+export interface LogPage {
+  total: number;
+  limit: number;
+  offset: number;
+  items: MessageLog[];
+}
+
+export interface LogFilterParams {
+  personaId?: string;
+  userId?: string;
+  direction?: string;
+  q?: string;
+  since?: number;
+  until?: number;
 }
 
 export interface Skill {

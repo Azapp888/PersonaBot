@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { CalendarClock, MessageCircle, Pencil, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
-import type { ModelRecord, Persona, PersonaCommand, ScheduleSegment, Skill } from "@/lib/types";
+import type { Persona, PersonaCommand, ScheduleSegment, Skill } from "@/lib/types";
 import {
   Badge,
   Button,
@@ -11,7 +11,6 @@ import {
   CardTitle,
   Input,
   Label,
-  Select,
   Switch,
   Textarea,
 } from "@/components/ui/primitives";
@@ -28,7 +27,6 @@ const emptyPersona: Persona = {
   skills: [],
   commands: [],
   paintingConfig: { enabled: false, style: "", artistReference: "", characterDna: "" },
-  modelConfig: { temperature: 0.8, maxTokens: 2048 },
   scheduleTemplate: "",
   enabled: true,
   createdAt: 0,
@@ -39,7 +37,6 @@ export function PersonasPage() {
   const { push } = useToast();
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
-  const [models, setModels] = useState<ModelRecord[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<Persona>({ ...emptyPersona });
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -55,10 +52,9 @@ export function PersonasPage() {
   const [schLoading, setSchLoading] = useState(false);
 
   const load = async () => {
-    const [p, s, m] = await Promise.all([api.personas(), api.skills(), api.models()]);
+    const [p, s] = await Promise.all([api.personas(), api.skills()]);
     setPersonas(p);
     setSkills(s);
-    setModels(m);
   };
 
   useEffect(() => {
@@ -67,7 +63,7 @@ export function PersonasPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm({ ...emptyPersona, personality: { ...emptyPersona.personality }, paintingConfig: { ...emptyPersona.paintingConfig }, modelConfig: { ...emptyPersona.modelConfig } });
+    setForm({ ...emptyPersona, personality: { ...emptyPersona.personality }, paintingConfig: { ...emptyPersona.paintingConfig } });
     setModalOpen(true);
   };
 
@@ -402,40 +398,6 @@ export function PersonasPage() {
             </div>
           </section>
 
-          <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div>
-              <Label>使用模型</Label>
-              <Select
-                value={form.modelConfig.modelId ?? ""}
-                onChange={(e) => setForm({ ...form, modelConfig: { ...form.modelConfig, modelId: e.target.value || undefined } })}
-              >
-                <option value="">（自动选择已启用模型）</option>
-                {models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} ({m.provider}/{m.modelId})
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div>
-              <Label>温度</Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={form.modelConfig.temperature ?? 0.8}
-                onChange={(e) => setForm({ ...form, modelConfig: { ...form.modelConfig, temperature: Number(e.target.value) } })}
-              />
-            </div>
-            <div>
-              <Label>最大 Token</Label>
-              <Input
-                type="number"
-                value={form.modelConfig.maxTokens ?? 2048}
-                onChange={(e) => setForm({ ...form, modelConfig: { ...form.modelConfig, maxTokens: Number(e.target.value) } })}
-              />
-            </div>
-          </section>
-
           <div className="flex items-center gap-2">
             <Switch checked={form.enabled} onCheckedChange={(v) => setForm({ ...form, enabled: v })} />
             <span className="text-[13px]">启用该角色</span>
@@ -446,7 +408,7 @@ export function PersonasPage() {
       <Modal open={simOpen} onClose={() => setSimOpen(false)} title={`模拟对话 · ${simPersona?.name ?? ""}`} size="lg">
         <div className="space-y-3">
           <p className="text-[12px] leading-relaxed text-muted">
-            在本地直接与该角色对话，验证人格提示词、记忆注入与模型配置（不需要 QQ 凭据）。
+            在本地直接与该角色对话，验证人格提示词、记忆注入与当前分配的模型（不需要 QQ 凭据）。
           </p>
           <Textarea value={simMessage} onChange={(e) => setSimMessage(e.target.value)} placeholder="输入你想说的话..." />
           <div className="flex justify-end">

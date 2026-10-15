@@ -164,8 +164,8 @@ export async function generateReply(
   try {
     const { provider, model } = resolved;
     modelId = model?.id ?? null;
-    const temperature = persona.modelConfig.temperature ?? model?.temperature;
-    const maxTokens = persona.modelConfig.maxTokens ?? model?.maxTokens;
+    const temperature = model?.temperature;
+    const maxTokens = model?.maxTokens;
     const signal = opts.signal;
 
     // 启用服务器 Agent 且模型支持工具调用时，走「模型自主决定执行 shell」的循环
