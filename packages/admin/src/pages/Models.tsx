@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, FlaskConical, Pencil, Plus, RefreshCw, ScanEye, Search, Trash2 } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  FlaskConical,
+  Plus,
+  RefreshCw,
+  ScanEye,
+  Search,
+  Settings2,
+  Trash2,
+} from "lucide-react";
 import { api } from "@/lib/api";
-import type { DiscoveredModel, ModelRecord } from "@/lib/types";
+import type { DiscoveredModel, ModelRecord, ProviderGroup } from "@/lib/types";
 import {
   Badge,
   Button,
@@ -18,6 +29,7 @@ import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { ModelIcon } from "@/components/ModelIcon";
 
+/** 内置预设提供商的默认地址与推荐模型（与 server 端保持一致）。 */
 const providerDefaults: Record<string, { base: string; model: string }> = {
   openai: { base: "https://api.openai.com/v1", model: "gpt-4o-mini" },
   anthropic: { base: "https://api.anthropic.com", model: "claude-3-5-sonnet-20241022" },
@@ -66,28 +78,28 @@ function isPresetProvider(provider: string): boolean {
   return Object.prototype.hasOwnProperty.call(providerDefaults, provider);
 }
 
-const empty = { name: "", provider: "deepseek", apiKey: "", apiBase: "", modelId: "deepseek-chat", temperature: 0.8, maxTokens: 2048, enabled: true, supportsVision: false };
+/** 按分组键匹配模型（同地址同组）。 */
+function modelsOfGroup(models: ModelRecord[], key: string): ModelRecord[] {
+  return models.filter((m) => (m.providerKey ?? m.provider) === key);
+}
 
 export function ModelsPage() {
   const { push } = useToast();
   const [models, setModels] = useState<ModelRecord[]>([]);
+  const [groups, setGroups] = useState<ProviderGroup[]>([]);
+  const [editing, setEditing] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<any>({ ...empty });
-  const [saving, setSaving] = useState(false);
-  const [listFilter, setListFilter] = useState("");
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-
-  const [discovered, setDiscovered] = useState<DiscoveredModel[] | null>(null);
-  const [discovering, setDiscovering] = useState(false);
+  const [filter, setFilter] = useState("");
   const [scanning, setScanning] = useState(false);
-  const [modelSearch, setModelSearch] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [addingBatch, setAddingBatch] = useState(false);
   const [meta, setMeta] = useState<{ ready: boolean; models: number } | null>(null);
   const [refreshingMeta, setRefreshingMeta] = useState(false);
 
-  const load = () => api.models().then(setModels);
+  const load = async () => {
+    const [list, g] = await Promise.all([api.models(), api.providerGroups()]);
+    setModels(list);
+    setGroups(g.groups);
+  };
+
   useEffect(() => {
     load().catch(() => undefined);
     api.metadataStatus().then(setMeta).catch(() => undefined);
@@ -103,71 +115,6 @@ export function ModelsPage() {
       push((err as Error).message, "error");
     } finally {
       setRefreshingMeta(false);
-    }
-  };
-
-  const openCreate = () => {
-    setEditingId(null);
-    setForm({ ...empty });
-    setDiscovered(null);
-    setModelSearch("");
-    setSelected(new Set());
-    setOpen(true);
-  };
-
-  const openEdit = (m: ModelRecord) => {
-    setEditingId(m.id);
-    setForm({ ...m, apiKey: "" });
-    setDiscovered(null);
-    setModelSearch("");
-    setSelected(new Set());
-    setOpen(true);
-  };
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      const payload: any = { ...form };
-      if (!payload.apiKey) delete payload.apiKey;
-      if (editingId) await api.updateModel(editingId, payload);
-      else await api.createModel(payload);
-      push("已保存", "success");
-      setOpen(false);
-      await load();
-    } catch (err) {
-      push((err as Error).message, "error");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const test = async (m: ModelRecord) => {
-    push(`正在测试 ${m.name}...`);
-    try {
-      const res = await api.testModel(m.id);
-      push(res.ok ? `连接正常：${res.reply}` : `失败：${res.message}`, res.ok ? "success" : "error");
-    } catch (err) {
-      push((err as Error).message, "error");
-    }
-  };
-
-  const discover = async () => {
-    setDiscovering(true);
-    setSelected(new Set());
-    try {
-      const payload = { provider: form.provider, apiKey: form.apiKey || undefined, apiBase: form.apiBase || undefined };
-      const res = editingId ? await api.discoverModelById(editingId, payload) : await api.discoverModels(payload);
-      setDiscovered(res.models);
-      push(
-        res.reusedKey
-          ? `检测到 ${res.models.length} 个可用模型（已复用该提供商已保存的密钥）`
-          : `检测到 ${res.models.length} 个可用模型`,
-        "success",
-      );
-    } catch (err) {
-      push((err as Error).message, "error");
-    } finally {
-      setDiscovering(false);
     }
   };
 
@@ -192,51 +139,359 @@ export function ModelsPage() {
     }
   };
 
-  const toggleSelect = (id: string) => {    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const openCreate = () => {
+    setEditing(null);
+    setOpen(true);
   };
 
-  const toggleSelectAll = (ids: string[]) => {
-    setSelected((prev) => {
-      const allSelected = ids.length > 0 && ids.every((id) => prev.has(id));
-      const next = new Set(prev);
-      if (allSelected) ids.forEach((id) => next.delete(id));
-      else ids.forEach((id) => next.add(id));
-      return next;
-    });
+  const openEdit = (groupKey: string) => {
+    setEditing(groupKey);
+    setOpen(true);
   };
 
-  const addSelected = async () => {
-    if (selected.size === 0) return;
-    const items = Array.from(selected).map((modelId) => ({ modelId, name: modelId }));
-    setAddingBatch(true);
+  const removeProvider = async (group: ProviderGroup) => {
+    const count = modelsOfGroup(models, group.key).length;
+    if (!confirm(`确认删除提供商「${group.label}」及其下的 ${count} 个模型？`)) return;
     try {
-      const res = await api.createModelsBatch({
-        provider: form.provider,
-        models: items,
-        apiKey: form.apiKey || undefined,
-        apiBase: form.apiBase || undefined,
-        temperature: form.temperature,
-        maxTokens: form.maxTokens,
-        enabled: form.enabled,
-        supportsVision: form.supportsVision,
-      });
-      push(
-        `已加入 ${res.created.length} 个模型${res.skipped.length ? `，跳过 ${res.skipped.length} 个已存在` : ""}${
-          res.reusedKey ? "（密钥复用该提供商已保存的）" : ""
-        }`,
-        "success",
-      );
-      setSelected(new Set());
+      const res = await api.deleteProvider({ groupKey: group.key });
+      push(`已删除 ${group.label}（${res.removed} 个模型）`, "success");
       await load();
     } catch (err) {
       push((err as Error).message, "error");
+    }
+  };
+
+  const testModel = async (m: ModelRecord) => {
+    push(`正在测试 ${m.name}...`);
+    try {
+      const res = await api.testModel(m.id);
+      push(res.ok ? `连接正常：${res.reply}` : `失败：${res.message}`, res.ok ? "success" : "error");
+    } catch (err) {
+      push((err as Error).message, "error");
+    }
+  };
+
+  const filteredGroups = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return groups;
+    return groups.filter(
+      (g) =>
+        g.label.toLowerCase().includes(q) ||
+        g.addr.toLowerCase().includes(q) ||
+        g.vendor.toLowerCase().includes(q),
+    );
+  }, [groups, filter]);
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center">
+          <CardTitle>模型提供商</CardTitle>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
+              <Input
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="搜索提供商 / 地址"
+                className="w-full pl-8 sm:w-56"
+              />
+            </div>
+            <Button size="sm" variant="outline" onClick={scanVision} disabled={scanning}>
+              <ScanEye className="h-3.5 w-3.5" /> {scanning ? "扫描中" : "检测读图能力"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={refreshMetadata}
+              disabled={refreshingMeta}
+              title="刷新 models.dev 模型元数据（读图能力的第一手依据）"
+            >
+              <RefreshCw className={refreshingMeta ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+              {meta?.ready ? `元数据 ${meta.models}` : "刷新元数据"}
+            </Button>
+            <Button size="sm" onClick={openCreate}>
+              <Plus className="h-3.5 w-3.5" /> 新增提供商
+            </Button>
+          </div>
+        </CardHeader>
+        {groups.length === 0 ? (
+          <CardContent className="py-12 text-center font-mono text-[12px] text-muted">
+            还没有提供商。点「新增提供商」添加一个上游，再从中选择要启用的模型。
+          </CardContent>
+        ) : filteredGroups.length === 0 ? (
+          <CardContent className="py-12 text-center font-mono text-[12px] text-muted">没有匹配的提供商。</CardContent>
+        ) : (
+          <CardContent className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+            {filteredGroups.map((g) => (
+              <ProviderCard
+                key={g.key}
+                group={g}
+                models={modelsOfGroup(models, g.key)}
+                onEdit={() => openEdit(g.key)}
+                onDelete={() => removeProvider(g)}
+                onTest={testModel}
+              />
+            ))}
+          </CardContent>
+        )}
+      </Card>
+
+      <ProviderModal
+        open={open}
+        groupKey={editing}
+        models={models}
+        onClose={() => setOpen(false)}
+        onSaved={async (msg) => {
+          push(msg, "success");
+          await load();
+        }}
+        onError={(msg) => push(msg, "error")}
+        onNotice={(msg) => push(msg)}
+      />
+    </div>
+  );
+}
+
+/** 单个提供商卡片：展示规模信息与快捷操作。 */
+function ProviderCard({
+  group,
+  models,
+  onEdit,
+  onDelete,
+  onTest,
+}: {
+  group: ProviderGroup;
+  models: ModelRecord[];
+  onEdit: () => void;
+  onDelete: () => void;
+  onTest: (m: ModelRecord) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const sample = models[0];
+  const enabledCount = models.filter((m) => m.enabled).length;
+
+  return (
+    <div className="flex flex-col border border-rule bg-paper">
+      <div className="flex items-start gap-3 p-4">
+        <span className="mt-0.5 shrink-0">
+          <ModelIcon modelId={sample?.modelId ?? ""} name={group.label} size={22} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate font-display text-[13.5px] font-medium text-ink">{group.label}</span>
+            {group.known ? <Badge variant="secondary">官方</Badge> : <Badge variant="warning">自定义</Badge>}
+          </div>
+          <div className="mt-0.5 truncate font-mono text-[11px] text-muted" title={group.addr || group.vendor}>
+            {group.addr || `provider:${group.vendor}`}
+          </div>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 font-mono text-[11px] text-muted">
+        <span>{group.models} 个模型</span>
+        <span>{enabledCount} 启用</span>
+        <span>{group.credentials} 个密钥</span>
+        {group.visionModels > 0 && <span className="text-stamp">{group.visionModels} 支持读图</span>}
+      </div>
+      <div className="mt-3 flex items-center gap-1 border-t border-rule px-2 py-2">
+        <Button variant="ghost" size="sm" onClick={onEdit}>
+          <Settings2 className="h-3.5 w-3.5" /> 管理模型
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setExpanded((v) => !v)}
+          disabled={models.length === 0}
+        >
+          {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />} 概览
+        </Button>
+        <Button variant="ghost" size="sm" className="ml-auto" onClick={onDelete} aria-label="删除提供商">
+          <Trash2 className="h-3.5 w-3.5 text-alert" />
+        </Button>
+      </div>
+      {expanded && (
+        <div className="border-t border-rule bg-ink/[0.02]">
+          {models.map((m) => (
+            <div key={m.id} className="flex items-center gap-2 border-b border-rule px-4 py-2 text-[12.5px] last:border-0">
+              <ModelIcon modelId={m.modelId} name={m.name} />
+              <span className="truncate font-mono text-[11.5px] text-ink">{m.modelId}</span>
+              {m.supportsVision && <Badge variant="success">读图</Badge>}
+              {!m.enabled && <Badge variant="secondary">停用</Badge>}
+              <Button variant="ghost" size="sm" className="ml-auto" onClick={() => onTest(m)} aria-label="测试">
+                <FlaskConical className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 提供商新增 / 编辑弹窗：提供商级配置 + 模型选择（检测拉取与手动添加）。 */
+function ProviderModal({
+  open,
+  groupKey,
+  models,
+  onClose,
+  onSaved,
+  onError,
+  onNotice,
+}: {
+  open: boolean;
+  groupKey: string | null;
+  models: ModelRecord[];
+  onClose: () => void;
+  onSaved: (msg: string) => void;
+  onError: (msg: string) => void;
+  onNotice: (msg: string) => void;
+}) {
+  const isEdit = !!groupKey;
+  const group = useMemo(() => (groupKey ? modelsOfGroup(models, groupKey) : []), [groupKey, models]);
+  const head = group[0];
+
+  const [form, setForm] = useState<any>({
+    provider: "deepseek",
+    apiBase: providerDefaults.deepseek.base,
+    apiKey: "",
+    temperature: 0.8,
+    maxTokens: 2048,
+    supportsVision: false,
+  });
+  const [members, setMembers] = useState<ModelRecord[]>([]);
+  const [removed, setRemoved] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+
+  const [discovered, setDiscovered] = useState<DiscoveredModel[] | null>(null);
+  const [discovering, setDiscovering] = useState(false);
+  const [modelSearch, setModelSearch] = useState("");
+  const [pending, setPending] = useState<{ modelId: string; name?: string }[]>([]);
+  const [manual, setManual] = useState("");
+
+  // 打开时按创建 / 编辑初始化表单
+  useEffect(() => {
+    if (!open) return;
+    setDiscovered(null);
+    setModelSearch("");
+    setPending([]);
+    setManual("");
+    setRemoved(new Set());
+    if (isEdit && head) {
+      setForm({
+        provider: head.provider,
+        apiBase: head.apiBase ?? "",
+        apiKey: "",
+        temperature: head.temperature,
+        maxTokens: head.maxTokens,
+        supportsVision: head.supportsVision,
+      });
+      setMembers(group);
+    } else {
+      setForm({
+        provider: "deepseek",
+        apiBase: providerDefaults.deepseek.base,
+        apiKey: "",
+        temperature: 0.8,
+        maxTokens: 2048,
+        supportsVision: false,
+      });
+      setMembers([]);
+    }
+  }, [open, isEdit, groupKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onPickProvider = (picked: string) => {
+    if (picked === CUSTOM_PROVIDER) {
+      setForm((f: any) => ({ ...f, provider: isPresetProvider(f.provider) ? "" : f.provider }));
+      return;
+    }
+    const d = providerDefaults[picked];
+    setForm((f: any) => ({ ...f, provider: picked, apiBase: d?.base ?? "" }));
+    setDiscovered(null);
+  };
+
+  const discover = async () => {
+    if (!form.provider) {
+      onError("请先填写提供商名称");
+      return;
+    }
+    setDiscovering(true);
+    try {
+      const res = await api.discoverProvider({
+        provider: form.provider,
+        apiKey: form.apiKey || undefined,
+        apiBase: form.apiBase || undefined,
+      });
+      setDiscovered(res.models);
+      const existing = new Set([...members.map((m) => m.modelId), ...pending.map((p) => p.modelId)]);
+      setPending(res.models.filter((m) => !existing.has(m.id)).map((m) => ({ modelId: m.id, name: m.id })));
+      onNotice(
+        res.reusedKey
+          ? `检测到 ${res.models.length} 个可用模型（已复用已保存的密钥）`
+          : `检测到 ${res.models.length} 个可用模型`,
+      );
+    } catch (err) {
+      onError((err as Error).message);
     } finally {
-      setAddingBatch(false);
+      setDiscovering(false);
+    }
+  };
+
+  const addManual = () => {
+    const id = manual.trim();
+    if (!id) return;
+    const exists =
+      members.some((m) => m.modelId === id && !removed.has(m.id)) || pending.some((p) => p.modelId === id);
+    if (exists) {
+      onError(`模型 ${id} 已存在`);
+      return;
+    }
+    setPending((p) => [...p, { modelId: id, name: id }]);
+    setManual("");
+  };
+
+  const togglePending = (id: string) => {
+    setPending((prev) => prev.filter((p) => p.modelId !== id));
+  };
+
+  const save = async () => {
+    if (!form.provider) {
+      onError("请填写提供商名称");
+      return;
+    }
+    setSaving(true);
+    try {
+      if (isEdit && groupKey) {
+        const res = await api.updateProvider({
+          groupKey,
+          provider: form.provider,
+          apiBase: form.apiBase,
+          apiKey: form.apiKey || undefined,
+          addModels: pending,
+          removeModelIds: Array.from(removed),
+        });
+        onSaved(`已更新：新增 ${res.added.length} 个，删除 ${res.removed} 个`);
+      } else {
+        if (pending.length === 0) {
+          onError("请至少添加一个模型（检测拉取或手动输入）");
+          setSaving(false);
+          return;
+        }
+        const res = await api.createProvider({
+          provider: form.provider,
+          apiBase: form.apiBase,
+          apiKey: form.apiKey,
+          temperature: form.temperature,
+          maxTokens: form.maxTokens,
+          supportsVision: form.supportsVision,
+          models: pending,
+        });
+        onSaved(`已创建提供商，加入 ${res.created.length} 个模型${res.skipped.length ? `，跳过 ${res.skipped.length} 个` : ""}`);
+      }
+      onClose();
+    } catch (err) {
+      onError((err as Error).message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -247,367 +502,233 @@ export function ModelsPage() {
     return discovered.filter((m) => m.id.toLowerCase().includes(q));
   }, [discovered, modelSearch]);
 
-  // 模型列表：先按搜索过滤，再按「提供商地址」分组（同地址同组、不同密钥分列）
-  const grouped = useMemo(() => {
-    const q = listFilter.trim().toLowerCase();
-    const filtered = q
-      ? models.filter((m) => {
-          const addr = m.providerAddr ?? "";
-          return (
-            m.name.toLowerCase().includes(q) ||
-            m.modelId.toLowerCase().includes(q) ||
-            m.provider.toLowerCase().includes(q) ||
-            addr.toLowerCase().includes(q)
-          );
-        })
-      : models;
-    const map = new Map<string, { label: string; addr: string; known: boolean; items: ModelRecord[] }>();
-    for (const m of filtered) {
-      const key = m.providerKey ?? m.provider;
-      const entry = map.get(key) ?? {
-        label: m.providerLabel ?? providerLabels[m.provider] ?? m.provider,
-        addr: m.providerAddr ?? "",
-        known: m.providerKnown ?? false,
-        items: [],
-      };
-      entry.items.push(m);
-      map.set(key, entry);
-    }
-    return Array.from(map.entries()).sort((a, b) => b[1].items.length - a[1].items.length || a[0].localeCompare(b[0]));
-  }, [models, listFilter]);
-
-  const toggleGroup = (provider: string) => setCollapsed((c) => ({ ...c, [provider]: !c[provider] }));
+  const visibleMembers = members.filter((m) => !removed.has(m.id));
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center">
-          <CardTitle>模型列表</CardTitle>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
-              <Input
-                value={listFilter}
-                onChange={(e) => setListFilter(e.target.value)}
-                placeholder="搜索模型 / 提供商"
-                className="w-full pl-8 sm:w-56"
-              />
-            </div>
-            <Button size="sm" variant="outline" onClick={scanVision} disabled={scanning}>
-              <ScanEye className="h-3.5 w-3.5" /> {scanning ? "扫描中" : "检测读图能力"}
-            </Button>
-            <Button size="sm" variant="outline" onClick={refreshMetadata} disabled={refreshingMeta} title="刷新 models.dev 模型元数据（读图能力的第一手依据）">
-              <RefreshCw className={refreshingMeta ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
-              {meta?.ready ? `元数据 ${meta.models}` : "刷新元数据"}
-            </Button>
-            <Button size="sm" onClick={openCreate}>
-              <Plus className="h-3.5 w-3.5" /> 新建模型
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="overflow-x-auto p-0">
-          <table className="w-full min-w-[760px] text-[13.5px]">
-            <thead>
-              <tr className="border-b border-rule text-left">
-                <th className="call-label px-4 py-2.5 font-normal">名称</th>
-                <th className="call-label px-4 py-2.5 font-normal">模型 ID</th>
-                <th className="call-label px-4 py-2.5 font-normal">API Key</th>
-                <th className="call-label px-4 py-2.5 font-normal">读图</th>
-                <th className="call-label px-4 py-2.5 font-normal">温度</th>
-                <th className="call-label px-4 py-2.5 font-normal">启用</th>
-                <th className="call-label px-4 py-2.5 text-right font-normal">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {grouped.map(([key, group]) => (
-                <FragmentGroup
-                  key={key}
-                  groupKey={key}
-                  group={group}
-                  collapsed={!!collapsed[key]}
-                  onToggle={() => toggleGroup(key)}
-                  onTest={test}
-                  onEdit={openEdit}
-                  onDelete={(m) => {
-                    if (confirm(`确认删除模型「${m.name}」？`)) api.deleteModel(m.id).then(load);
-                  }}
-                  onToggleEnabled={(m, v) => api.updateModel(m.id, { enabled: v }).then(load)}
-                />
-              ))}
-              {models.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center font-mono text-[12px] text-muted">
-                    还没有模型。可以先用 provider 为 mock 的模型进行本地联调。
-                  </td>
-                </tr>
-              )}
-              {models.length > 0 && grouped.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center font-mono text-[12px] text-muted">
-                    没有匹配的模型。
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
-
-      <Modal
-        open={open}
-        onClose={() => setOpen(false)}
-        title={editingId ? "编辑模型" : "新建模型"}
-        footer={
-          <>
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              取消
-            </Button>
-            <Button onClick={save} disabled={saving}>
-              保存
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={isEdit ? `管理提供商 · ${head?.providerLabel ?? ""}` : "新增提供商"}
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose}>
+            取消
+          </Button>
+          <Button onClick={save} disabled={saving}>
+            {isEdit ? "保存更改" : "创建提供商"}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>模型名称</Label>
-            <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="用于后台识别" />
+            <Label>提供商</Label>
+            <Select value={isPresetProvider(form.provider) ? form.provider : CUSTOM_PROVIDER} onChange={(e) => onPickProvider(e.target.value)}>
+              <option value="deepseek">DeepSeek</option>
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic Claude</option>
+              <option value="volcengine">火山引擎方舟（豆包）</option>
+              <option value="dashscope">阿里云百炼（通义千问）</option>
+              <option value="google">Google Gemini</option>
+              <option value="moonshot">Moonshot 月之暗面</option>
+              <option value="zhipu">智谱 GLM</option>
+              <option value="minimax">MiniMax</option>
+              <option value="qianfan">百度千帆（文心）</option>
+              <option value="tencent">腾讯混元</option>
+              <option value="spark">讯飞星火</option>
+              <option value="xai">xAI Grok</option>
+              <option value="openrouter">OpenRouter</option>
+              <option value="siliconflow">SiliconFlow 硅基流动</option>
+              <option value="custom">自定义（OpenAI 兼容）</option>
+              <option value={CUSTOM_PROVIDER}>自定义名称…</option>
+              <option value="mock">Mock（本地联调）</option>
+            </Select>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Provider</Label>
-              <Select
-                value={isPresetProvider(form.provider) ? form.provider : CUSTOM_PROVIDER}
-                onChange={(e) => {
-                  const picked = e.target.value;
-                  if (picked === CUSTOM_PROVIDER) {
-                    setForm({ ...form, provider: form.provider && !isPresetProvider(form.provider) ? form.provider : "" });
-                    setDiscovered(null);
-                    return;
-                  }
-                  const d = providerDefaults[picked];
-                  setForm({ ...form, provider: picked, apiBase: d?.base ?? "", modelId: d?.model ?? form.modelId });
-                  setDiscovered(null);
-                }}
-              >
-                <option value="deepseek">DeepSeek</option>
-                <option value="openai">OpenAI</option>
-                <option value="anthropic">Anthropic Claude</option>
-                <option value="volcengine">火山引擎方舟（豆包）</option>
-                <option value="dashscope">阿里云百炼（通义千问）</option>
-                <option value="google">Google Gemini</option>
-                <option value="moonshot">Moonshot 月之暗面</option>
-                <option value="zhipu">智谱 GLM</option>
-                <option value="minimax">MiniMax</option>
-                <option value="qianfan">百度千帆（文心）</option>
-                <option value="tencent">腾讯混元</option>
-                <option value="spark">讯飞星火</option>
-                <option value="xai">xAI Grok</option>
-                <option value="openrouter">OpenRouter</option>
-                <option value="siliconflow">SiliconFlow 硅基流动</option>
-                <option value="custom">自定义（OpenAI 兼容）</option>
-                <option value={CUSTOM_PROVIDER}>自定义名称…</option>
-                <option value="mock">Mock（本地联调）</option>
-              </Select>
-            </div>
-            <div>
-              <Label>模型 ID</Label>
-              <Input value={form.modelId} onChange={(e) => setForm({ ...form, modelId: e.target.value })} placeholder="可手动填写或从下方检测结果选择" />
-            </div>
-          </div>
-          {!isPresetProvider(form.provider) && form.provider !== CUSTOM_PROVIDER && (
-            <div>
-              <Label>自定义提供商名称</Label>
-              <Input
-                value={form.provider}
-                onChange={(e) => setForm({ ...form, provider: e.target.value })}
-                placeholder="例如：公司内网网关、某某云 / 一个便于识别的名字"
-              />
-              <p className="mt-1 text-[12px] text-muted">
-                自定义名称会原样保存；不同 API 地址的提供商会分别归类，不会因为同名而合并。
-              </p>
-            </div>
-          )}
           <div>
             <Label>API Base</Label>
             <Input value={form.apiBase} onChange={(e) => setForm({ ...form, apiBase: e.target.value })} placeholder="留空使用默认地址" />
           </div>
+        </div>
+
+        {!isPresetProvider(form.provider) && form.provider !== CUSTOM_PROVIDER && (
           <div>
-            <Label>API Key {editingId && <span className="normal-case tracking-normal">（留空表示不修改）</span>}</Label>
-            <Input type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} />
+            <Label>自定义提供商名称</Label>
+            <Input
+              value={form.provider}
+              onChange={(e) => setForm({ ...form, provider: e.target.value })}
+              placeholder="例如：公司内网网关、某某云 / 一个便于识别的名字"
+            />
+            <p className="mt-1 text-[12px] text-muted">
+              自定义名称会原样保存；不同 API 地址的提供商会分别归类，不会因为同名而合并。
+            </p>
+          </div>
+        )}
+
+        <div>
+          <Label>
+            API Key {isEdit && <span className="normal-case tracking-normal">（留空表示不修改）</span>}
+          </Label>
+          <Input type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} />
+        </div>
+
+        <div className="border border-rule bg-ink/[0.02] p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="font-display text-[13px] font-medium uppercase tracking-[0.06em] text-ink">选择模型</div>
+              <div className="mt-0.5 text-[12px] leading-relaxed text-muted">
+                点「检测可用模型」按上方配置拉取上游列表，或手动输入模型 ID。
+              </div>
+            </div>
+            <Button size="sm" variant="outline" onClick={discover} disabled={discovering}>
+              <RefreshCw className={discovering ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+              {discovering ? "检测中" : "检测可用模型"}
+            </Button>
           </div>
 
-          <div className="border border-rule bg-ink/[0.02] p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="font-display text-[13px] font-medium uppercase tracking-[0.06em] text-ink">可用模型检测</div>
-                <div className="mt-0.5 text-[12px] leading-relaxed text-muted">
-                  根据上方 Provider / API Base / API Key 拉取上游模型列表{editingId ? "（API Key 留空则复用已保存的）" : ""}。
-                </div>
+          {discovered && (
+            <div className="mt-3 space-y-2">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
+                <Input
+                  value={modelSearch}
+                  onChange={(e) => setModelSearch(e.target.value)}
+                  placeholder={`在 ${discovered.length} 个模型中搜索`}
+                  className="pl-8"
+                />
               </div>
-              <Button size="sm" variant="outline" onClick={discover} disabled={discovering}>
-                <RefreshCw className={discovering ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
-                {discovering ? "检测中" : "检测可用模型"}
-              </Button>
-            </div>
-
-            {discovered && (
-              <div className="mt-3 space-y-2">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <div className="relative flex-1">
-                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
-                    <Input
-                      value={modelSearch}
-                      onChange={(e) => setModelSearch(e.target.value)}
-                      placeholder={`在 ${discovered.length} 个模型中搜索`}
-                      className="pl-8"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => toggleSelectAll(filteredDiscovered.map((m) => m.id))}
-                      disabled={filteredDiscovered.length === 0}
+              <div className="max-h-56 overflow-y-auto border border-rule">
+                {filteredDiscovered.length === 0 && (
+                  <div className="px-3 py-6 text-center font-mono text-[11px] text-muted">没有匹配的模型</div>
+                )}
+                {filteredDiscovered.map((m) => {
+                  const checked = pending.some((p) => p.modelId === m.id);
+                  const already = members.some((x) => x.modelId === m.id && !removed.has(x.id));
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      disabled={already}
+                      onClick={() =>
+                        checked ? togglePending(m.id) : setPending((p) => [...p, { modelId: m.id, name: m.id }])
+                      }
+                      className={`flex w-full items-center gap-2.5 border-b border-rule px-3 py-2 text-left text-[13px] transition-colors last:border-0 ${
+                        already ? "cursor-not-allowed opacity-50" : "hover:bg-ink/[0.03]"
+                      } ${checked ? "bg-stamp/[0.07]" : ""}`}
                     >
-                      {filteredDiscovered.length > 0 && filteredDiscovered.every((m) => selected.has(m.id)) ? "取消全选" : "全选"}
-                    </Button>
-                    <Button size="sm" onClick={addSelected} disabled={selected.size === 0 || addingBatch}>
-                      {addingBatch ? "加入中" : `加入所选（${selected.size}）`}
-                    </Button>
-                  </div>
-                </div>
-                <div className="max-h-56 overflow-y-auto border border-rule">
-                  {filteredDiscovered.length === 0 && (
-                    <div className="px-3 py-6 text-center font-mono text-[11px] text-muted">没有匹配的模型</div>
-                  )}
-                  {filteredDiscovered.map((m) => {
-                    const checked = selected.has(m.id);
-                    return (
-                      <label
-                        key={m.id}
-                        className={`flex w-full cursor-pointer items-center gap-2.5 border-b border-rule px-3 py-2 text-left text-[13px] transition-colors last:border-0 hover:bg-ink/[0.03] ${
-                          checked ? "bg-stamp/[0.07]" : ""
+                      <span
+                        className={`flex h-4 w-4 shrink-0 items-center justify-center border ${
+                          checked ? "border-stamp bg-stamp text-paper" : "border-rule"
                         }`}
                       >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleSelect(m.id)}
-                          className="h-4 w-4 shrink-0 accent-stamp"
-                        />
-                        <ModelIcon modelId={m.id} />
-                        <span className="truncate font-mono text-[11.5px]">{m.id}</span>
-                        {m.ownedBy && <span className="ml-auto shrink-0 font-mono text-[10.5px] text-muted">{m.ownedBy}</span>}
-                      </label>
-                    );
-                  })}
-                </div>
-                <p className="text-[12px] leading-relaxed text-muted">
-                  勾选要加入的模型后点「加入所选」，会按当前 Provider / API Base / API Key 批量创建；已存在的会自动跳过。
-                </p>
+                        {checked && <Check className="h-3 w-3" />}
+                      </span>
+                      <ModelIcon modelId={m.id} />
+                      <span className="truncate font-mono text-[11.5px]">{m.id}</span>
+                      {already ? (
+                        <span className="ml-auto shrink-0 font-mono text-[10.5px] text-muted">已添加</span>
+                      ) : (
+                        m.ownedBy && <span className="ml-auto shrink-0 font-mono text-[10.5px] text-muted">{m.ownedBy}</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>温度</Label>
-              <Input type="number" step="0.1" value={form.temperature} onChange={(e) => setForm({ ...form, temperature: Number(e.target.value) })} />
-            </div>
-            <div>
-              <Label>最大 Token</Label>
-              <Input type="number" value={form.maxTokens} onChange={(e) => setForm({ ...form, maxTokens: Number(e.target.value) })} />
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch checked={form.enabled} onCheckedChange={(v) => setForm({ ...form, enabled: v })} />
-            <span className="text-[13px]">启用该模型</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch checked={form.supportsVision} onCheckedChange={(v) => setForm({ ...form, supportsVision: v })} />
-            <span className="text-[13px]">
-              支持读图（多模态）
-              <span className="ml-1 font-mono text-[11px] text-muted">开启后才会把用户图片发给该模型</span>
-            </span>
+          <div className="mt-3 flex items-center gap-2">
+            <Input
+              value={manual}
+              onChange={(e) => setManual(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addManual();
+                }
+              }}
+              placeholder="手动输入模型 ID，回车添加"
+            />
+            <Button size="sm" variant="outline" onClick={addManual} disabled={!manual.trim()}>
+              <Plus className="h-3.5 w-3.5" /> 添加
+            </Button>
           </div>
         </div>
-      </Modal>
-    </div>
-  );
-}
 
-function FragmentGroup({
-  groupKey,
-  group,
-  collapsed,
-  onToggle,
-  onTest,
-  onEdit,
-  onDelete,
-  onToggleEnabled,
-}: {
-  groupKey: string;
-  group: { label: string; addr: string; known: boolean; items: ModelRecord[] };
-  collapsed: boolean;
-  onToggle: () => void;
-  onTest: (m: ModelRecord) => void;
-  onEdit: (m: ModelRecord) => void;
-  onDelete: (m: ModelRecord) => void;
-  onToggleEnabled: (m: ModelRecord, v: boolean) => void;
-}) {
-  const items = group.items;
-  // 不同密钥视为不同凭据，分列展示其数量
-  const credentials = new Set(items.filter((m) => m.apiKeySet).map((m) => m.id)).size;
-  return (
-    <>
-      <tr className="border-b border-rule bg-ink/[0.035]">
-        <td colSpan={7} className="px-4 py-2">
-          <button type="button" onClick={onToggle} className="flex w-full items-center gap-2 text-left">
-            {collapsed ? <ChevronRight className="h-3.5 w-3.5 text-muted" /> : <ChevronDown className="h-3.5 w-3.5 text-muted" />}
-            <ModelIcon modelId={items[0]?.modelId ?? ""} name={group.label} />
-            <span className="font-display text-[12px] font-medium uppercase tracking-[0.08em] text-ink">{group.label}</span>
-            {!group.known && <span className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-alert">未识别地址</span>}
-            <span className="truncate font-mono text-[11px] text-muted">{group.addr || groupKey}</span>
-            <span className="ml-auto shrink-0 font-mono text-[11px] text-muted">
-              {items.length} 个模型 · {credentials} 个凭据
-            </span>
-          </button>
-        </td>
-      </tr>
-      {!collapsed &&
-        items.map((m) => (
-          <tr key={m.id} className="border-b border-rule last:border-0">
-            <td className="px-4 py-3 font-medium text-ink">
-              <span className="inline-flex items-center gap-2">
-                <ModelIcon modelId={m.modelId} name={m.name} />
-                {m.name}
-              </span>
-            </td>
-            <td className="px-4 py-3 font-mono text-[11.5px] text-muted">{m.modelId}</td>
-            <td className="px-4 py-3">{m.apiKeySet ? <Badge variant="success">已配置</Badge> : <Badge variant="warning">未配置</Badge>}</td>
-            <td className="px-4 py-3">
-              {m.supportsVision ? <Badge variant="success">支持</Badge> : <Badge variant="secondary">不支持</Badge>}
-            </td>
-            <td className="px-4 py-3 font-mono text-[11.5px] text-muted">{m.temperature}</td>
-            <td className="px-4 py-3">
-              <Switch checked={m.enabled} onCheckedChange={(v) => onToggleEnabled(m, v)} />
-            </td>
-            <td className="px-4 py-3">
-              <div className="flex justify-end gap-1">
-                <Button variant="ghost" size="sm" onClick={() => onTest(m)} aria-label="测试">
-                  <FlaskConical className="h-3.5 w-3.5" />
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => onEdit(m)} aria-label="编辑">
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => onDelete(m)} aria-label="删除">
-                  <Trash2 className="h-3.5 w-3.5 text-alert" />
-                </Button>
-              </div>
-            </td>
-          </tr>
-        ))}
-    </>
+        {isEdit && visibleMembers.length > 0 && (
+          <div>
+            <Label>该提供商下的模型（{visibleMembers.length}）</Label>
+            <div className="max-h-48 overflow-y-auto border border-rule">
+              {visibleMembers.map((m) => (
+                <div key={m.id} className="flex items-center gap-2 border-b border-rule px-3 py-2 text-[12.5px] last:border-0">
+                  <ModelIcon modelId={m.modelId} name={m.name} />
+                  <span className="truncate font-mono text-[11.5px]">{m.modelId}</span>
+                  {m.supportsVision && <Badge variant="success">读图</Badge>}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-auto"
+                    onClick={() => setRemoved((prev) => new Set(prev).add(m.id))}
+                    aria-label="移除"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-alert" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <p className="mt-1 text-[12px] text-muted">保存时移除标记的模型；移除操作在点击「保存更改」后生效。</p>
+          </div>
+        )}
+
+        {pending.length > 0 && (
+          <div>
+            <Label>待新增模型（{pending.length}）</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {pending.map((p) => (
+                <button
+                  key={p.modelId}
+                  type="button"
+                  onClick={() => togglePending(p.modelId)}
+                  className="inline-flex items-center gap-1.5 border border-rule bg-ink/[0.02] px-2 py-1 font-mono text-[11px] text-ink hover:bg-ink/[0.05]"
+                >
+                  {p.modelId}
+                  <Trash2 className="h-3 w-3 text-alert" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!isEdit && (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>默认温度</Label>
+              <Input
+                type="number"
+                step="0.1"
+                value={form.temperature}
+                onChange={(e) => setForm({ ...form, temperature: Number(e.target.value) })}
+              />
+            </div>
+            <div>
+              <Label>默认最大 Token</Label>
+              <Input
+                type="number"
+                value={form.maxTokens}
+                onChange={(e) => setForm({ ...form, maxTokens: Number(e.target.value) })}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <Switch checked={form.supportsVision} onCheckedChange={(v) => setForm({ ...form, supportsVision: v })} />
+          <span className="text-[13px]">
+            新模型默认支持读图（多模态）
+            <span className="ml-1 font-mono text-[11px] text-muted">可在检测后自动改写</span>
+          </span>
+        </div>
+      </div>
+    </Modal>
   );
 }

@@ -140,6 +140,27 @@ export const api = {
   metadataStatus: () => request<{ ready: boolean; models: number; source: string }>("GET", "/api/models/metadata-status"),
   refreshMetadata: () => request<{ ok: boolean; ready: boolean; models: number }>("POST", "/api/models/metadata-refresh", {}),
   createModel: (data: any) => request<ModelRecord>("POST", "/api/models", data),
+  createProvider: (data: {
+    provider: string;
+    apiBase?: string;
+    apiKey?: string;
+    temperature?: number;
+    maxTokens?: number;
+    supportsVision?: boolean;
+    models?: { modelId: string; name?: string; supportsVision?: boolean }[];
+  }) => request<{ ok: boolean; groupKey: string; created: ModelRecord[]; skipped: string[] }>("POST", "/api/models/providers", data),
+  updateProvider: (data: {
+    groupKey?: string;
+    provider?: string;
+    apiBase?: string | null;
+    apiKey?: string;
+    addModels?: { modelId: string; name?: string; supportsVision?: boolean }[];
+    removeModelIds?: string[];
+  }) => request<{ ok: boolean; updated: ModelRecord[]; added: ModelRecord[]; removed: number }>("PUT", "/api/models/providers", data),
+  deleteProvider: (data: { groupKey?: string; provider?: string; apiBase?: string | null }) =>
+    request<{ ok: boolean; removed: number }>("DELETE", "/api/models/providers", data),
+  discoverProvider: (data: { provider: string; apiKey?: string; apiBase?: string }) =>
+    request<{ ok: boolean; models: DiscoveredModel[]; reusedKey?: boolean }>("POST", "/api/models/providers/discover", data),
   createModelsBatch: (data: {
     provider: string;
     models: { modelId: string; name?: string }[];

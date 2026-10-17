@@ -30,6 +30,21 @@ function present(model: ModelRecord) {
   };
 }
 
+/** 取出某个「提供商分组」下的全部模型（按归一化分组键匹配）。 */
+function modelsInGroup(key: string): ModelRecord[] {
+  return modelRepo.list().filter((m) => classify(m).key === key);
+}
+
+/**
+ * 解析前端提交的「提供商定位信息」为分组键。
+ * 优先用 groupKey（编辑既有分组时由列表下发），否则按 vendor+apiBase 重新归类。
+ */
+function resolveGroupKey(body: any): string | null {
+  if (typeof body?.groupKey === "string" && body.groupKey) return body.groupKey;
+  if (!body?.provider) return null;
+  return classify({ provider: body.provider, apiBase: body.apiBase ?? null }).key;
+}
+
 /** 按归一化 apiBase 把模型聚成「提供商地址分组」，密钥数按不同 apiKey 存活性去重。 */
 function buildProviderGroups(models: ModelRecord[]): ProviderGroupView[] {
   const map = new Map<string, ProviderGroupView & { keySet: Set<string> }>();
@@ -67,6 +82,136 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/models/providers", { preHandler: [app.authenticate] }, async () => {
     const models = modelRepo.list();
     return { groups: buildProviderGroups(models), total: models.length };
+  });
+
+  // 新增提供商：以「提供商级配置（名称/Base/Key）」一次性创建，并可携带初始模型列表。
+  app.post("/api/models/providers", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const body = (request.body ?? {}) as any;
+    if (!body?.provider) {
+      return reply.code(400).send({ error: "bad_request", message: "provider 必填" });
+    }
+    const items: any[] = Array.isArray(body.models) ? body.models : [];
+    const apiBase = body.apiBase || null;
+    const apiKey = body.apiKey || null;
+    const created: ReturnType<typeof present>[] = [];
+    const skipped: string[] = [];
+    const groupKey = classify({ provider: body.provider, apiBase }).key;
+    const existingKeys = new Set(
+      modelRepo
+        .list()
+        .filter((m) => classify(m).key === groupKey)
+        .map((m) => m.modelId),
+    );
+    for (const item of items) {
+      const modelId = typeof item === "string" ? item : item?.modelId;
+      if (!modelId) continue;
+      if (existingKeys.has(modelId)) {
+        skipped.push(modelId);
+        continue;
+      }
+      existingKeys.add(modelId);
+      created.push(
+        present(
+          modelRepo.create({
+            name: (typeof item === "object" && item?.name) || modelId,
+            provider: body.provider,
+            modelId,
+            apiKey,
+            apiBase,
+            temperature: body.temperature,
+            maxTokens: body.maxTokens,
+            enabled: body.enabled !== false,
+            supportsVision: (typeof item === "object" && item?.supportsVision === true) || body.supportsVision === true,
+          }),
+        ),
+      );
+    }
+    return { ok: true, groupKey, created, skipped };
+  });
+
+  // 更新提供商：把「名称 / Base / Key」级配置级联到分组下的全部模型，并支持增删模型。
+  app.put("/api/models/providers", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const body = (request.body ?? {}) as any;
+    const groupKey = resolveGroupKey(body);
+    if (!groupKey) {
+      return reply.code(400).send({ error: "bad_request", message: "provider 或 groupKey 必填" });
+    }
+    const members = modelsInGroup(groupKey);
+    const provider = body.provider ?? members[0]?.provider;
+    const hasBaseField = Object.prototype.hasOwnProperty.call(body, "apiBase");
+    const apiBase = hasBaseField ? (body.apiBase ?? null) : (members[0]?.apiBase ?? null);
+    const hasKeyField = Object.prototype.hasOwnProperty.call(body, "apiKey");
+    const apiKey: string | undefined = hasKeyField && body.apiKey ? String(body.apiKey) : undefined;
+    // 级联提供商级配置：名称 -> provider，地址 -> apiBase；密钥可选覆盖（留空表示沿用原值）
+    const updated: ReturnType<typeof present>[] = [];
+    for (const m of members) {
+      const patch: any = {};
+      if (provider && provider !== m.provider) patch.provider = provider;
+      if (hasBaseField && apiBase !== m.apiBase) patch.apiBase = apiBase;
+      if (apiKey) patch.apiKey = apiKey;
+      updated.push(present(Object.keys(patch).length ? modelRepo.update(m.id, patch)! : m));
+    }
+    // 追加新增模型
+    const added: ReturnType<typeof present>[] = [];
+    const items: any[] = Array.isArray(body.addModels) ? body.addModels : [];
+    const existingKeys = new Set(updated.map((m) => m.modelId));
+    for (const item of items) {
+      const modelId = typeof item === "string" ? item : item?.modelId;
+      if (!modelId || existingKeys.has(modelId)) continue;
+      existingKeys.add(modelId);
+      added.push(
+        present(
+          modelRepo.create({
+            name: (typeof item === "object" && item?.name) || modelId,
+            provider: provider ?? "custom",
+            modelId,
+            apiKey: apiKey ?? (apiBase ? modelRepo.findKeyByBase(apiBase) : null) ?? modelRepo.findProviderKey(provider ?? "") ?? null,
+            apiBase,
+            temperature: body.temperature,
+            maxTokens: body.maxTokens,
+            enabled: true,
+            supportsVision: (typeof item === "object" && item?.supportsVision === true) || body.supportsVision === true,
+          }),
+        ),
+      );
+    }
+    // 删除指定模型
+    const removeIds: string[] = Array.isArray(body.removeModelIds) ? body.removeModelIds : [];
+    for (const id of removeIds) modelRepo.remove(id);
+    return { ok: true, updated, added, removed: removeIds.length };
+  });
+
+  // 删除提供商：连同分组下的所有模型一并移除。
+  app.delete("/api/models/providers", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const body = (request.body ?? {}) as any;
+    const groupKey = resolveGroupKey(body);
+    if (!groupKey) {
+      return reply.code(400).send({ error: "bad_request", message: "provider 或 groupKey 必填" });
+    }
+    const members = modelsInGroup(groupKey);
+    for (const m of members) modelRepo.remove(m.id);
+    return { ok: true, removed: members.length };
+  });
+
+  // 检测提供商的可用模型：直接使用表单中的 raw 配置，尚未落库也可检测。
+  app.post("/api/models/providers/discover", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const body = (request.body ?? {}) as any;
+    if (!body?.provider) {
+      return reply.code(400).send({ error: "bad_request", message: "provider 必填" });
+    }
+    const apiBase = body.apiBase || modelRepo.findProviderApiBase(body.provider) || null;
+    const apiKey =
+      body.apiKey ||
+      (apiBase ? modelRepo.findKeyByBase(apiBase) : null) ||
+      modelRepo.findProviderKey(body.provider) ||
+      "";
+    try {
+      const models = await discoverModels({ provider: body.provider, apiKey, apiBase });
+      return { ok: true, models, reusedKey: !!apiKey && !body.apiKey };
+    } catch (err) {
+      const status = (err as any)?.status && (err as any).status >= 400 ? (err as any).status : 400;
+      return reply.code(status).send({ ok: false, error: "discover_failed", message: (err as Error).message });
+    }
   });
 
   // 元数据状态：models.dev 目录是否已加载、收录模型数（用于前端提示判定来源）。
