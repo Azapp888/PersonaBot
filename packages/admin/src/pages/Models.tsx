@@ -16,28 +16,55 @@ import {
 } from "@/components/ui/primitives";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
+import { ModelIcon } from "@/components/ModelIcon";
 
 const providerDefaults: Record<string, { base: string; model: string }> = {
   openai: { base: "https://api.openai.com/v1", model: "gpt-4o-mini" },
-  deepseek: { base: "https://api.deepseek.com/v1", model: "deepseek-chat" },
   anthropic: { base: "https://api.anthropic.com", model: "claude-3-5-sonnet-20241022" },
+  deepseek: { base: "https://api.deepseek.com/v1", model: "deepseek-chat" },
   volcengine: { base: "https://ark.cn-beijing.volces.com/api/v3", model: "doubao-seed-1-6-250615" },
-  google: { base: "https://generativelanguage.googleapis.com", model: "gemini-2.5-flash" },
   dashscope: { base: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-vl-plus" },
+  google: { base: "https://generativelanguage.googleapis.com", model: "gemini-2.5-flash" },
+  moonshot: { base: "https://api.moonshot.cn/v1", model: "kimi-k2-0905-preview" },
+  zhipu: { base: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4v-plus" },
+  minimax: { base: "https://api.minimax.chat/v1", model: "MiniMax-Text-01" },
+  qianfan: { base: "https://qianfan.baidubce.com/v2", model: "ernie-4.5-turbo-128k" },
+  tencent: { base: "https://api.hunyuan.cloud.tencent.com/v1", model: "hunyuan-turbo" },
+  spark: { base: "https://spark-api-open.xf-yun.com/v1", model: "generalv3.5" },
+  xai: { base: "https://api.x.ai/v1", model: "grok-4" },
+  openrouter: { base: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini" },
+  siliconflow: { base: "https://api.siliconflow.cn/v1", model: "Qwen/Qwen2.5-VL-72B-Instruct" },
   custom: { base: "", model: "" },
   mock: { base: "", model: "mock-roleplay" },
 };
 
 const providerLabels: Record<string, string> = {
   openai: "OpenAI",
-  deepseek: "DeepSeek",
   anthropic: "Anthropic Claude",
+  deepseek: "DeepSeek",
   volcengine: "火山引擎方舟（豆包）",
-  google: "Google Gemini",
   dashscope: "阿里云百炼（通义千问）",
+  google: "Google Gemini",
+  moonshot: "Moonshot 月之暗面",
+  zhipu: "智谱 GLM",
+  minimax: "MiniMax",
+  qianfan: "百度千帆（文心）",
+  tencent: "腾讯混元",
+  spark: "讯飞星火",
+  xai: "xAI Grok",
+  openrouter: "OpenRouter",
+  siliconflow: "SiliconFlow 硅基流动",
   custom: "自定义（OpenAI 兼容）",
   mock: "Mock（本地联调）",
 };
+
+/** 提供商下拉里「自定义名称」的哨兵值（不会作为真正的 provider 存储）。 */
+const CUSTOM_PROVIDER = "__custom__";
+
+/** 是否为内置预设提供商（含 custom/mock）。 */
+function isPresetProvider(provider: string): boolean {
+  return Object.prototype.hasOwnProperty.call(providerDefaults, provider);
+}
 
 const empty = { name: "", provider: "deepseek", apiKey: "", apiBase: "", modelId: "deepseek-chat", temperature: 0.8, maxTokens: 2048, enabled: true, supportsVision: false };
 
@@ -147,7 +174,9 @@ export function ModelsPage() {
   const scanVision = async () => {
     setScanning(true);
     try {
-      const res = await api.scanVision();
+      // 手动点击时强制重新探测（fresh），保证结果是最新的；
+      // 自动/重复扫描默认走进程内缓存，同一模型只探测一次。
+      const res = await api.scanVision({ fresh: true });
       await load();
       const parts = [`共 ${res.total} 个`, `实测 ${res.probed} 个`, `更新 ${res.updated} 个`];
       if (res.unknown) parts.push(`${res.unknown} 个未能判定`);
@@ -348,21 +377,36 @@ export function ModelsPage() {
             <div>
               <Label>Provider</Label>
               <Select
-                value={form.provider}
+                value={isPresetProvider(form.provider) ? form.provider : CUSTOM_PROVIDER}
                 onChange={(e) => {
-                  const provider = e.target.value;
-                  const d = providerDefaults[provider];
-                  setForm({ ...form, provider, apiBase: d?.base ?? "", modelId: d?.model ?? form.modelId });
+                  const picked = e.target.value;
+                  if (picked === CUSTOM_PROVIDER) {
+                    setForm({ ...form, provider: form.provider && !isPresetProvider(form.provider) ? form.provider : "" });
+                    setDiscovered(null);
+                    return;
+                  }
+                  const d = providerDefaults[picked];
+                  setForm({ ...form, provider: picked, apiBase: d?.base ?? "", modelId: d?.model ?? form.modelId });
                   setDiscovered(null);
                 }}
               >
                 <option value="deepseek">DeepSeek</option>
                 <option value="openai">OpenAI</option>
-                <option value="volcengine">火山引擎方舟（豆包）</option>
                 <option value="anthropic">Anthropic Claude</option>
-                <option value="google">Google Gemini</option>
+                <option value="volcengine">火山引擎方舟（豆包）</option>
                 <option value="dashscope">阿里云百炼（通义千问）</option>
+                <option value="google">Google Gemini</option>
+                <option value="moonshot">Moonshot 月之暗面</option>
+                <option value="zhipu">智谱 GLM</option>
+                <option value="minimax">MiniMax</option>
+                <option value="qianfan">百度千帆（文心）</option>
+                <option value="tencent">腾讯混元</option>
+                <option value="spark">讯飞星火</option>
+                <option value="xai">xAI Grok</option>
+                <option value="openrouter">OpenRouter</option>
+                <option value="siliconflow">SiliconFlow 硅基流动</option>
                 <option value="custom">自定义（OpenAI 兼容）</option>
+                <option value={CUSTOM_PROVIDER}>自定义名称…</option>
                 <option value="mock">Mock（本地联调）</option>
               </Select>
             </div>
@@ -371,6 +415,19 @@ export function ModelsPage() {
               <Input value={form.modelId} onChange={(e) => setForm({ ...form, modelId: e.target.value })} placeholder="可手动填写或从下方检测结果选择" />
             </div>
           </div>
+          {!isPresetProvider(form.provider) && form.provider !== CUSTOM_PROVIDER && (
+            <div>
+              <Label>自定义提供商名称</Label>
+              <Input
+                value={form.provider}
+                onChange={(e) => setForm({ ...form, provider: e.target.value })}
+                placeholder="例如：公司内网网关、某某云 / 一个便于识别的名字"
+              />
+              <p className="mt-1 text-[12px] text-muted">
+                自定义名称会原样保存；不同 API 地址的提供商会分别归类，不会因为同名而合并。
+              </p>
+            </div>
+          )}
           <div>
             <Label>API Base</Label>
             <Input value={form.apiBase} onChange={(e) => setForm({ ...form, apiBase: e.target.value })} placeholder="留空使用默认地址" />
@@ -439,6 +496,7 @@ export function ModelsPage() {
                           onChange={() => toggleSelect(m.id)}
                           className="h-4 w-4 shrink-0 accent-stamp"
                         />
+                        <ModelIcon modelId={m.id} />
                         <span className="truncate font-mono text-[11.5px]">{m.id}</span>
                         {m.ownedBy && <span className="ml-auto shrink-0 font-mono text-[10.5px] text-muted">{m.ownedBy}</span>}
                       </label>
@@ -507,6 +565,7 @@ function FragmentGroup({
         <td colSpan={7} className="px-4 py-2">
           <button type="button" onClick={onToggle} className="flex w-full items-center gap-2 text-left">
             {collapsed ? <ChevronRight className="h-3.5 w-3.5 text-muted" /> : <ChevronDown className="h-3.5 w-3.5 text-muted" />}
+            <ModelIcon modelId={items[0]?.modelId ?? ""} name={group.label} />
             <span className="font-display text-[12px] font-medium uppercase tracking-[0.08em] text-ink">{group.label}</span>
             {!group.known && <span className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-alert">未识别地址</span>}
             <span className="truncate font-mono text-[11px] text-muted">{group.addr || groupKey}</span>
@@ -519,7 +578,12 @@ function FragmentGroup({
       {!collapsed &&
         items.map((m) => (
           <tr key={m.id} className="border-b border-rule last:border-0">
-            <td className="px-4 py-3 font-medium text-ink">{m.name}</td>
+            <td className="px-4 py-3 font-medium text-ink">
+              <span className="inline-flex items-center gap-2">
+                <ModelIcon modelId={m.modelId} name={m.name} />
+                {m.name}
+              </span>
+            </td>
             <td className="px-4 py-3 font-mono text-[11.5px] text-muted">{m.modelId}</td>
             <td className="px-4 py-3">{m.apiKeySet ? <Badge variant="success">已配置</Badge> : <Badge variant="warning">未配置</Badge>}</td>
             <td className="px-4 py-3">

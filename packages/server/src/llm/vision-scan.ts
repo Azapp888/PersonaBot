@@ -1,6 +1,6 @@
 import { modelRepo } from "../db/repos/models";
 import { createProviderFromModel } from "./factory";
-import { detectModelVision, providerOf, visionSpecFor, type ModelForVision } from "./vision";
+import { detectModelVisionCached, clearVisionCache, providerOf, visionSpecFor, type ModelForVision } from "./vision";
 import { loadCatalog } from "./models-dev";
 import { logger } from "../logger";
 
@@ -34,6 +34,11 @@ export interface VisionScanOptions {
   probe?: boolean;
   /** 探测并发上限，默认 3，避免触发上游限流。 */
   concurrency?: number;
+  /**
+   * 是否清空进程内探测缓存后重新扫描（默认 false）。
+   * 关闭时，同一「提供商 + 模型 id」在本次及后续扫描中只探测一次，显著提速。
+   */
+  fresh?: boolean;
 }
 
 /**
@@ -41,9 +46,11 @@ export interface VisionScanOptions {
  *
  * 上线/部署后自动运行，确保每个提供商下的模型是否支持读图始终是"实测过的事实"，
  * 而不是靠人工在后台逐个勾选。命名能确定的模型不消耗网络请求；无法确定的才实测。
+ * 进程内按「提供商 + 模型 id」缓存结论，避免重复探测相同模型（如多家 Bot 共用同一模型）。
  */
 export async function scanModelsVision(options: VisionScanOptions = {}): Promise<VisionScanSummary> {
-  const { onlyEnabled = true, persist = true, probe = true, concurrency = 3 } = options;
+  const { onlyEnabled = true, persist = true, probe = true, concurrency = 3, fresh = false } = options;
+  if (fresh) clearVisionCache();
   const models = onlyEnabled ? modelRepo.listEnabled() : modelRepo.list();
   const items: VisionScanItem[] = [];
 
@@ -103,7 +110,7 @@ async function scanOne(
   try {
     const provider = createProviderFromModel(model as any);
     const result = probe
-      ? await detectModelVision(provider, providerName, model.modelId)
+      ? await detectModelVisionCached(provider, providerName, model.modelId)
       : { supported: null as boolean | null, source: "heuristic" as const, reason: "已关闭实测" };
     base.detected = result.supported;
     base.source = result.source;

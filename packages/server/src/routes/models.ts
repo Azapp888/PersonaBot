@@ -3,7 +3,7 @@ import { modelRepo } from "../db/repos/models";
 import { createProviderFromModel } from "../llm/factory";
 import { discoverModels } from "../llm/discover";
 import { scanModelsVision } from "../llm/vision-scan";
-import { classify, normalizeBase, type ProviderGroupView } from "../llm/provider-classify";
+import { classify, type ProviderGroupView } from "../llm/provider-classify";
 import { catalogModelCount, catalogReady, loadCatalog } from "../llm/models-dev";
 import type { ModelRecord } from "../types";
 
@@ -90,6 +90,7 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
         onlyEnabled: body.onlyEnabled !== false,
         probe: body.probe !== false,
         persist: body.persist !== false,
+        fresh: body.fresh === true,
       });
       return { ok: true, ...summary };
     } catch (err) {
@@ -162,12 +163,12 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
       (providerApiBase ? modelRepo.findKeyByBase(providerApiBase) : null) ||
       modelRepo.findProviderKey(body.provider) ||
       null;
-    // 分组键：优先按归一化 apiBase 去重，缺地址时回退到 provider
-    const groupKey = providerApiBase ? `addr:${normalizeBase(providerApiBase)}` : `provider:${body.provider}`;
+    // 分组键：与 classify 保持一致（提供商名称 + 归一化地址），缺地址时退化为按名称
+    const groupKey = classify({ provider: body.provider, apiBase: providerApiBase }).key;
     const existingKeys = new Set(
       modelRepo
         .list()
-        .filter((m) => (providerApiBase ? `addr:${normalizeBase(m.apiBase)}` === groupKey : m.provider === body.provider))
+        .filter((m) => classify(m).key === groupKey)
         .map((m) => m.modelId),
     );
     for (const item of items) {

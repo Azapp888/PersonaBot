@@ -1,6 +1,27 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { inferVisionFromName, visionSpecFor, PROVIDER_VISION, pickVisionFallback } from "../src/llm/vision";
+import {
+  inferVisionFromName,
+  visionSpecFor,
+  PROVIDER_VISION,
+  pickVisionFallback,
+  detectModelVisionCached,
+  clearVisionCache,
+} from "../src/llm/vision";
+import type { LLMProvider } from "../src/llm/provider";
+
+function fakeProvider(): { calls: number; provider: LLMProvider } {
+  const box = {
+    calls: 0,
+    provider: {
+      chat: async () => {
+        box.calls += 1;
+        return { content: "y", toolCalls: [], finishReason: "stop" };
+      },
+    } as unknown as LLMProvider,
+  };
+  return box;
+}
 
 test("视觉知识库：覆盖主要提供商并对不支持的给出明确结论", () => {
   for (const p of ["openai", "deepseek", "anthropic", "google", "dashscope", "custom", "mock"]) {
@@ -52,4 +73,39 @@ test("视觉副模型选择：优先显式配置，其次首个支持读图且�
   assert.equal(pickVisionFallback(models, "b", "a")?.id, "c");
   assert.equal(pickVisionFallback(models, null, "c")?.id, "a");
   assert.equal(pickVisionFallback([models[1]], null, "b"), null);
+});
+
+test("视觉缓存：命名可判定的模型不触发实测，且同键只计算一次", async () => {
+  clearVisionCache();
+  const box = fakeProvider();
+  const first = await detectModelVisionCached(box.provider, "openai", "gpt-4o");
+  assert.equal(first.supported, true);
+  assert.notEqual(first.source, "probe");
+  assert.equal(box.calls, 0, "静态可判定时不应发起实测");
+
+  const second = await detectModelVisionCached(box.provider, "openai", "gpt-4o");
+  assert.deepEqual(second, first);
+  assert.equal(box.calls, 0);
+});
+
+test("视觉缓存：clearVisionCache 后可重新判定", async () => {
+  clearVisionCache();
+  const a = await detectModelVisionCached(fakeProvider().provider, "deepseek", "deepseek-chat");
+  assert.equal(a.supported, false);
+  clearVisionCache();
+  const b = await detectModelVisionCached(fakeProvider().provider, "deepseek", "deepseek-chat");
+  assert.equal(b.supported, false);
+});
+
+test("视觉缓存：无法静态判定的模型才走实测，并缓存确定性结论", async () => {
+  clearVisionCache();
+  const box = fakeProvider();
+  const r1 = await detectModelVisionCached(box.provider, "custom", "some-unknown-model-x");
+  assert.equal(r1.source, "probe");
+  assert.equal(r1.supported, true);
+  assert.equal(box.calls, 1);
+
+  const r2 = await detectModelVisionCached(box.provider, "custom", "some-unknown-model-x");
+  assert.equal(r2.source, "probe");
+  assert.equal(box.calls, 1, "第二次应命中缓存，不再实测");
 });

@@ -155,7 +155,7 @@ export const api = {
     request<{ ok: boolean; models: DiscoveredModel[]; reusedKey?: boolean }>("POST", "/api/models/discover", data),
   discoverModelById: (id: string, data: { provider?: string; apiKey?: string; apiBase?: string }) =>
     request<{ ok: boolean; models: DiscoveredModel[]; reusedKey?: boolean }>("POST", `/api/models/${id}/discover`, data),
-  scanVision: (data?: { onlyEnabled?: boolean; probe?: boolean; persist?: boolean }) =>
+  scanVision: (data?: { onlyEnabled?: boolean; probe?: boolean; persist?: boolean; fresh?: boolean }) =>
     request<{
       ok: boolean;
       total: number;

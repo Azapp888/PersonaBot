@@ -23,6 +23,15 @@ const DEFAULT_BASES: Record<string, string> = {
   volcengine: "https://ark.cn-beijing.volces.com/api/v3",
   google: "https://generativelanguage.googleapis.com/v1beta/openai",
   dashscope: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  moonshot: "https://api.moonshot.cn/v1",
+  zhipu: "https://open.bigmodel.cn/api/paas/v4",
+  minimax: "https://api.minimax.chat/v1",
+  qianfan: "https://qianfan.baidubce.com/v2",
+  tencent: "https://api.hunyuan.cloud.tencent.com/v1",
+  spark: "https://spark-api-open.xf-yun.com/v1",
+  xai: "https://api.x.ai/v1",
+  openrouter: "https://openrouter.ai/api/v1",
+  siliconflow: "https://api.siliconflow.cn/v1",
 };
 
 /**

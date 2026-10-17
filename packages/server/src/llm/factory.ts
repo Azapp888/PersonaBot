@@ -19,6 +19,15 @@ const DEFAULT_BASES: Record<string, string> = {
   google: "https://generativelanguage.googleapis.com",
   // 通义千问 OpenAI 兼容模式
   dashscope: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  moonshot: "https://api.moonshot.cn/v1",
+  zhipu: "https://open.bigmodel.cn/api/paas/v4",
+  minimax: "https://api.minimax.chat/v1",
+  qianfan: "https://qianfan.baidubce.com/v2",
+  tencent: "https://api.hunyuan.cloud.tencent.com/v1",
+  spark: "https://spark-api-open.xf-yun.com/v1",
+  xai: "https://api.x.ai/v1",
+  openrouter: "https://openrouter.ai/api/v1",
+  siliconflow: "https://api.siliconflow.cn/v1",
 };
 
 /** 火山引擎方舟（豆包）的模型命名/端点特征，用于自动识别微信/兼容网关。 */

@@ -74,6 +74,62 @@ export const PROVIDER_VISION: Record<string, ProviderVisionSpec> = {
     knownTextOnlyModels: [],
     note: "火山引擎方舟：OpenAI 兼容 Chat Completions，content 数组 + image_url（https 或 data:URL）。",
   },
+  zhipu: {
+    supportsVision: true,
+    ...OPENAI_STYLE,
+    knownVisionModels: [/glm-4v/, /glm-4\.\d+v/, /glm-4v-plus/, /glm-4v-flash/],
+    knownTextOnlyModels: [/^glm-(?!.*v).*$/i],
+    note: "智谱 GLM：OpenAI 兼容接口，content 数组 + image_url（https 或 base64 data URL）。glm-4v 系列支持读图。",
+  },
+  moonshot: {
+    supportsVision: true,
+    ...OPENAI_STYLE,
+    knownVisionModels: [/vision/, /kimi-.*vision/, /moonshot-.*vision/],
+    knownTextOnlyModels: [],
+    note: "Moonshot 月之暗面：OpenAI 兼容接口，content 数组 + image_url；视觉能力以具体模型为准。",
+  },
+  qianfan: {
+    supportsVision: true,
+    ...OPENAI_STYLE,
+    knownVisionModels: [/ernie-.*vl/, /ernie-4\.5.*vl/, /-vl\b/, /vision/],
+    knownTextOnlyModels: [],
+    note: "百度千帆：OpenAI 兼容接口，content 数组 + image_url；ERNIE-VL 系列支持读图。",
+  },
+  tencent: {
+    supportsVision: true,
+    ...OPENAI_STYLE,
+    knownVisionModels: [/vision/, /hunyuan-.*vl/, /-vl\b/],
+    knownTextOnlyModels: [],
+    note: "腾讯混元：OpenAI 兼容接口，content 数组 + image_url；视觉能力以具体模型为准。",
+  },
+  spark: {
+    supportsVision: true,
+    ...OPENAI_STYLE,
+    knownVisionModels: [/vision/, /image/, /-vl\b/],
+    knownTextOnlyModels: [],
+    note: "讯飞星火：OpenAI 兼容接口，content 数组 + image_url；视觉能力以具体模型为准。",
+  },
+  xai: {
+    supportsVision: true,
+    ...OPENAI_STYLE,
+    knownVisionModels: [/grok-.*vision/, /grok-2-vision/, /grok-4/],
+    knownTextOnlyModels: [],
+    note: "xAI Grok：OpenAI 兼容接口，content 数组 + image_url（https 或 base64）。grok-2-vision / grok-4 支持读图。",
+  },
+  openrouter: {
+    supportsVision: true,
+    ...OPENAI_STYLE,
+    knownVisionModels: [/vision/, /-vl\b/, /gpt-4o/, /claude/, /gemini/, /qwen.*vl/],
+    knownTextOnlyModels: [],
+    note: "OpenRouter：OpenAI 兼容聚合网关，content 数组 + image_url；实际读图能力取决于所路由的模型。",
+  },
+  siliconflow: {
+    supportsVision: true,
+    ...OPENAI_STYLE,
+    knownVisionModels: [/vl/, /vision/, /glm-4v/, /qwen.*vl/],
+    knownTextOnlyModels: [],
+    note: "SiliconFlow 硅基流动：OpenAI 兼容网关，content 数组 + image_url；实际读图能力取决于所托管的模型。",
+  },
   custom: {
     supportsVision: true,
     ...OPENAI_STYLE,
@@ -215,6 +271,33 @@ export async function detectModelVision(
     const reason = err instanceof Error ? err.message : String(err);
     return { supported: null, source: "heuristic", reason: `无法实测：${reason}` };
   }
+}
+
+/** 实测结果缓存：同一「提供商 + 模型 id」在进程内只探测一次，加速批量扫描。 */
+const probeCache = new Map<string, VisionProbeResult | { supported: null; source: "heuristic"; reason: string }>();
+
+function visionCacheKey(providerName: string, modelId: string): string {
+  return `${(providerName || "custom").toLowerCase()}::${(modelId || "").toLowerCase()}`;
+}
+
+/** 带进程内缓存的视觉能力判定，避免同一模型被重复探测。 */
+export async function detectModelVisionCached(
+  provider: LLMProvider,
+  providerName: string,
+  modelId: string,
+): Promise<VisionProbeResult | { supported: null; source: "heuristic"; reason: string }> {
+  const key = visionCacheKey(providerName, modelId);
+  const hit = probeCache.get(key);
+  if (hit) return hit;
+  const result = await detectModelVision(provider, providerName, modelId);
+  // 仅缓存确定性结论；unknown 不缓存，避免一次网络抖动被永久记住。
+  if (result.supported !== null) probeCache.set(key, result);
+  return result;
+}
+
+/** 清空视觉探测缓存（例如手动重新扫描前调用）。 */
+export function clearVisionCache(): void {
+  probeCache.clear();
 }
 
 export function providerOf(record: ModelProvider | string): string {

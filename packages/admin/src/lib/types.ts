@@ -1,12 +1,25 @@
-export type ModelProvider =
+/** 内置提供商预设 id（provider 字段本身是自由字符串，预设仅用于快速选择）。 */
+export type BuiltinProvider =
   | "openai"
-  | "deepseek"
   | "anthropic"
+  | "deepseek"
   | "volcengine"
   | "google"
   | "dashscope"
-  | "mock"
-  | "custom";
+  | "moonshot"
+  | "zhipu"
+  | "minimax"
+  | "qianfan"
+  | "tencent"
+  | "spark"
+  | "xai"
+  | "openrouter"
+  | "siliconflow"
+  | "custom"
+  | "mock";
+
+/** 提供商标识：内置预设或用户自定义名称。 */
+export type ModelProvider = BuiltinProvider | (string & {});
 export type MemoryType = "daily" | "three_day" | "biweekly" | "monthly" | "imported" | "fact";
 
 export type MemoryKind = "agreement" | "preference" | "fact" | "event" | "trivial";

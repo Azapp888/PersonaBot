@@ -61,16 +61,25 @@ const PROVIDER_DEFAULT_BASE: Record<string, string> = {
   volcengine: "https://ark.cn-beijing.volces.com/api/v3",
   google: "https://generativelanguage.googleapis.com",
   dashscope: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  moonshot: "https://api.moonshot.cn/v1",
+  zhipu: "https://open.bigmodel.cn/api/paas/v4",
+  minimax: "https://api.minimax.chat/v1",
+  qianfan: "https://qianfan.baidubce.com/v2",
+  tencent: "https://api.hunyuan.cloud.tencent.com/v1",
+  spark: "https://spark-api-open.xf-yun.com/v1",
+  xai: "https://api.x.ai/v1",
+  openrouter: "https://openrouter.ai/api/v1",
+  siliconflow: "https://api.siliconflow.cn/v1",
 };
 
 export interface ProviderGroupKey {
-  /** 归一化后的稳定分组键：优先用 host，其次用规范 provider 名。 */
+  /** 归一化后的稳定分组键：由「提供商名称 + 归一化地址」共同决定。 */
   key: string;
   /** 展示名。 */
   label: string;
   /** 归一化后的地址（去掉协议与尾部斜杠，保留 host+path 结构）。 */
   addr: string;
-  /** 规范提供商标识（若能识别）；否则回退到记录里的 provider。 */
+  /** 规范化后的提供商名称（用户自定义名或内置预设）。 */
   vendor: string;
   /** 是否是已知的官方地址。 */
   known: boolean;
@@ -100,32 +109,68 @@ function hostOf(addr: string): string {
   return (slash === -1 ? addr : addr.slice(0, slash)).toLowerCase();
 }
 
+/** 内置预设的展示名（用户自定义名称不在其中）。 */
+export const PRESET_LABELS: Record<string, string> = {
+  openai: "OpenAI",
+  anthropic: "Anthropic Claude",
+  deepseek: "DeepSeek",
+  volcengine: "火山引擎方舟（豆包）",
+  google: "Google Gemini",
+  dashscope: "阿里云百炼（通义千问）",
+  moonshot: "Moonshot 月之暗面",
+  zhipu: "智谱 GLM",
+  minimax: "MiniMax",
+  qianfan: "百度千帆",
+  tencent: "腾讯混元",
+  spark: "讯飞星火",
+  xai: "xAI Grok",
+  openrouter: "OpenRouter",
+  siliconflow: "SiliconFlow 硅基流动",
+  custom: "自定义（OpenAI 兼容）",
+  mock: "Mock（本地联调）",
+};
+
 /**
- * 把一个模型（或一组隐式配置）归入「提供商地址分组」。
+ * 把一个模型（或一组隐式配置）归入「提供商分组」。
  *
- * - 有 apiBase：以 apiBase 为事实依据；
- * - 无 apiBase：回退到该 provider 的官方默认地址；
- * - mock：单独分组。
+ * 分组键 = 「提供商名称 + 归一化地址」：
+ * - 名称相同但地址不同 -> 不同分组（不因 provider 同名而合并）；
+ * - 地址相同但名称不同 -> 不同分组（保留用户自定义命名）；
+ * - 无地址时退化为仅按名称分组。
+ *
+ * 展示名优先使用用户填写的提供商名称，未命中预设时回退到主机名或预设名。
  */
 export function classify(model: Pick<ModelRecord, "provider" | "apiBase">): ProviderGroupKey {
-  if (model.provider === "mock") {
-    return { key: "mock", label: "Mock（本地联调）", addr: "mock://local", vendor: "mock", known: true };
+  const vendor = (model.provider || "custom").trim() || "custom";
+  if (vendor === "mock") {
+    return { key: "mock", label: PRESET_LABELS.mock, addr: "mock://local", vendor, known: true };
   }
-  const effectiveBase = model.apiBase || PROVIDER_DEFAULT_BASE[model.provider] || "";
+  const effectiveBase = model.apiBase || PROVIDER_DEFAULT_BASE[vendor] || "";
   const addr = normalizeBase(effectiveBase);
   const host = hostOf(addr);
   const rule = host ? HOST_RULES.find((r) => host.includes(r.match)) : undefined;
-  if (rule) {
-    // 同一官方域名下不同路径（如 dashscope 的 compatible-mode）仍归同一提供商
-    return { key: rule.vendor, label: rule.label, addr, vendor: rule.vendor, known: true };
+  // 展示名：用户自定义名优先 > 预设名 > 官方地址规则名 > 主机名
+  const label = customLabelOr(vendor, rule?.label ?? host ?? vendor);
+  if (!addr) {
+    return { key: `provider:${vendor}`, label, addr: "", vendor, known: false };
   }
-  if (addr) {
-    // 未知地址：以 host+path 为分组键，确保同地址同组、不同地址分列
-    return { key: `addr:${addr}`, label: host || addr, addr, vendor: model.provider, known: false };
-  }
-  // 无地址且非已知官方默认：按 provider 名分组
-  const vendor = model.provider || "custom";
-  return { key: `provider:${vendor}`, label: vendor, addr: "", vendor, known: false };
+  return {
+    key: `${vendor}@${addr}`,
+    label,
+    addr,
+    vendor,
+    known: !!rule,
+  };
+}
+
+/**
+ * 若 provider 是内置预设（或其别名），用官方展示名；否则保留用户自定义名称。
+ * 这样「自定义名称」既能显示，又不会让内置预设显示成裸 id。
+ */
+export function customLabelOr(provider: string, fallback: string): string {
+  const preset = PRESET_LABELS[provider];
+  if (!preset) return provider || fallback;
+  return preset;
 }
 
 /**

@@ -78,15 +78,31 @@ export interface PersonaSchedule {
   createdAt: number;
 }
 
-export type ModelProvider =
+/** 内置提供商预设 id（仅用于快速选择与默认地址，provider 字段本身是自由字符串）。 */
+export type BuiltinProvider =
   | "openai"
-  | "deepseek"
   | "anthropic"
+  | "deepseek"
   | "volcengine"
   | "google"
   | "dashscope"
-  | "mock"
-  | "custom";
+  | "moonshot"
+  | "zhipu"
+  | "minimax"
+  | "qianfan"
+  | "tencent"
+  | "spark"
+  | "xai"
+  | "openrouter"
+  | "siliconflow"
+  | "custom"
+  | "mock";
+
+/**
+ * 提供商标识。既可以是内置预设（见 BuiltinProvider），也可以是用户自定义名称。
+ * 保留 string 以允许「用户自定义提供商名称」，不同地址的提供商不会被强制合并。
+ */
+export type ModelProvider = BuiltinProvider | (string & {});
 
 export interface ModelRecord {
   id: string;
