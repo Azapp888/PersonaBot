@@ -15,6 +15,8 @@ export interface ConversationState {
   mood: string[];
   /** 长期记忆点（约定、计划、纪念日等） */
   longTermPoints: string[];
+  /** 会话开始时间戳（毫秒） */
+  sessionStartedAt: number;
   updatedAt: number;
 }
 
@@ -25,6 +27,7 @@ export function emptyState(): ConversationState {
     completedSubjects: [],
     mood: [],
     longTermPoints: [],
+    sessionStartedAt: Date.now(),
     updatedAt: Date.now(),
   };
 }
@@ -84,6 +87,34 @@ function splitClauses(text: string): string[] {
 }
 
 /**
+ * 会话是否已超时：距上次更新的间隔超过 timeoutMs 即视为新会话。
+ * 时间基准取 sessionStartedAt 与 updatedAt 的较大值，避免长期未更新导致的误判。
+ */
+export function isSessionExpired(state: ConversationState, timeoutMs: number, at = Date.now()): boolean {
+  if (timeoutMs <= 0) return false;
+  const last = Math.max(state.sessionStartedAt || 0, state.updatedAt || 0);
+  if (!last) return false;
+  return at - last >= timeoutMs;
+}
+
+/**
+ * 开启新会话：清空会话级缓存（情绪、待办科目、长期记忆点）并重置会话起点。
+ * 长期记忆点建议由调用方先迁移到核心记忆，再调用本函数清理。
+ */
+export function startNewSession(state: ConversationState, at = Date.now()): ConversationState {
+  return {
+    ...state,
+    homeworkUnfinished: false,
+    pendingSubjects: [],
+    completedSubjects: [],
+    mood: [],
+    longTermPoints: [],
+    sessionStartedAt: at,
+    updatedAt: at,
+  };
+}
+
+/**
  * 用一条用户输入更新状态。按分句分析，避免“没写完”里的“写完”被误判为完成。
  * - 未完成语句 -> homeworkUnfinished=true，识别到的科目进入待完成列表；
  * - 完成语句 -> 对应科目移出待完成、记入已完成；
@@ -97,6 +128,7 @@ export function updateState(prev: ConversationState, text: string): Conversation
     completedSubjects: [...prev.completedSubjects],
     mood: [...prev.mood],
     longTermPoints: [...prev.longTermPoints],
+    sessionStartedAt: prev.sessionStartedAt,
     updatedAt: Date.now(),
   };
 

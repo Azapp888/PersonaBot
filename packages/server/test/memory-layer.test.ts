@@ -127,6 +127,31 @@ test("实时记忆 origin 标记为 realtime，且每日整理不会误删", asy
   assert.equal(still.length, 1);
 });
 
+test("会话点迁移：把长期记忆点写入核心记忆且去重", async () => {
+  const { memoryRepo } = await import("../src/db/repos/memories");
+  const { migrateSessionPoints } = await import("../src/memory/service");
+  const P = "p-mig";
+  const U = "u-mig";
+
+  // 约定类命中 agreement
+  const first = migrateSessionPoints(P, U, ["约定周六一起看电影", "以后叫我小猫"]);
+  assert.equal(first, 2);
+
+  const facts = memoryRepo.listByUser(P, U).filter((m) => m.pinned);
+  assert.equal(facts.length, 2);
+  const agreement = facts.find((m) => m.content.includes("看电影"))!;
+  assert.equal(agreement.kind, "agreement");
+  assert.ok(agreement.importance >= 8);
+
+  // 重复迁移应被去重跳过
+  const again = migrateSessionPoints(P, U, ["约定周六一起看电影", "  ", "约定周六一起看电影"]);
+  assert.equal(again, 0);
+
+  // 核心记忆应包含迁移内容
+  const core = memoryRepo.listCore(P, U, 8, 40).map((m) => m.content);
+  assert.ok(core.includes("约定周六一起看电影"));
+});
+
 test("每日问候计数：同日累加，跨天归零", async () => {
   const { profileRepo } = await import("../src/db/repos/profiles");
   assert.equal(profileRepo.recordDailySend(PERSONA, "u2", "2026-03-01"), 1);

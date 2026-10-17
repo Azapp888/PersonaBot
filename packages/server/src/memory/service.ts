@@ -357,3 +357,48 @@ export function appendDailyMemoryToFiles(
   }
   return result;
 }
+
+/** 约定类关键词：命中则记为 agreement，否则记为 fact。 */
+const AGREEMENT_HINTS = /(约定|约好|说好|答应|承诺|计划|打算|纪念日|生日|下周|下次|以后|一起去)/;
+
+/**
+ * 会话超时后，把会话级长期记忆点迁移为受保护的核心记忆（pinned 原子事实）。
+ * - 与已有 pinned/高重要性记忆内容完全相同的条目会被跳过，避免重复；
+ * - 迁移成功后调用方应清空会话级 longTermPoints；
+ * - 返回实际新增的条数。
+ */
+export function migrateSessionPoints(personaId: string, userId: string, points: string[]): number {
+  const cleaned = Array.from(new Set(points.map((p) => p.trim()).filter(Boolean)));
+  if (!cleaned.length) return 0;
+
+  const existing = new Set(
+    memoryRepo
+      .listByUser(personaId, userId)
+      .filter((m) => m.pinned || m.importance >= 8)
+      .map((m) => m.content.trim()),
+  );
+
+  const sourceDate = formatDate(new Date());
+  let added = 0;
+  for (const point of cleaned) {
+    if (existing.has(point)) continue;
+    try {
+      memoryRepo.create({
+        personaId,
+        userId,
+        type: "fact",
+        content: point,
+        sourceDate,
+        importance: 8,
+        pinned: true,
+        kind: AGREEMENT_HINTS.test(point) ? "agreement" : "fact",
+        origin: "realtime",
+      });
+      existing.add(point);
+      added += 1;
+    } catch (err) {
+      logger.warn({ personaId, userId, err: (err as Error).message }, "migrate session point failed");
+    }
+  }
+  return added;
+}

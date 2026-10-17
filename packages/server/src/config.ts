@@ -125,6 +125,8 @@ export const config = {
     // 一键更新：展示用仓库地址与跟踪分支（实际更新以本地 git remote.origin 为准）
     updateRepoUrl: str("UPDATE_REPO_URL", "https://github.com/Azapp888/PersonaBot"),
     updateBranch: str("UPDATE_BRANCH", "main"),
+    // 会话超时时间（分钟）：longTermPoints 超时后迁移到核心记忆
+    sessionTimeoutMinutes: num("SESSION_TIMEOUT_MINUTES", 30),
     // 主模型不支持读图时，用该视觉副模型把图片转述为文本（models 表 id）；留空自动选择
     visionFallbackModelId: str("VISION_FALLBACK_MODEL_ID", ""),
   },

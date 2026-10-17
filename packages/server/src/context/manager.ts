@@ -1,11 +1,13 @@
 import { conversationRepo } from "../db/repos/conversations";
 import { contextRepo } from "../db/repos/context";
+import { config } from "../config";
 import { resolveProviderForPersona } from "../llm/factory";
 import { contentToText } from "../llm/provider";
 import { settingsService } from "../settings/service";
 import { logger } from "../logger";
 import type { ChatMessage, Persona } from "../types";
-import { emptyState, updateState, renderState, type ConversationState } from "./state";
+import { emptyState, updateState, renderState, isSessionExpired, startNewSession, type ConversationState } from "./state";
+import { migrateSessionPoints } from "../memory/service";
 
 export interface BuiltContext {
   /** 最近 N 轮的原始对话（滑动窗口） */
@@ -77,7 +79,22 @@ export async function buildConversationContext(
   const messages = conv.messages;
   const row = contextRepo.find(persona.id, userId);
 
-  const state = updateState(row?.state ?? emptyState(), userText);
+  // 会话超时：先把上一会话的长期记忆点迁移到核心记忆，再开启新会话，避免记忆随缓存丢失
+  let baseState = row?.state ?? emptyState();
+  if (row && isSessionExpired(baseState, config.defaults.sessionTimeoutMinutes * 60_000)) {
+    if (baseState.longTermPoints.length) {
+      const migrated = migrateSessionPoints(persona.id, userId, baseState.longTermPoints);
+      if (migrated > 0) {
+        logger.info(
+          { personaId: persona.id, userId, migrated },
+          "session expired, migrated long-term points to core memory",
+        );
+      }
+    }
+    baseState = startNewSession(baseState);
+  }
+
+  const state = updateState(baseState, userText);
   contextRepo.saveState(persona.id, userId, state);
 
   let summary = row?.summary ?? "";

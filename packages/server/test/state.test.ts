@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import {
   buildGuardrail,
   emptyState,
+  isSessionExpired,
   renderState,
   sanitizeReply,
+  startNewSession,
   updateState,
   violatesGuardrail,
 } from "../src/context/state";
@@ -50,4 +52,25 @@ test("sanitizeReply 移除违规句子", () => {
 test("renderState 反映未完成状态", () => {
   const s = updateState(emptyState(), "英语没做完");
   assert.ok(renderState(s).includes("未完成"));
+});
+
+test("会话超时：超过阈值判定为新会话，阈值内沿用", () => {
+  const base = { ...emptyState(), sessionStartedAt: 1_000_000, updatedAt: 1_000_000 };
+  assert.equal(isSessionExpired(base, 30 * 60_000, 1_000_000 + 29 * 60_000), false);
+  assert.equal(isSessionExpired(base, 30 * 60_000, 1_000_000 + 30 * 60_000), true);
+  // 阈值为 0 表示不启用超时
+  assert.equal(isSessionExpired(base, 0, 1_000_000 + 10 * 60 * 60_000), false);
+});
+
+test("startNewSession 清空会话级缓存但保留长期记忆点由调用方处理", () => {
+  let s = updateState(emptyState(), "数学还没写完，我很焦虑");
+  s = updateState(s, "我们约好周末一起去看电影");
+  assert.ok(s.longTermPoints.length > 0);
+
+  const next = startNewSession(s, 2_000_000);
+  assert.equal(next.homeworkUnfinished, false);
+  assert.deepEqual(next.pendingSubjects, []);
+  assert.deepEqual(next.mood, []);
+  assert.deepEqual(next.longTermPoints, []);
+  assert.equal(next.sessionStartedAt, 2_000_000);
 });
