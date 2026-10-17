@@ -116,6 +116,10 @@ export const config = {
     memoryCoreImportance: num("MEMORY_CORE_IMPORTANCE", 8),
     // 核心记忆注入条数上限
     memoryCoreMaxFacts: num("MEMORY_CORE_MAX_FACTS", 40),
+    // 单个记忆文件注入 system prompt 的字节上限（保尾弃头）
+    memoryFileMaxBytes: num("MEMORY_FILE_MAX_BYTES", 4096),
+    // 记忆文件增量注入：内容未变化时只注入占位提示
+    memoryFileIncremental: true,
     // 对话中实时提炼原子事实（约定/偏好/重要事件）
     realtimeFactEnabled: true,
     // 每日为角色生成当日日程

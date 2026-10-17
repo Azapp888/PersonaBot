@@ -1,6 +1,7 @@
 import { botRepo } from "../db/repos/bots";
 import { personaRepo } from "../db/repos/personas";
 import { conversationRepo } from "../db/repos/conversations";
+import { contextRepo } from "../db/repos/context";
 import { profileRepo } from "../db/repos/profiles";
 import { logRepo } from "../db/repos/logs";
 import { statsRepo } from "../db/repos/stats";
@@ -9,7 +10,7 @@ import { contentToText } from "../llm/provider";
 import { isVisionRejection } from "../llm/vision";
 import { imageLimitFor } from "../llm/multimodal";
 import { describeImagesWithFallback } from "../llm/vision-describe";
-import { assembleSystemPrompt } from "../persona/prompt";
+import { assembleSystemPrompt, buildTurnContext } from "../persona/prompt";
 import { buildMemoryInjection, syncMemoryFiles } from "../memory/service";
 import { extractUserHabits } from "../memory/profile";
 import { captureRealtimeFacts } from "../memory/realtime";
@@ -67,6 +68,8 @@ export interface GenerateOptions {
   imageParts?: ImageContentPart[];
   /** 主模型不支持读图时，由视觉副模型生成的图片文本转述 */
   imageContext?: string;
+  /** 本轮上下文（相关记忆 / 当前状态 / 当前时间），注入用户消息一侧而非 system，保持 system 前缀稳定 */
+  turnContext?: string;
   /** 用户本轮是否发了表情包（低权重上下文标注） */
   hasFaces?: boolean;
   /** 用于中止在途 LLM / 工具调用（消息打断） */
@@ -79,8 +82,10 @@ function buildUserContent(
   processed: string,
   imageParts: ImageContentPart[] | undefined,
   hasFaces: boolean | undefined,
+  turnContext: string | undefined,
 ): ChatMessage["content"] {
   const textBlocks: string[] = [];
+  if (turnContext?.trim()) textBlocks.push(turnContext.trim());
   if (fileContext) textBlocks.push(fileContext);
   if (imageContext) textBlocks.push(`【用户发来的图片内容（视觉模型转述，供你理解）】\n${imageContext}`);
   let main = processed;
@@ -127,26 +132,46 @@ export async function generateReply(
 
   // 按当前话题检索相关记忆，避免全量注入
   const query = [userText, context.state.pendingSubjects.join(" ")].filter(Boolean).join(" ");
-  const { files: memoryFiles, relevant, core } = buildMemoryInjection(persona, userId, now, query);
+  const { files: memoryFiles, relevant, core } = buildMemoryInjection(
+    persona,
+    userId,
+    now,
+    query,
+    context.state.memoryFileDigests,
+  );
+  // 记忆文件增量注入会就地对摘要快照打标，持久化回状态，供下一轮判断是否变化
+  contextRepo.saveState(persona.id, userId, context.state);
   const schedule = buildScheduleContext(persona, userId, settings.timezone, now);
 
   // 强制状态校验指令（作业未完成时禁止催睡）
   const guardrail = settings.guardrailEnabled ? buildGuardrail(context.state, persona.name) : null;
 
-  const { prefix, full } = assembleSystemPrompt(persona, {
+  const { full } = assembleSystemPrompt(persona, {
     memoryFiles,
     coreMemories: core,
     schedule,
-    relevant,
-    timezone: settings.timezone,
-    now,
     contextSummary: context.summary,
-    conversationState: context.state,
     agentEnabled: opts.agentEnabled,
   });
 
+  // 每轮可能变化的内容（相关记忆 / 当前状态 / 当前时间）注入用户消息一侧，
+  // 让上方 system prompt 在整段会话内保持字节级稳定，提升 prompt cache 命中率。
+  const turnContext = buildTurnContext({
+    relevant,
+    timezone: settings.timezone,
+    now,
+    conversationState: context.state,
+  });
+
   const processed = applyCommands(persona, userText);
-  const userContent = buildUserContent(opts.fileContext, opts.imageContext, processed, opts.imageParts, opts.hasFaces);
+  const userContent = buildUserContent(
+    opts.fileContext,
+    opts.imageContext,
+    processed,
+    opts.imageParts,
+    opts.hasFaces,
+    turnContext,
+  );
   const messages: ChatMessage[] = [
     { role: "system", content: full },
     ...context.history,

@@ -289,6 +289,10 @@ export interface AppSettings {
   memoryCoreImportance: number;
   /** 核心记忆注入条数上限。 */
   memoryCoreMaxFacts: number;
+  /** 单个记忆文件注入 system prompt 的字节上限，超出部分按「保尾弃头」截断（默认 4096）。 */
+  memoryFileMaxBytes: number;
+  /** 记忆文件增量注入：内容与上一轮相同时只注入占位提示，避免重复占用 Token（默认开启）。 */
+  memoryFileIncremental: boolean;
   /** 对话中实时提炼原子事实（约定/偏好/重要事件）并立即写入记忆，默认开启。 */
   realtimeFactEnabled: boolean;
   /** 每日为角色生成当日日程并注入 prompt，让角色行为符合身份，默认开启。 */

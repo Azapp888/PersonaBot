@@ -199,6 +199,43 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>人格一致性校验</CardTitle>
+          <span className="font-mono text-[11px] text-muted">
+            平均分 {data?.personaConsistency?.averageScore ?? 100} · 健康 {data?.personaConsistency?.healthy ?? 0} /{" "}
+            {data?.personaConsistency?.total ?? 0}
+          </span>
+        </CardHeader>
+        <CardContent className="pt-2">
+          <div className="mb-1 grid grid-cols-3 border border-rule sm:grid-cols-3">
+            <Figure value={`${data?.personaConsistency?.averageScore ?? 100}`} label="平均一致性分" sub="0-100" />
+            <Figure value={`${data?.personaConsistency?.withErrors ?? 0}`} label="含错误" sub="需优先修复" />
+            <Figure value={`${data?.personaConsistency?.withWarnings ?? 0}`} label="含警告" sub="建议优化" />
+          </div>
+          {(data?.personaConsistency?.worst ?? []).length > 0 ? (
+            <div className="mt-2">
+              {(data?.personaConsistency?.worst ?? []).map((w) => (
+                <div
+                  key={w.personaId}
+                  className="flex items-center justify-between border-b border-rule py-2.5 last:border-b-0"
+                >
+                  <span className="text-[13px] text-ink">{w.name}</span>
+                  <div className="flex items-center gap-4 font-mono text-[11.5px] tabular-nums text-muted">
+                    <span>问题 {w.issueCount}</span>
+                    <span className={w.score >= 80 ? "text-location" : w.score >= 50 ? "text-stamp" : "text-ink"}>
+                      {w.score} 分
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="py-6 text-center font-mono text-[12px] text-muted">所有角色设定一致</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

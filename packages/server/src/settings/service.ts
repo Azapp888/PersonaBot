@@ -59,6 +59,8 @@ function defaultSettings(): AppSettings {
     memoryDailyRetainDays: config.defaults.memoryDailyRetainDays,
     memoryCoreImportance: config.defaults.memoryCoreImportance,
     memoryCoreMaxFacts: config.defaults.memoryCoreMaxFacts,
+    memoryFileMaxBytes: config.defaults.memoryFileMaxBytes,
+    memoryFileIncremental: config.defaults.memoryFileIncremental,
     realtimeFactEnabled: config.defaults.realtimeFactEnabled,
     scheduleEnabled: config.defaults.scheduleEnabled,
     scheduleGenerateHour: config.defaults.scheduleGenerateHour,

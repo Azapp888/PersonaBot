@@ -17,6 +17,8 @@ export interface ConversationState {
   longTermPoints: string[];
   /** 会话开始时间戳（毫秒） */
   sessionStartedAt: number;
+  /** 记忆文件增量注入快照：文件名 → 内容摘要（会话级，超时后重置以强制全量注入）。 */
+  memoryFileDigests?: Record<string, string>;
   updatedAt: number;
 }
 
@@ -28,6 +30,7 @@ export function emptyState(): ConversationState {
     mood: [],
     longTermPoints: [],
     sessionStartedAt: Date.now(),
+    memoryFileDigests: {},
     updatedAt: Date.now(),
   };
 }
@@ -109,6 +112,7 @@ export function startNewSession(state: ConversationState, at = Date.now()): Conv
     completedSubjects: [],
     mood: [],
     longTermPoints: [],
+    memoryFileDigests: {},
     sessionStartedAt: at,
     updatedAt: at,
   };

@@ -1,6 +1,7 @@
 import type {
   AppSettings,
   Bot,
+  ConsistencyReport,
   DashboardData,
   DiscoveredModel,
   LogFilterParams,
@@ -123,6 +124,7 @@ export const api = {
   createPersona: (data: Partial<Persona>) => request<Persona>("POST", "/api/personas", data),
   updatePersona: (id: string, data: Partial<Persona>) => request<Persona>("PUT", `/api/personas/${id}`, data),
   deletePersona: (id: string) => request<{ ok: boolean }>("DELETE", `/api/personas/${id}`),
+  personaConsistency: (id: string) => request<ConsistencyReport>("GET", `/api/personas/${id}/consistency`),
   simulate: (id: string, userId: string, message: string) =>
     request<{ reply: string; usage: any; painting?: any }>("POST", `/api/personas/${id}/simulate`, { userId, message }),
   personaSchedule: (id: string, date?: string) =>

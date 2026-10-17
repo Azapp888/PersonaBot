@@ -259,6 +259,8 @@ export interface AppSettings {
   memoryDailyRetainDays: number;
   memoryCoreImportance: number;
   memoryCoreMaxFacts: number;
+  memoryFileMaxBytes: number;
+  memoryFileIncremental: boolean;
   realtimeFactEnabled: boolean;
   scheduleEnabled: boolean;
   scheduleGenerateHour: number;
@@ -316,6 +318,33 @@ export interface DashboardData {
   totalPersonas: number;
   perPersona: { personaId: string; name: string; tokens: number; messages: number; images: number }[];
   perBot: { botId: string; name: string; messages: number }[];
+  personaConsistency: ConsistencySummary;
+}
+
+export type ConsistencyLevel = "error" | "warning" | "info";
+
+export interface ConsistencyIssue {
+  code: string;
+  level: ConsistencyLevel;
+  message: string;
+  hint?: string;
+}
+
+export interface ConsistencyReport {
+  personaId: string;
+  score: number;
+  errors: number;
+  warnings: number;
+  issues: ConsistencyIssue[];
+}
+
+export interface ConsistencySummary {
+  total: number;
+  healthy: number;
+  withErrors: number;
+  withWarnings: number;
+  averageScore: number;
+  worst: { personaId: string; name: string; score: number; issueCount: number }[];
 }
 
 export interface TrendPoint {

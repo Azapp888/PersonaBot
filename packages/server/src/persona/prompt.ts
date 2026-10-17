@@ -61,22 +61,21 @@ export function buildStablePrefix(persona: Persona): string {
 }
 
 /**
- * 动态后缀：记忆档案 + 相关记忆 + 状态 + 当前时间。
+ * 动态后缀：仅承载「低频变化」的记忆与人格内容——记忆档案 + 核心记忆 + 日程 + 对话摘要 + Agent 能力。
  *
  * 为最大化 prompt cache 命中率，这里遵循两条铁律：
  * 1. 「静态在前，动态在后」——按内容变化频率从低到高排列：
- *    记忆档案（低频）→ 核心记忆（低频）→ 日程（每天一变）
- *    → 相关记忆（每轮可能变）→ 对话摘要 → 当前状态（每轮多变）
- *    → 当前时间（每轮必变，精确到分钟，放在整个 prompt 的最末尾）。
- *    只要时间在最后，它前面的所有内容就构成一个稳定的可复用前缀。
- * 2. 「稳定性优先」——尽可能让同一分钟内的多次请求字节级一致；清空的可选段落直接省略，
- *    避免用空行等固定占位制造假差异。
+ *    记忆档案（低频）→ 核心记忆（低频）→ 日程（每天一变）→ 对话摘要（隔轮更新）。
+ * 2. 「每轮必变的内容不入 system」——与当前话题相关的记忆片段、当前状态、当前时间
+ *    每轮都可能变化，若放进 system prompt 会使整段前缀失效。它们改由 `buildTurnContext`
+ *    注入到「用户消息」一侧（见下），从而让 system prompt 在整段会话中保持字节级稳定。
+ *
+ * 清空的可选段落直接省略，避免用空行等固定占位制造假差异。
  */
 export function buildDynamicSuffix(persona: Persona, ctx: PromptContext = {}): string {
   const lines: string[] = [];
-  const now = ctx.now ?? systemClock.now();
 
-  // 依变化频率注入：低频在前，高频在后。
+  // 依变化频率注入：低频在前。
 
   const files = ctx.memoryFiles;
   if (files && (files.memory?.trim() || files.user?.trim() || files.personaState?.trim())) {
@@ -96,10 +95,6 @@ export function buildDynamicSuffix(persona: Persona, ctx: PromptContext = {}): s
     lines.push(ctx.schedule.trim());
   }
 
-  if (ctx.relevant?.trim()) {
-    lines.push("", "# 与当前话题相关的记忆片段", ctx.relevant.trim());
-  }
-
   // 滚动摘要（更早对话的压缩，含用户画像 / 当前状态 / 未完成任务 / 长期记忆点）
   if (ctx.contextSummary) {
     lines.push("", "# 对话上下文摘要（更早对话的长期记录）", ctx.contextSummary);
@@ -114,7 +109,25 @@ export function buildDynamicSuffix(persona: Persona, ctx: PromptContext = {}): s
     );
   }
 
-  // 当前状态放动态段末、时间之前：利用近因效应强化对“未完成任务/情绪”的遵守
+  return lines.join("\n");
+}
+
+/**
+ * 本轮上下文（挂在「用户消息」一侧）：相关记忆片段 + 当前状态 + 当前时间。
+ *
+ * 这三类内容每轮都可能变化，放在 system prompt 会破坏其字节级稳定性、拉低 cache 命中。
+ * 它们被拼进本轮用户消息之前，既保证模型当轮可见，又不污染可复用的 system 前缀。
+ * 时间精确到分钟（不含秒），进一步降低同分钟内的抖动。
+ */
+export function buildTurnContext(ctx: PromptContext = {}): string {
+  const lines: string[] = [];
+  const now = ctx.now ?? systemClock.now();
+
+  if (ctx.relevant?.trim()) {
+    lines.push("# 与当前话题相关的记忆片段", ctx.relevant.trim());
+  }
+
+  // 当前状态靠近用户消息：利用近因效应强化对“未完成任务/情绪”的遵守
   if (ctx.conversationState) {
     const rendered = renderState(ctx.conversationState);
     if (rendered) {
@@ -122,9 +135,6 @@ export function buildDynamicSuffix(persona: Persona, ctx: PromptContext = {}): s
     }
   }
 
-  // 当前时间固定放在 system prompt 最末尾：它是唯一每轮必变的内容，
-  // 放在末尾后其前面的全部内容都成为稳定前缀，可被 prompt cache 复用。
-  // 精确到分钟（不含秒），进一步降低同分钟内的抖动。
   lines.push("", "# 当前时间");
   lines.push(timeContextLineMinute(ctx.timezone, now));
 

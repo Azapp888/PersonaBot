@@ -5,7 +5,7 @@ import { conversationRepo } from "../db/repos/conversations";
 import { logRepo } from "../db/repos/logs";
 import { statsRepo } from "../db/repos/stats";
 import { resolveProviderForBot } from "../llm/factory";
-import { assembleSystemPrompt } from "../persona/prompt";
+import { assembleSystemPrompt, buildTurnContext } from "../persona/prompt";
 import { buildMemoryInjection } from "../memory/service";
 import { buildScheduleContext } from "../memory/schedule";
 import { QQApiClient } from "../qq/client";
@@ -14,7 +14,7 @@ import { logger } from "../logger";
 import type { Bot, Persona, UserProfile, AppSettings } from "../types";
 import { formatDate, sleep } from "../utils/id";
 import { splitReply } from "../utils/text";
-import { systemClock, timeContextLine } from "../utils/clock";
+import { systemClock } from "../utils/clock";
 const sentSinceReply = new Map<string, number>();
 const HOUR = 60 * 60 * 1000;
 
@@ -113,13 +113,11 @@ async function generateProactive(persona: Persona, userId: string, instruction: 
     memoryFiles: files,
     coreMemories: core,
     schedule,
-    relevant,
-    timezone: settings.timezone,
-    now,
   });
   const conv = conversationRepo.ensure(persona.id, userId);
   const history = conv.messages.slice(-10);
-  const instructionWithTime = `${timeContextLine(settings.timezone, now)}\n${instruction}`;
+  const turnContext = buildTurnContext({ relevant, timezone: settings.timezone, now });
+  const instructionWithTime = `${turnContext}\n${instruction}`;
 
   try {
     const { provider, model } = resolveProviderForBot(bot, persona);

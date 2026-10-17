@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { CalendarClock, MessageCircle, Pencil, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
+import { CalendarClock, MessageCircle, Pencil, Plus, RefreshCw, Send, ShieldCheck, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
-import type { Persona, PersonaCommand, ScheduleSegment, Skill } from "@/lib/types";
+import type { ConsistencyReport, Persona, PersonaCommand, ScheduleSegment, Skill } from "@/lib/types";
 import {
   Badge,
   Button,
@@ -50,6 +50,9 @@ export function PersonasPage() {
   const [schPersona, setSchPersona] = useState<Persona | null>(null);
   const [schSegments, setSchSegments] = useState<ScheduleSegment[]>([]);
   const [schLoading, setSchLoading] = useState(false);
+  const [consistency, setConsistency] = useState<Record<string, ConsistencyReport>>({});
+  const [consistencyOpen, setConsistencyOpen] = useState(false);
+  const [consistencyPersona, setConsistencyPersona] = useState<Persona | null>(null);
 
   const load = async () => {
     const [p, s] = await Promise.all([api.personas(), api.skills()]);
@@ -100,6 +103,17 @@ export function PersonasPage() {
     const commands = [...form.commands];
     commands[i] = { ...commands[i], ...patch };
     setForm({ ...form, commands });
+  };
+
+  const runConsistency = async (p: Persona) => {
+    try {
+      const report = await api.personaConsistency(p.id);
+      setConsistency((prev) => ({ ...prev, [p.id]: report }));
+      setConsistencyPersona(p);
+      setConsistencyOpen(true);
+    } catch (err) {
+      push((err as Error).message, "error");
+    }
   };
 
   const runSim = async () => {
@@ -159,6 +173,11 @@ export function PersonasPage() {
                   ) : null;
                 })}
                 {p.personality.canPaint && <Badge variant="warning">会画画</Badge>}
+                {consistency[p.id] && (
+                  <Badge variant={consistency[p.id].score >= 80 ? "success" : consistency[p.id].score >= 50 ? "warning" : "secondary"}>
+                    一致性 {consistency[p.id].score}
+                  </Badge>
+                )}
               </div>
               <div className="mt-4 flex gap-1 border-t border-rule pt-3">
                 <Button variant="outline" size="sm" onClick={() => openEdit(p)}>
@@ -187,6 +206,13 @@ export function PersonasPage() {
                   }}
                 >
                   <CalendarClock className="h-3.5 w-3.5" /> 日程
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => runConsistency(p)}
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" /> 校验
                 </Button>
                 <Button
                   variant="ghost"
@@ -514,6 +540,53 @@ export function PersonasPage() {
             ))}
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        open={consistencyOpen}
+        onClose={() => setConsistencyOpen(false)}
+        title={`人格一致性校验 · ${consistencyPersona?.name ?? ""}`}
+        footer={
+          <Button variant="outline" onClick={() => setConsistencyOpen(false)}>
+            关闭
+          </Button>
+        }
+      >
+        {(() => {
+          const report = consistencyPersona ? consistency[consistencyPersona.id] : null;
+          if (!report) return <p className="font-mono text-[12px] text-muted">暂无结果</p>;
+          const listClass = (level: string) =>
+            level === "error" ? "text-alert" : level === "warning" ? "text-stamp" : "text-muted";
+          const levelLabel = (level: string) => (level === "error" ? "错误" : level === "warning" ? "警告" : "提示");
+          return (
+            <div className="space-y-3">
+              <div className="flex items-center gap-4 border border-rule px-4 py-3">
+                <span className="font-display text-[28px] leading-none text-ink">{report.score}</span>
+                <div className="font-mono text-[11.5px] text-muted">
+                  <div>综合一致性分（0-100）</div>
+                  <div>
+                    错误 {report.errors} · 警告 {report.warnings} · 提示 {report.issues.length - report.errors - report.warnings}
+                  </div>
+                </div>
+              </div>
+              {report.issues.length === 0 ? (
+                <p className="py-4 text-center font-mono text-[12px] text-muted">设定自洽，未发现问题</p>
+              ) : (
+                <div className="space-y-2">
+                  {report.issues.map((issue, i) => (
+                    <div key={i} className="border-b border-rule pb-2 last:border-b-0">
+                      <div className="flex items-baseline gap-2">
+                        <span className={`font-mono text-[11px] ${listClass(issue.level)}`}>[{levelLabel(issue.level)}]</span>
+                        <span className="text-[13px] text-ink">{issue.message}</span>
+                      </div>
+                      {issue.hint && <p className="mt-0.5 pl-10 text-[12px] text-muted">{issue.hint}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </Modal>
     </div>
   );

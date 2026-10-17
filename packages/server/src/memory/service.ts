@@ -11,6 +11,7 @@ import type { MemoryFiles } from "../persona/prompt";
 import { logger } from "../logger";
 import { retrieveRelevantMemories } from "./relevant";
 import { truncate } from "../utils/json";
+import { createHash } from "node:crypto";
 
 /** 三个可由用户在网页端直接编辑的记忆文件。 */
 export const MEMORY_FILE_NAMES = ["MEMORY.md", "USER.md", "persona-state.md"] as const;
@@ -125,17 +126,78 @@ export function loadMemoryFiles(persona: Persona, userId: string): MemoryFiles {
   };
 }
 
+/** 记忆文件注入的上一轮快照：文件 → 内容摘要，用于增量注入判断。 */
+export type MemoryFileDigests = Record<string, string>;
+
+/** 计算内容摘要（带长度前缀，避免极短内容碰撞造成误判）。 */
+export function digestMemory(content: string): string {
+  return createHash("sha1").update(`${content.length}:${content}`).digest("hex");
+}
+
+/**
+ * 按字节上限截断记忆文件内容。
+ * AI 追加区位于文件尾部，越新的内容越靠后，因此「保尾弃头」：优先保留最近的信息，
+ * 并在头部标注被截断，避免模型误以为文件开头就是这样。
+ */
+export function clampMemoryFile(content: string, maxBytes: number): { content: string; truncated: boolean } {
+  if (maxBytes <= 0) return { content, truncated: false };
+  const size = Buffer.byteLength(content, "utf8");
+  if (size <= maxBytes) return { content, truncated: false };
+  const buf = Buffer.from(content, "utf8");
+  // 从尾部截取 maxBytes，可能切断多字节字符，用 toString 时替换为 U+FFFD 后再去掉
+  let tail = buf.subarray(buf.length - maxBytes).toString("utf8").replace(/^\uFFFD+/, "");
+  tail = `（文件过大，已省略较早内容，以下为最近部分）\n${tail}`;
+  return { content: tail, truncated: true };
+}
+
+/**
+ * 增量注入：对每个记忆文件，若内容与上一轮摘要一致，则只返回占位提示；
+ * 否则返回（截断后的）完整内容，并更新摘要。
+ * 返回处理后的文件内容，digests 会被就地更新，调用方需负责持久化。
+ */
+export function incrementalMemoryFiles(
+  files: MemoryFiles,
+  digests: MemoryFileDigests,
+  maxBytes: number,
+  enabled: boolean,
+): MemoryFiles {
+  const entries: [keyof MemoryFiles, string | undefined][] = [
+    ["memory", files.memory],
+    ["user", files.user],
+    ["personaState", files.personaState],
+  ];
+  const out: MemoryFiles = {};
+  for (const [key, raw] of entries) {
+    if (raw === undefined || !raw.trim()) continue;
+    const digest = digestMemory(raw);
+    if (enabled && digests[key] === digest) {
+      out[key] = "（内容与上一轮一致，未变化）";
+      continue;
+    }
+    digests[key] = digest;
+    out[key] = clampMemoryFile(raw, maxBytes).content;
+  }
+  return out;
+}
+
 /**
  * 组装记忆注入内容：三个记忆文件 + 核心记忆（受保护原子事实）+ 与当前话题相关的记忆片段。
  * 短期对话由 pipeline 直接附带。
+ *
+ * @param digests 可选的增量注入快照；传入时会就地更新，调用方负责持久化。
  */
 export function buildMemoryInjection(
   persona: Persona,
   userId: string,
   _now = Date.now(),
   query = "",
+  digests?: MemoryFileDigests,
 ): { files: MemoryFiles; relevant?: string; core?: string } {
-  const files = loadMemoryFiles(persona, userId);
+  const settings = settingsService.get();
+  const raw = loadMemoryFiles(persona, userId);
+  const files = digests
+    ? incrementalMemoryFiles(raw, digests, settings.memoryFileMaxBytes, settings.memoryFileIncremental)
+    : mapClamp(raw, settings.memoryFileMaxBytes);
   const core = buildCoreMemory(persona, userId);
   let relevant: string | undefined;
   if (query.trim()) {
@@ -145,6 +207,15 @@ export function buildMemoryInjection(
     }
   }
   return { files, relevant, core };
+}
+
+/** 无快照时的降级路径：仅按上限截断，不做增量判断。 */
+function mapClamp(files: MemoryFiles, maxBytes: number): MemoryFiles {
+  const out: MemoryFiles = {};
+  if (files.memory) out.memory = clampMemoryFile(files.memory, maxBytes).content;
+  if (files.user) out.user = clampMemoryFile(files.user, maxBytes).content;
+  if (files.personaState) out.personaState = clampMemoryFile(files.personaState, maxBytes).content;
+  return out;
 }
 
 /** 记忆类别 → 中文标签（用于核心记忆展示）。 */

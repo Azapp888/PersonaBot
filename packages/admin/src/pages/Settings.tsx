@@ -502,6 +502,20 @@ export function SettingsPage() {
             checked={settings.memoryFileAppendEnabled}
             onChange={(v) => set({ memoryFileAppendEnabled: v })}
           />
+          <ToggleRow
+            label="记忆文件增量注入"
+            hint="开启后，同一会话内记忆文件内容未变化时只注入占位提示，避免每轮重复占用 Token；会话超时后自动全量注入。"
+            checked={settings.memoryFileIncremental}
+            onChange={(v) => set({ memoryFileIncremental: v })}
+          />
+          <Field label="单文件注入字节上限" hint="单个记忆文件注入 system prompt 的最大字节数，超出部分保尾弃头（保留最近内容），默认 4096。">
+            <Input
+              type="number"
+              min={512}
+              value={settings.memoryFileMaxBytes}
+              onChange={(e) => set({ memoryFileMaxBytes: Number(e.target.value) })}
+            />
+          </Field>
         </CardContent>
       </Card>
 

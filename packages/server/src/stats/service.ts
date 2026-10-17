@@ -3,6 +3,7 @@ import { botRepo } from "../db/repos/bots";
 import { statsRepo } from "../db/repos/stats";
 import { personaRepo } from "../db/repos/personas";
 import { logRepo } from "../db/repos/logs";
+import { summarizeConsistency } from "../persona/consistency";
 import { addDays, formatDate, startOfDay } from "../utils/id";
 
 function hitRate(hit: number, miss: number): number {
@@ -56,6 +57,7 @@ export const statsService = {
       totalPersonas: personas.length,
       perPersona,
       perBot,
+      personaConsistency: summarizeConsistency(personas),
     };
   },
 

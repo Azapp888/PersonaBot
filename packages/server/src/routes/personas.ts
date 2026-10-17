@@ -3,6 +3,7 @@ import { personaRepo } from "../db/repos/personas";
 import { scheduleRepo } from "../db/repos/schedules";
 import { messagePipeline } from "../pipeline/message-pipeline";
 import { buildStablePrefix } from "../persona/prompt";
+import { checkPersonaConsistency } from "../persona/consistency";
 import { generateDailySchedule } from "../memory/schedule";
 import { formatDate } from "../utils/id";
 import type { ScheduleSegment } from "../types";
@@ -22,6 +23,14 @@ export async function personaRoutes(app: FastifyInstance): Promise<void> {
     const persona = personaRepo.find(id);
     if (!persona) return reply.code(404).send({ error: "not_found" });
     return { prefix: buildStablePrefix(persona) };
+  });
+
+  // 人格一致性校验：静态检查设定是否自洽、信息是否完整
+  app.get("/api/personas/:id/consistency", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const persona = personaRepo.find(id);
+    if (!persona) return reply.code(404).send({ error: "not_found" });
+    return checkPersonaConsistency(persona);
   });
 
   // 读取角色某天日程（默认今天）

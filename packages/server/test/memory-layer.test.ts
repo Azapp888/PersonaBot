@@ -152,6 +152,62 @@ test("会话点迁移：把长期记忆点写入核心记忆且去重", async ()
   assert.ok(core.includes("约定周六一起看电影"));
 });
 
+test("记忆文件截断：未超限原样返回，超限保尾弃头并标注", async () => {
+  const { clampMemoryFile } = await import("../src/memory/service");
+  assert.deepEqual(clampMemoryFile("short", 4096), { content: "short", truncated: false });
+
+  const long = "A".repeat(100) + "尾部关键内容";
+  const clamped = clampMemoryFile(long, 20);
+  assert.equal(clamped.truncated, true);
+  assert.ok(clamped.content.includes("最近部分"));
+  assert.ok(clamped.content.includes("尾部关键内容"));
+  assert.ok(Buffer.byteLength(clamped.content, "utf8") < Buffer.byteLength(long, "utf8"));
+});
+
+test("记忆文件截断：多字节字符不会残留替换符", async () => {
+  const { clampMemoryFile } = await import("../src/memory/service");
+  const text = "中文".repeat(100);
+  const clamped = clampMemoryFile(text, 30);
+  assert.ok(clamped.truncated);
+  assert.ok(!clamped.content.includes("\uFFFD"), "不应出现 U+FFFD 替换字符");
+});
+
+test("记忆文件增量注入：内容未变化只返回占位，变化时更新快照", async () => {
+  const { incrementalMemoryFiles, digestMemory } = await import("../src/memory/service");
+  const digests: Record<string, string> = {};
+  const files = { memory: "记忆 A", user: "用户 B", personaState: "状态 C" };
+
+  const first = incrementalMemoryFiles(files, digests, 4096, true);
+  assert.equal(first.memory, "记忆 A");
+  assert.equal(first.user, "用户 B");
+  assert.equal(digests.memory, digestMemory("记忆 A"));
+
+  const second = incrementalMemoryFiles(files, digests, 4096, true);
+  assert.equal(second.memory, "（内容与上一轮一致，未变化）");
+  assert.equal(second.user, "（内容与上一轮一致，未变化）");
+
+  const changed = incrementalMemoryFiles({ ...files, memory: "记忆 A + 新增" }, digests, 4096, true);
+  assert.equal(changed.memory, "记忆 A + 新增");
+  assert.equal(changed.user, "（内容与上一轮一致，未变化）");
+});
+
+test("记忆文件增量注入：关闭增量时始终返回完整内容", async () => {
+  const { incrementalMemoryFiles } = await import("../src/memory/service");
+  const digests: Record<string, string> = {};
+  const files = { memory: "记忆 A" };
+  incrementalMemoryFiles(files, digests, 4096, false);
+  const again = incrementalMemoryFiles(files, digests, 4096, false);
+  assert.equal(again.memory, "记忆 A");
+});
+
+test("会话重置：clear 记忆文件增量快照，强制下一会话全量注入", async () => {
+  const { startNewSession, updateState, emptyState } = await import("../src/context/state");
+  const s = updateState(emptyState(), "我们约好周末爬山");
+  s.memoryFileDigests = { memory: "abc" };
+  const next = startNewSession(s);
+  assert.deepEqual(next.memoryFileDigests, {});
+});
+
 test("每日问候计数：同日累加，跨天归零", async () => {
   const { profileRepo } = await import("../src/db/repos/profiles");
   assert.equal(profileRepo.recordDailySend(PERSONA, "u2", "2026-03-01"), 1);
