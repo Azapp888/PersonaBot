@@ -64,6 +64,7 @@ function defaultSettings(): AppSettings {
     scheduleGenerateHour: config.defaults.scheduleGenerateHour,
     updateRepoUrl: config.defaults.updateRepoUrl,
     updateBranch: config.defaults.updateBranch,
+    visionFallbackModelId: config.defaults.visionFallbackModelId,
   };
 }
 

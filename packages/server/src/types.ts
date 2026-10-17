@@ -78,7 +78,15 @@ export interface PersonaSchedule {
   createdAt: number;
 }
 
-export type ModelProvider = "openai" | "deepseek" | "anthropic" | "volcengine" | "mock" | "custom";
+export type ModelProvider =
+  | "openai"
+  | "deepseek"
+  | "anthropic"
+  | "volcengine"
+  | "google"
+  | "dashscope"
+  | "mock"
+  | "custom";
 
 export interface ModelRecord {
   id: string;
@@ -149,7 +157,11 @@ export interface TextContentPart {
 export interface ImageContentPart {
   type: "image_url";
   /** http(s) 远程图片地址，或 data:image/...;base64,... 数据地址 */
-  image_url: { url: string };
+  image_url: {
+    url: string;
+    /** 仅 OpenAI 兼容协议使用：auto / low / high；Anthropic 会忽略该字段。 */
+    detail?: "auto" | "low" | "high";
+  };
 }
 
 export type ContentPart = TextContentPart | ImageContentPart;
@@ -271,6 +283,8 @@ export interface AppSettings {
   updateRepoUrl: string;
   /** 一键更新：跟踪的分支，默认 main。 */
   updateBranch: string;
+  /** 主模型不支持读图时，用于把图片转述为文本的视觉副模型（models 表 id）。留空则自动选择首个支持读图的模型。 */
+  visionFallbackModelId: string;
 }
 
 // LLM 相关

@@ -59,6 +59,8 @@ const PROVIDER_DEFAULT_BASE: Record<string, string> = {
   deepseek: "https://api.deepseek.com/v1",
   anthropic: "https://api.anthropic.com",
   volcengine: "https://ark.cn-beijing.volces.com/api/v3",
+  google: "https://generativelanguage.googleapis.com",
+  dashscope: "https://dashscope.aliyuncs.com/compatible-mode/v1",
 };
 
 export interface ProviderGroupKey {

@@ -1,4 +1,12 @@
-export type ModelProvider = "openai" | "deepseek" | "anthropic" | "volcengine" | "mock" | "custom";
+export type ModelProvider =
+  | "openai"
+  | "deepseek"
+  | "anthropic"
+  | "volcengine"
+  | "google"
+  | "dashscope"
+  | "mock"
+  | "custom";
 export type MemoryType = "daily" | "three_day" | "biweekly" | "monthly" | "imported" | "fact";
 
 export type MemoryKind = "agreement" | "preference" | "fact" | "event" | "trivial";
@@ -243,6 +251,7 @@ export interface AppSettings {
   scheduleGenerateHour: number;
   updateRepoUrl: string;
   updateBranch: string;
+  visionFallbackModelId: string;
 }
 
 export interface UpdateInfo {

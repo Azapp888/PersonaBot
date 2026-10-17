@@ -13,7 +13,11 @@ export interface ProviderVisionSpec {
   /** 该提供商是否具备视觉能力（支持发送图片输入）。 */
   supportsVision: boolean;
   /** 图片在请求体中的承载方式。 */
-  imageTransport: "content-parts-image-url" | "content-parts-base64" | "unsupported";
+  imageTransport:
+    | "content-parts-image-url"
+    | "content-parts-base64"
+    | "content-parts-inline-data"
+    | "unsupported";
   /** 已知支持读图的模型 id 匹配规则（不区分大小写，子串匹配）。 */
   knownVisionModels: RegExp[];
   /** 已知明确不支持读图的模型 id 匹配规则。 */
@@ -33,21 +37,35 @@ export const PROVIDER_VISION: Record<string, ProviderVisionSpec> = {
     ...OPENAI_STYLE,
     knownVisionModels: [/^gpt-4o/, /^gpt-4\.1/, /^gpt-4-turbo/, /^gpt-4-vision/, /^o[134]/, /^chatgpt-4o/],
     knownTextOnlyModels: [/^gpt-3\.5/, /^text-/, /^davinci/, /^gpt-4-\d/],
-    note: "OpenAI：/v1/chat/completions，content 数组 + image_url（https 或 data:URL）。",
+    note: "OpenAI：/v1/chat/completions，content 数组 + image_url（https 或 data:URL）。detail 可选 auto/low/high，默认 auto；支持 PNG/JPEG/WEBP/GIF（GIF 非动画），单图 20MB。",
   },
   deepseek: {
-    supportsVision: false,
-    imageTransport: "unsupported",
-    knownVisionModels: [/deepseek-vl/, /deepseek.*vision/, /-vl\b/],
+    supportsVision: true,
+    ...OPENAI_STYLE,
+    knownVisionModels: [/deepseek.*vision/, /^deepseek-vl/, /-vl\b/],
     knownTextOnlyModels: [/^deepseek-(chat|reasoner|coder)/],
-    note: "DeepSeek 主站文本模型（deepseek-chat/reasoner/coder）暂不支持图片输入；如有 VL 系列方可读图。",
+    note: "DeepSeek：deepseek-v4-flash-vision-exp 等视觉模型走 Chat Completions，content 数组 + image_url（base64 内联 / 公网 URL / Files API）。deepseek-chat/reasoner/coder 仍是纯文本。",
   },
   anthropic: {
     supportsVision: true,
     imageTransport: "content-parts-base64",
     knownVisionModels: [/^claude-3/, /^claude-4/, /^claude-.*-sonnet/, /^claude-.*-opus/, /^claude-.*-haiku/],
     knownTextOnlyModels: [],
-    note: "Anthropic Messages API：content 数组元素 {type:'image',source:{type:'base64',media_type,data}} 或 {type:'url',url}。",
+    note: "Anthropic Messages API：content 元素 {type:'image',source:{type:'base64',media_type,data}} 或 {type:'url',url}。media_type 必填且必须与实际格式一致；支持 PNG/JPEG/GIF/WEBP，单图 5MB。",
+  },
+  google: {
+    supportsVision: true,
+    imageTransport: "content-parts-inline-data",
+    knownVisionModels: [/^gemini/, /gemini.*(pro|flash|ultra)/],
+    knownTextOnlyModels: [],
+    note: "Gemini 原生 generateContent：contents[].parts[] 使用 {inline_data:{mime_type,data}}，data 为不带 data: 前缀的纯 base64；支持 PNG/JPEG/WEBP，内联请求约 20MB。若使用 OpenAI 兼容端点（/v1beta/openai）则走 image_url。",
+  },
+  dashscope: {
+    supportsVision: true,
+    ...OPENAI_STYLE,
+    knownVisionModels: [/qwen.*vl/, /qwen-vl/, /qvq/, /qwen3.*vision/],
+    knownTextOnlyModels: [/^qwen-(?!.*vl).*$/i],
+    note: "通义千问：推荐 /compatible-mode/v1 的 OpenAI 兼容接口，content 数组 + image_url（公网 URL 或 base64 data URL）。支持 JPEG/PNG/WEBP，单图约 20MB（不同系列上限不同）。",
   },
   volcengine: {
     supportsVision: true,
@@ -167,6 +185,11 @@ function looksLikeVisionRejection(err: LLMError): boolean {
   return VISION_ERROR_HINTS.some((h) => text.includes(h));
 }
 
+/** 上游是否因为「不接受图片输入」而拒绝了请求（用于运行期降级）。 */
+export function isVisionRejection(err: unknown): boolean {
+  return err instanceof LLMError && looksLikeVisionRejection(err);
+}
+
 /**
  * 综合判断单个模型的视觉能力：
  * 1) 先查 models.dev 元数据（权威），未命中再按提供商知识库 + 模型命名快速判定；
@@ -199,3 +222,21 @@ export function providerOf(record: ModelProvider | string): string {
 }
 
 export type ModelForVision = Pick<ModelRecord, "id" | "provider" | "modelId" | "supportsVision">;
+
+/**
+ * 从已启用的模型中挑选视觉副模型（纯函数，便于测试）：
+ * 1) 优先使用显式配置且确实支持读图的模型；
+ * 2) 否则取首个支持读图、且与主模型不同的模型；
+ * 3) 都没有则返回 null。
+ */
+export function pickVisionFallback<T extends ModelForVision>(
+  models: T[],
+  preferredId?: string | null,
+  primaryId?: string | null,
+): T | null {
+  if (preferredId) {
+    const preferred = models.find((m) => m.id === preferredId && m.supportsVision);
+    if (preferred) return preferred;
+  }
+  return models.find((m) => m.supportsVision && m.id !== primaryId) ?? null;
+}

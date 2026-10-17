@@ -21,6 +21,8 @@ const DEFAULT_BASES: Record<string, string> = {
   deepseek: "https://api.deepseek.com/v1",
   anthropic: "https://api.anthropic.com",
   volcengine: "https://ark.cn-beijing.volces.com/api/v3",
+  google: "https://generativelanguage.googleapis.com/v1beta/openai",
+  dashscope: "https://dashscope.aliyuncs.com/compatible-mode/v1",
 };
 
 /**

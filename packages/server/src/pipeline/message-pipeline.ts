@@ -4,7 +4,11 @@ import { conversationRepo } from "../db/repos/conversations";
 import { profileRepo } from "../db/repos/profiles";
 import { logRepo } from "../db/repos/logs";
 import { statsRepo } from "../db/repos/stats";
-import { resolveProviderForBot } from "../llm/factory";
+import { resolveProviderForBot, resolveVisionFallbackModel } from "../llm/factory";
+import { contentToText } from "../llm/provider";
+import { isVisionRejection } from "../llm/vision";
+import { imageLimitFor } from "../llm/multimodal";
+import { describeImagesWithFallback } from "../llm/vision-describe";
 import { assembleSystemPrompt } from "../persona/prompt";
 import { buildMemoryInjection, syncMemoryFiles } from "../memory/service";
 import { extractUserHabits } from "../memory/profile";
@@ -61,6 +65,8 @@ export interface GenerateOptions {
   fileContext?: string;
   /** 本轮用户发来的图片（多模态），仅注入当前请求，不写入会话历史 */
   imageParts?: ImageContentPart[];
+  /** 主模型不支持读图时，由视觉副模型生成的图片文本转述 */
+  imageContext?: string;
   /** 用户本轮是否发了表情包（低权重上下文标注） */
   hasFaces?: boolean;
   /** 用于中止在途 LLM / 工具调用（消息打断） */
@@ -69,12 +75,14 @@ export interface GenerateOptions {
 
 function buildUserContent(
   fileContext: string | undefined,
+  imageContext: string | undefined,
   processed: string,
   imageParts: ImageContentPart[] | undefined,
   hasFaces: boolean | undefined,
 ): ChatMessage["content"] {
   const textBlocks: string[] = [];
   if (fileContext) textBlocks.push(fileContext);
+  if (imageContext) textBlocks.push(`【用户发来的图片内容（视觉模型转述，供你理解）】\n${imageContext}`);
   let main = processed;
   if (hasFaces) main = main ? `${main}\n（用户还发了一个表情包，权重很低，通常无需专门回应）` : "（用户发了一个表情包，权重很低，通常无需专门回应）";
   if (main) textBlocks.push(main);
@@ -86,6 +94,18 @@ function buildUserContent(
     return parts;
   }
   return text;
+}
+
+/** 把最近一条用户消息里的图片替换为视觉模型转述，供不支持读图的上游重试。 */
+function injectImageDescription(messages: ChatMessage[], description: string): ChatMessage[] {
+  const index = messages.map((m) => m.role).lastIndexOf("user");
+  if (index === -1) return messages;
+  const text = [contentToText(messages[index].content), `【用户图片内容（视觉模型转述）】\n${description}`]
+    .filter(Boolean)
+    .join("\n\n");
+  const next = [...messages];
+  next[index] = { ...messages[index], content: text };
+  return next;
 }
 
 export async function generateReply(
@@ -126,7 +146,7 @@ export async function generateReply(
   });
 
   const processed = applyCommands(persona, userText);
-  const userContent = buildUserContent(opts.fileContext, processed, opts.imageParts, opts.hasFaces);
+  const userContent = buildUserContent(opts.fileContext, opts.imageContext, processed, opts.imageParts, opts.hasFaces);
   const messages: ChatMessage[] = [
     { role: "system", content: full },
     ...context.history,
@@ -169,14 +189,29 @@ export async function generateReply(
     const signal = opts.signal;
 
     // 启用服务器 Agent 且模型支持工具调用时，走「模型自主决定执行 shell」的循环
-    if (opts.agentEnabled && provider.supportsTools && provider.chatWithTools) {
-      const run = await runAgentLoop(provider, messages, { temperature, maxTokens, signal });
-      reply = run.content.trim() || "（命令已经执行完了，不过我没有需要额外补充的。）";
+    const callModel = async (msgs: ChatMessage[]) => {
+      if (opts.agentEnabled && provider.supportsTools && provider.chatWithTools) {
+        return runAgentLoop(provider, msgs, { temperature, maxTokens, signal });
+      }
+      return provider.chat(msgs, { temperature, maxTokens, signal });
+    };
+
+    try {
+      const run = await callModel(messages);
+      reply = run.content.trim();
       usage = run.usage;
-    } else {
-      const result = await provider.chat(messages, { temperature, maxTokens, signal });
-      reply = result.content;
-      usage = result.usage;
+      if (!reply && opts.agentEnabled && provider.supportsTools && provider.chatWithTools) {
+        reply = "（命令已经执行完了，不过我没有需要额外补充的。）";
+      }
+    } catch (err) {
+      // 模型自报支持读图、上游却拒绝图片：用视觉副模型转述后重试一次纯文本请求。
+      if (!opts.imageParts?.length || !isVisionRejection(err)) throw err;
+      logger.warn({ personaId: persona.id, modelId: model?.id }, "upstream rejected image input, retrying with converted description");
+      const described = await describeImagesWithFallback(opts.imageParts, { primaryModelId: model?.id, signal });
+      if (!described) throw err;
+      const retry = await callModel(injectImageDescription(messages, described.text));
+      reply = retry.content.trim();
+      usage = retry.usage;
     }
 
     // 请求后拦截校验：作业未完成却输出催睡词 -> 丢弃并带强制警告重试一次
@@ -376,34 +411,54 @@ class MessagePipeline {
       fileContext = renderFileContext(parsed);
     }
 
-    // 图片处理：先判断当前模型是否支持视觉（按 Bot 分配模型优先）
+    // 图片处理：主模型支持视觉就直接发图；不支持则用视觉副模型转述成文本。
     let imageParts: ImageContentPart[] = [];
+    let imageContext = "";
     if (imageUrls.length) {
       const { model } = resolveProviderForBot(batch.bot, batch.persona);
-      if (!model?.supportsVision) {
-        logger.info({ key, modelId: model?.id }, "image received but model lacks vision support");
-        await this.send(batch, "【当前模型不支持读图，请切换模型再试】");
+      const supportsVision = !!model?.supportsVision;
+      const fallback = supportsVision ? null : resolveVisionFallbackModel(model?.id);
+      if (!supportsVision && !fallback) {
+        logger.info({ key, modelId: model?.id }, "image received but no vision model available");
+        await this.send(batch, "【当前模型不支持读图，且未配置视觉副模型。请切换支持读图的模型，或在设置中选择视觉副模型】");
         this.batches.delete(key);
         return;
       }
+
       // 按 QQ 开放平台约束收敛图片：仅图片类型，单条最多 5 张
       const imageAtts: QQAttachment[] = imageUrls.map((url) => ({ url }));
       const { images, overflow } = pickQQImages(imageAtts);
       if (overflow > 0) {
         logger.info({ key, overflow }, "qq attachment count exceeds platform limit, extra images ignored");
       }
-      const { parts, skipped } = await buildImageParts(images, QQ_IMAGE_MAX_BYTES);
+      // 同时满足 QQ 平台与上游厂商的大小/格式限制（取更严格的一方）
+      const providerLimit = imageLimitFor(model?.provider);
+      const limit = { ...providerLimit, maxBytes: Math.min(QQ_IMAGE_MAX_BYTES, providerLimit.maxBytes) };
+      const { parts, skipped } = await buildImageParts(images, limit);
       imageParts = parts;
       if (!imageParts.length) {
-        logger.warn({ key, skipped }, "all images failed to download");
+        logger.warn({ key, skipped }, "all images failed to decode");
         if (!merged.trim() && !fileContext) {
-          await this.send(batch, "【图片下载失败了，稍后再试试～】");
+          const reason = skipped[0]?.reason ?? "下载失败";
+          await this.send(batch, `【图片读取失败：${reason}】`);
           this.batches.delete(key);
           return;
         }
       }
+
+      if (imageParts.length && !supportsVision) {
+        const described = await describeImagesWithFallback(imageParts, { primaryModelId: model?.id });
+        if (!described) {
+          await this.send(batch, "【图片暂时无法识别，请稍后再试，或切换支持读图的模型】");
+          this.batches.delete(key);
+          return;
+        }
+        imageContext = described.text;
+        imageParts = [];
+      }
+
       // 纯图片消息没有正文：注入平台占位符，保证模型仍能起一轮对话
-      if (!merged.trim() && !fileContext && imageParts.length) {
+      if (!merged.trim() && !fileContext && (imageParts.length || imageContext)) {
         merged = mediaPlaceholder(imageAtts) ?? "(image)";
       }
     }
@@ -417,6 +472,7 @@ class MessagePipeline {
       const { reply, painting } = await generateReply(batch.persona, batch.userId, merged, batch.bot.id, {
         agentEnabled: batch.bot.agentEnabled,
         fileContext,
+        imageContext,
         imageParts,
         hasFaces: faceCount > 0,
         signal: abort.signal,

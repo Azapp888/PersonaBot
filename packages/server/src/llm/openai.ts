@@ -7,6 +7,7 @@ import type {
   ToolDefinition,
 } from "../types";
 import { LLMError, normalizeUsage, type LLMProvider } from "./provider";
+import { toOpenAIPart } from "./multimodal";
 import { fetchWithTimeout } from "../utils/http";
 
 export interface OpenAICompatibleOptions {
@@ -24,9 +25,13 @@ export interface OpenAICompatibleOptions {
   cacheStyle?: "openai" | "deepseek" | "volcengine";
 }
 
-function toApiMessages(messages: ChatMessage[]): unknown[] {
+/** 将统一消息转换为 OpenAI 兼容 Chat Completions 的 messages。 */
+export function toApiMessages(messages: ChatMessage[]): unknown[] {
   return messages.map((m) => {
-    const base: Record<string, unknown> = { role: m.role, content: m.content };
+    const content = Array.isArray(m.content)
+      ? m.content.map((p) => (p.type === "text" ? { type: "text", text: p.text } : toOpenAIPart(p)))
+      : m.content;
+    const base: Record<string, unknown> = { role: m.role, content };
     if (m.role === "assistant" && m.toolCalls?.length) {
       base.tool_calls = m.toolCalls.map((t) => ({
         id: t.id,

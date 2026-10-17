@@ -22,6 +22,8 @@ const providerDefaults: Record<string, { base: string; model: string }> = {
   deepseek: { base: "https://api.deepseek.com/v1", model: "deepseek-chat" },
   anthropic: { base: "https://api.anthropic.com", model: "claude-3-5-sonnet-20241022" },
   volcengine: { base: "https://ark.cn-beijing.volces.com/api/v3", model: "doubao-seed-1-6-250615" },
+  google: { base: "https://generativelanguage.googleapis.com", model: "gemini-2.5-flash" },
+  dashscope: { base: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-vl-plus" },
   custom: { base: "", model: "" },
   mock: { base: "", model: "mock-roleplay" },
 };
@@ -31,6 +33,8 @@ const providerLabels: Record<string, string> = {
   deepseek: "DeepSeek",
   anthropic: "Anthropic Claude",
   volcengine: "火山引擎方舟（豆包）",
+  google: "Google Gemini",
+  dashscope: "阿里云百炼（通义千问）",
   custom: "自定义（OpenAI 兼容）",
   mock: "Mock（本地联调）",
 };
@@ -356,6 +360,8 @@ export function ModelsPage() {
                 <option value="openai">OpenAI</option>
                 <option value="volcengine">火山引擎方舟（豆包）</option>
                 <option value="anthropic">Anthropic Claude</option>
+                <option value="google">Google Gemini</option>
+                <option value="dashscope">阿里云百炼（通义千问）</option>
                 <option value="custom">自定义（OpenAI 兼容）</option>
                 <option value="mock">Mock（本地联调）</option>
               </Select>

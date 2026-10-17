@@ -1,9 +1,12 @@
 import type { Bot, ModelRecord, Persona } from "../types";
 import { modelRepo } from "../db/repos/models";
 import { AnthropicProvider } from "./anthropic";
+import { GoogleProvider } from "./google";
 import { OpenAICompatibleProvider } from "./openai";
 import { MockProvider } from "./mock";
 import type { LLMProvider } from "./provider";
+import { pickVisionFallback } from "./vision";
+import { settingsService } from "../settings/service";
 import { logger } from "../logger";
 
 const DEFAULT_BASES: Record<string, string> = {
@@ -11,6 +14,11 @@ const DEFAULT_BASES: Record<string, string> = {
   deepseek: "https://api.deepseek.com/v1",
   anthropic: "https://api.anthropic.com",
   volcengine: "https://ark.cn-beijing.volces.com/api/v3",
+  // Gemini 原生 generateContent；如需 OpenAI 兼容协议，请把 apiBase 设为
+  // https://generativelanguage.googleapis.com/v1beta/openai
+  google: "https://generativelanguage.googleapis.com",
+  // 通义千问 OpenAI 兼容模式
+  dashscope: "https://dashscope.aliyuncs.com/compatible-mode/v1",
 };
 
 /** 火山引擎方舟（豆包）的模型命名/端点特征，用于自动识别微信/兼容网关。 */
@@ -44,6 +52,20 @@ export function createProviderFromModel(model: ModelRecord): LLMProvider {
         model: model.modelId,
         name: "volcengine",
         cacheStyle: "volcengine",
+      });
+    case "google":
+      // 允许把 Gemini 切成 OpenAI 兼容端点；否则走原生 generateContent。
+      if (/\/openai\/?$/i.test(apiBase)) {
+        return new OpenAICompatibleProvider({ apiKey, apiBase, model: model.modelId, name: "google", cacheStyle: "openai" });
+      }
+      return new GoogleProvider({ apiKey, apiBase, model: model.modelId });
+    case "dashscope":
+      return new OpenAICompatibleProvider({
+        apiKey,
+        apiBase,
+        model: model.modelId,
+        name: "dashscope",
+        cacheStyle: "openai",
       });
     case "openai":
     case "custom":
@@ -100,4 +122,22 @@ export function resolveProviderForBot(
     logger.warn({ modelId: targetId }, "bot-configured model unavailable, falling back to default model");
   }
   return resolveDefaultProvider();
+}
+
+/**
+ * 选择一个可用于「读图转述」的视觉副模型。
+ * 优先使用 settings.visionFallbackModelId，其次取首个已启用且声明支持读图的模型，
+ * 且不与主模型重复。返回 null 表示当前没有可用的视觉模型。
+ */
+export function resolveVisionFallbackModel(primaryModelId?: string | null): ModelRecord | null {
+  const preferred = settingsService.get().visionFallbackModelId || null;
+  return pickVisionFallback(modelRepo.listEnabled(), preferred, primaryModelId ?? null);
+}
+
+export function resolveVisionFallbackProvider(
+  primaryModelId?: string | null,
+): { provider: LLMProvider; model: ModelRecord } | null {
+  const model = resolveVisionFallbackModel(primaryModelId);
+  if (!model) return null;
+  return { provider: createProviderFromModel(model), model };
 }

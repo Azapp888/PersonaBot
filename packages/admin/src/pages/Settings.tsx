@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Download, Play, RefreshCw, Save, Server } from "lucide-react";
 import { api } from "@/lib/api";
-import type { AppSettings, UpdateInfo, UpdateResult } from "@/lib/types";
+import type { AppSettings, ModelRecord, UpdateInfo, UpdateResult } from "@/lib/types";
 import {
   Badge,
   Button,
@@ -119,6 +119,7 @@ function offsetLabel(ts: number, tz?: string): string {
 export function SettingsPage() {
   const { push } = useToast();
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [models, setModels] = useState<ModelRecord[]>([]);
   const [info, setInfo] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [paintingApiKey, setPaintingApiKey] = useState("");
@@ -137,8 +138,9 @@ export function SettingsPage() {
   };
 
   const load = async () => {
-    const s = await api.settings();
+    const [s, modelList] = await Promise.all([api.settings(), api.models()]);
     setSettings(s);
+    setModels(modelList);
     setSnapshot(JSON.stringify(s));
     setInfo(await api.systemInfo());
     await refreshServerTime();
@@ -500,6 +502,37 @@ export function SettingsPage() {
             checked={settings.memoryFileAppendEnabled}
             onChange={(v) => set({ memoryFileAppendEnabled: v })}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>视觉与图片</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <Field
+              label="视觉副模型"
+              hint="主模型不支持读图时，先用该模型把图片转述为文本，再交给主模型。留空则自动选择首个已启用且支持读图的模型。"
+            >
+              <Select
+                value={settings.visionFallbackModelId}
+                onChange={(e) => set({ visionFallbackModelId: e.target.value })}
+              >
+                <option value="">自动选择</option>
+                {models
+                  .filter((m) => m.enabled && m.supportsVision)
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}（{m.modelId}）
+                    </option>
+                  ))}
+              </Select>
+            </Field>
+            <p className="mt-1.5 text-[12px] leading-relaxed text-muted">
+              图片会先校验真实格式（PNG / JPEG / GIF / WebP）与厂商大小上限；QQ 平台单图最多 8MB。
+            </p>
+          </div>
         </CardContent>
       </Card>
 

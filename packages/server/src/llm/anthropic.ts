@@ -1,29 +1,12 @@
-import type { ChatMessage, LLMChatOptions, LLMChatResult, ContentPart } from "../types";
-import { LLMError, normalizeUsage, toContentParts, contentToText, type LLMProvider } from "./provider";
+import type { ChatMessage, LLMChatOptions, LLMChatResult } from "../types";
+import { LLMError, normalizeUsage, contentToText, type LLMProvider } from "./provider";
+import { toAnthropicContent } from "./multimodal";
 import { fetchWithTimeout } from "../utils/http";
 
 export interface AnthropicOptions {
   apiKey: string;
   apiBase?: string;
   model: string;
-}
-
-/** 将统一的多模态 content 转换为 Anthropic Messages 格式。 */
-function toAnthropicContent(content: ChatMessage["content"]): unknown {
-  const parts = toContentParts(content);
-  // 纯文本时保持字符串，兼容性最好
-  if (parts.length === 1 && parts[0].type === "text") return parts[0].text;
-  return parts.map((p: ContentPart) => {
-    if (p.type === "text") return { type: "text", text: p.text };
-    const url = p.image_url.url;
-    if (url.startsWith("data:")) {
-      const match = url.match(/^data:([^;]+);base64,(.*)$/);
-      if (match) {
-        return { type: "image", source: { type: "base64", media_type: match[1], data: match[2] } };
-      }
-    }
-    return { type: "image", source: { type: "url", url } };
-  });
 }
 
 /**

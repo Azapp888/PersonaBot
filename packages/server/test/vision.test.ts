@@ -1,15 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { inferVisionFromName, visionSpecFor, PROVIDER_VISION } from "../src/llm/vision";
+import { inferVisionFromName, visionSpecFor, PROVIDER_VISION, pickVisionFallback } from "../src/llm/vision";
 
 test("视觉知识库：覆盖主要提供商并对不支持的给出明确结论", () => {
-  for (const p of ["openai", "deepseek", "anthropic", "custom", "mock"]) {
+  for (const p of ["openai", "deepseek", "anthropic", "google", "dashscope", "custom", "mock"]) {
     assert.ok(PROVIDER_VISION[p], `缺少 ${p} 的视觉规格`);
   }
-  assert.equal(visionSpecFor("deepseek").supportsVision, false);
   assert.equal(visionSpecFor("mock").supportsVision, false);
+  assert.equal(visionSpecFor("deepseek").supportsVision, true);
   assert.equal(visionSpecFor("openai").imageTransport, "content-parts-image-url");
   assert.equal(visionSpecFor("anthropic").imageTransport, "content-parts-base64");
+  assert.equal(visionSpecFor("google").imageTransport, "content-parts-inline-data");
   // 未知提供商标提供商回退到自定义（OpenAI 兼容）
   assert.equal(visionSpecFor("whatever").imageTransport, "content-parts-image-url");
 });
@@ -20,9 +21,10 @@ test("命名推断：OpenAI 视觉模型命中", () => {
   assert.equal(inferVisionFromName("openai", "gpt-3.5-turbo"), false);
 });
 
-test("命名推断：DeepSeek 文本模型判为不支持，VL 判为支持", () => {
+test("命名推断：DeepSeek 文本模型判为不支持，视觉模型判为支持", () => {
   assert.equal(inferVisionFromName("deepseek", "deepseek-chat"), false);
   assert.equal(inferVisionFromName("deepseek", "deepseek-reasoner"), false);
+  assert.equal(inferVisionFromName("deepseek", "deepseek-v4-flash-vision-exp"), true);
   assert.equal(inferVisionFromName("deepseek", "deepseek-vl2"), true);
 });
 
@@ -37,4 +39,17 @@ test("命名推断：自定义网关识别常见多模态命名", () => {
   assert.equal(inferVisionFromName("custom", "gemini-1.5-pro"), true);
   // 无法判断时返回 null，交由实测
   assert.equal(inferVisionFromName("custom", "some-random-model"), null);
+});
+
+test("视觉副模型选择：优先显式配置，其次首个支持读图且非主模型的模型", () => {
+  const models = [
+    { id: "a", provider: "openai" as const, modelId: "gpt-4o", supportsVision: true },
+    { id: "b", provider: "deepseek" as const, modelId: "deepseek-chat", supportsVision: false },
+    { id: "c", provider: "dashscope" as const, modelId: "qwen-vl-plus", supportsVision: true },
+  ];
+  assert.equal(pickVisionFallback(models, "c", "a")?.id, "c");
+  assert.equal(pickVisionFallback(models, null, "a")?.id, "c");
+  assert.equal(pickVisionFallback(models, "b", "a")?.id, "c");
+  assert.equal(pickVisionFallback(models, null, "c")?.id, "a");
+  assert.equal(pickVisionFallback([models[1]], null, "b"), null);
 });
