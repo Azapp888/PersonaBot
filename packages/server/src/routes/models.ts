@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { modelRepo } from "../db/repos/models";
+import { providerRepo } from "../db/repos/providers";
 import { createProviderFromModel } from "../llm/factory";
 import { discoverModels } from "../llm/discover";
 import { scanModelsVision } from "../llm/vision-scan";
@@ -47,7 +48,7 @@ function resolveGroupKey(body: any): string | null {
 
 /** 按归一化 apiBase 把模型聚成「提供商地址分组」，密钥数按不同 apiKey 存活性去重。 */
 function buildProviderGroups(models: ModelRecord[]): ProviderGroupView[] {
-  const map = new Map<string, ProviderGroupView & { keySet: Set<string> }>();
+  const map = new Map<string, ProviderGroupView & { keySet: Set<string>; providerId?: string; apiKeySet?: boolean }>();
   for (const m of models) {
     const g = classify(m);
     let entry = map.get(g.key);
@@ -70,6 +71,30 @@ function buildProviderGroups(models: ModelRecord[]): ProviderGroupView[] {
     // 以「密文指纹」去重：同一密钥多处存储只算一个凭据，不同密钥分别计入
     if (m.apiKey) entry.keySet.add(m.apiKey);
   }
+  // 合并「提供商级配置」记录：即便该分组下暂无模型，也要展示出来。
+  for (const p of providerRepo.list()) {
+    const g = classify({ provider: p.name, apiBase: p.apiBase });
+    let entry = map.get(g.key);
+    if (!entry) {
+      entry = {
+        key: g.key,
+        label: g.label,
+        addr: g.addr,
+        vendor: g.vendor,
+        known: g.known,
+        models: 0,
+        credentials: 0,
+        visionModels: 0,
+        keySet: new Set<string>(),
+      };
+      map.set(g.key, entry);
+    }
+    entry.providerId = p.id;
+    if (p.apiKey) {
+      entry.keySet.add(p.apiKey);
+      entry.apiKeySet = true;
+    }
+  }
   return Array.from(map.values())
     .map(({ keySet, ...rest }) => ({ ...rest, credentials: keySet.size }))
     .sort((a, b) => b.models - a.models || a.label.localeCompare(b.label));
@@ -84,7 +109,7 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
     return { groups: buildProviderGroups(models), total: models.length };
   });
 
-  // 新增提供商：以「提供商级配置（名称/Base/Key）」一次性创建，并可携带初始模型列表。
+  // 新增提供商：以「提供商级配置（名称/Base/Key）」创建，允许暂不加入任何模型。
   app.post("/api/models/providers", { preHandler: [app.authenticate] }, async (request, reply) => {
     const body = (request.body ?? {}) as any;
     if (!body?.provider) {
@@ -93,6 +118,8 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
     const items: any[] = Array.isArray(body.models) ? body.models : [];
     const apiBase = body.apiBase || null;
     const apiKey = body.apiKey || null;
+    // 先落一条「提供商级配置」记录，使其在无模型时也能展示与再编辑。
+    const providerRec = providerRepo.create({ name: body.provider, apiBase, apiKey });
     const created: ReturnType<typeof present>[] = [];
     const skipped: string[] = [];
     const groupKey = classify({ provider: body.provider, apiBase }).key;
@@ -126,7 +153,7 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
         ),
       );
     }
-    return { ok: true, groupKey, created, skipped };
+    return { ok: true, groupKey, providerId: providerRec.id, created, skipped };
   });
 
   // 更新提供商：把「名称 / Base / Key」级配置级联到分组下的全部模型，并支持增删模型。
@@ -137,11 +164,27 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: "bad_request", message: "provider 或 groupKey 必填" });
     }
     const members = modelsInGroup(groupKey);
-    const provider = body.provider ?? members[0]?.provider;
+    // 提供商级配置记录的定位：显式 id > 按当前名称查 > 按新名称查
+    const existingProvider =
+      (body.providerId ? providerRepo.find(body.providerId) : null) ??
+      (members[0] ? providerRepo.findByName(members[0].provider) : null) ??
+      providerRepo.findByName(body.provider ?? "");
+    const provider = body.provider ?? existingProvider?.name ?? members[0]?.provider;
     const hasBaseField = Object.prototype.hasOwnProperty.call(body, "apiBase");
-    const apiBase = hasBaseField ? (body.apiBase ?? null) : (members[0]?.apiBase ?? null);
+    const apiBase = hasBaseField
+      ? (body.apiBase ?? null)
+      : (existingProvider?.apiBase ?? members[0]?.apiBase ?? null);
     const hasKeyField = Object.prototype.hasOwnProperty.call(body, "apiKey");
     const apiKey: string | undefined = hasKeyField && body.apiKey ? String(body.apiKey) : undefined;
+    // 同步提供商级配置记录（无记录则补建，保证「先建提供商」路径一致）
+    let providerId = existingProvider?.id;
+    if (provider) {
+      if (existingProvider) {
+        providerRepo.update(existingProvider.id, { name: provider, apiBase, apiKey });
+      } else {
+        providerId = providerRepo.create({ name: provider, apiBase, apiKey }).id;
+      }
+    }
     // 级联提供商级配置：名称 -> provider，地址 -> apiBase；密钥可选覆盖（留空表示沿用原值）
     const updated: ReturnType<typeof present>[] = [];
     for (const m of members) {
@@ -165,7 +208,12 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
             name: (typeof item === "object" && item?.name) || modelId,
             provider: provider ?? "custom",
             modelId,
-            apiKey: apiKey ?? (apiBase ? modelRepo.findKeyByBase(apiBase) : null) ?? modelRepo.findProviderKey(provider ?? "") ?? null,
+            apiKey:
+              apiKey ??
+              (body.providerId ? providerRepo.find(body.providerId) : null)?.apiKey ??
+              (apiBase ? modelRepo.findKeyByBase(apiBase) : null) ??
+              modelRepo.findProviderKey(provider ?? "") ??
+              null,
             apiBase,
             temperature: body.temperature,
             maxTokens: body.maxTokens,
@@ -178,10 +226,10 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
     // 删除指定模型
     const removeIds: string[] = Array.isArray(body.removeModelIds) ? body.removeModelIds : [];
     for (const id of removeIds) modelRepo.remove(id);
-    return { ok: true, updated, added, removed: removeIds.length };
+    return { ok: true, providerId, updated, added, removed: removeIds.length };
   });
 
-  // 删除提供商：连同分组下的所有模型一并移除。
+  // 删除提供商：连同分组下的所有模型与提供商配置一并移除。
   app.delete("/api/models/providers", { preHandler: [app.authenticate] }, async (request, reply) => {
     const body = (request.body ?? {}) as any;
     const groupKey = resolveGroupKey(body);
@@ -190,6 +238,12 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
     }
     const members = modelsInGroup(groupKey);
     for (const m of members) modelRepo.remove(m.id);
+    // 移除对应的提供商级配置记录（按 id 或名称）
+    if (body.providerId) providerRepo.remove(body.providerId);
+    else if (body.provider) {
+      const rec = providerRepo.findByName(body.provider);
+      if (rec) providerRepo.remove(rec.id);
+    }
     return { ok: true, removed: members.length };
   });
 

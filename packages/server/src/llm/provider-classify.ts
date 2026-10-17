@@ -197,4 +197,8 @@ export interface ProviderGroupView {
   models: number;
   credentials: number;
   visionModels: number;
+  /** 提供商级配置记录 id；仅当该分组由 providers 表登记时存在。 */
+  providerId?: string;
+  /** 是否已保存提供商级密钥。 */
+  apiKeySet?: boolean;
 }

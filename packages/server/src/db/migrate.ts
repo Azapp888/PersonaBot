@@ -241,6 +241,20 @@ CREATE TABLE IF NOT EXISTS persona_schedules (
 ALTER TABLE bots ADD COLUMN model_id TEXT;
 `,
   },
+  {
+    id: "012_providers",
+    sql: `
+CREATE TABLE IF NOT EXISTS providers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  api_base TEXT,
+  api_key TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_providers_name ON providers(name);
+`,
+  },
 ];
 
 export function runMigrations(database?: Database.Database): void {

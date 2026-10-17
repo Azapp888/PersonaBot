@@ -151,13 +151,14 @@ export const api = {
   }) => request<{ ok: boolean; groupKey: string; created: ModelRecord[]; skipped: string[] }>("POST", "/api/models/providers", data),
   updateProvider: (data: {
     groupKey?: string;
+    providerId?: string;
     provider?: string;
     apiBase?: string | null;
     apiKey?: string;
     addModels?: { modelId: string; name?: string; supportsVision?: boolean }[];
     removeModelIds?: string[];
-  }) => request<{ ok: boolean; updated: ModelRecord[]; added: ModelRecord[]; removed: number }>("PUT", "/api/models/providers", data),
-  deleteProvider: (data: { groupKey?: string; provider?: string; apiBase?: string | null }) =>
+  }) => request<{ ok: boolean; providerId?: string; updated: ModelRecord[]; added: ModelRecord[]; removed: number }>("PUT", "/api/models/providers", data),
+  deleteProvider: (data: { groupKey?: string; providerId?: string; provider?: string; apiBase?: string | null }) =>
     request<{ ok: boolean; removed: number }>("DELETE", "/api/models/providers", data),
   discoverProvider: (data: { provider: string; apiKey?: string; apiBase?: string }) =>
     request<{ ok: boolean; models: DiscoveredModel[]; reusedKey?: boolean }>("POST", "/api/models/providers/discover", data),

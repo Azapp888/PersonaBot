@@ -50,26 +50,6 @@ const providerDefaults: Record<string, { base: string; model: string }> = {
   mock: { base: "", model: "mock-roleplay" },
 };
 
-const providerLabels: Record<string, string> = {
-  openai: "OpenAI",
-  anthropic: "Anthropic Claude",
-  deepseek: "DeepSeek",
-  volcengine: "火山引擎方舟（豆包）",
-  dashscope: "阿里云百炼（通义千问）",
-  google: "Google Gemini",
-  moonshot: "Moonshot 月之暗面",
-  zhipu: "智谱 GLM",
-  minimax: "MiniMax",
-  qianfan: "百度千帆（文心）",
-  tencent: "腾讯混元",
-  spark: "讯飞星火",
-  xai: "xAI Grok",
-  openrouter: "OpenRouter",
-  siliconflow: "SiliconFlow 硅基流动",
-  custom: "自定义（OpenAI 兼容）",
-  mock: "Mock（本地联调）",
-};
-
 /** 提供商下拉里「自定义名称」的哨兵值（不会作为真正的 provider 存储）。 */
 const CUSTOM_PROVIDER = "__custom__";
 
@@ -87,7 +67,7 @@ export function ModelsPage() {
   const { push } = useToast();
   const [models, setModels] = useState<ModelRecord[]>([]);
   const [groups, setGroups] = useState<ProviderGroup[]>([]);
-  const [editing, setEditing] = useState<string | null>(null);
+  const [editing, setEditing] = useState<ProviderGroup | null>(null);
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
   const [scanning, setScanning] = useState(false);
@@ -144,8 +124,8 @@ export function ModelsPage() {
     setOpen(true);
   };
 
-  const openEdit = (groupKey: string) => {
-    setEditing(groupKey);
+  const openEdit = (group: ProviderGroup) => {
+    setEditing(group);
     setOpen(true);
   };
 
@@ -153,7 +133,7 @@ export function ModelsPage() {
     const count = modelsOfGroup(models, group.key).length;
     if (!confirm(`确认删除提供商「${group.label}」及其下的 ${count} 个模型？`)) return;
     try {
-      const res = await api.deleteProvider({ groupKey: group.key });
+      const res = await api.deleteProvider({ groupKey: group.key, providerId: group.providerId, provider: group.vendor });
       push(`已删除 ${group.label}（${res.removed} 个模型）`, "success");
       await load();
     } catch (err) {
@@ -228,7 +208,7 @@ export function ModelsPage() {
                 key={g.key}
                 group={g}
                 models={modelsOfGroup(models, g.key)}
-                onEdit={() => openEdit(g.key)}
+                onEdit={() => openEdit(g)}
                 onDelete={() => removeProvider(g)}
                 onTest={testModel}
               />
@@ -239,7 +219,7 @@ export function ModelsPage() {
 
       <ProviderModal
         open={open}
-        groupKey={editing}
+        group={editing}
         models={models}
         onClose={() => setOpen(false)}
         onSaved={async (msg) => {
@@ -275,7 +255,7 @@ function ProviderCard({
     <div className="flex flex-col border border-rule bg-paper">
       <div className="flex items-start gap-3 p-4">
         <span className="mt-0.5 shrink-0">
-          <ModelIcon modelId={sample?.modelId ?? ""} name={group.label} size={22} />
+          <ModelIcon modelId={sample?.modelId ?? ""} name={group.label} providerName={group.vendor} size={24} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -331,7 +311,7 @@ function ProviderCard({
 /** 提供商新增 / 编辑弹窗：提供商级配置 + 模型选择（检测拉取与手动添加）。 */
 function ProviderModal({
   open,
-  groupKey,
+  group,
   models,
   onClose,
   onSaved,
@@ -339,21 +319,20 @@ function ProviderModal({
   onNotice,
 }: {
   open: boolean;
-  groupKey: string | null;
+  group: ProviderGroup | null;
   models: ModelRecord[];
   onClose: () => void;
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
   onNotice: (msg: string) => void;
 }) {
-  const isEdit = !!groupKey;
-  const group = useMemo(() => (groupKey ? modelsOfGroup(models, groupKey) : []), [groupKey, models]);
-  const head = group[0];
+  const isEdit = !!group;
 
   const [form, setForm] = useState<any>({
     provider: "deepseek",
     apiBase: providerDefaults.deepseek.base,
     apiKey: "",
+    apiKeySet: false,
     temperature: 0.8,
     maxTokens: 2048,
     supportsVision: false,
@@ -368,7 +347,7 @@ function ProviderModal({
   const [pending, setPending] = useState<{ modelId: string; name?: string }[]>([]);
   const [manual, setManual] = useState("");
 
-  // 打开时按创建 / 编辑初始化表单
+  // 打开时按创建 / 编辑初始化表单（编辑时复用原有名称/Base/Key/参数）
   useEffect(() => {
     if (!open) return;
     setDiscovered(null);
@@ -376,28 +355,30 @@ function ProviderModal({
     setPending([]);
     setManual("");
     setRemoved(new Set());
-    if (isEdit && head) {
+    if (isEdit && group) {
       setForm({
-        provider: head.provider,
-        apiBase: head.apiBase ?? "",
+        provider: group.vendor,
+        apiBase: group.addr ? `https://${group.addr}` : "",
         apiKey: "",
-        temperature: head.temperature,
-        maxTokens: head.maxTokens,
-        supportsVision: head.supportsVision,
+        apiKeySet: !!group.apiKeySet,
+        temperature: 0.8,
+        maxTokens: 2048,
+        supportsVision: false,
       });
-      setMembers(group);
+      setMembers(modelsOfGroup(models, group.key));
     } else {
       setForm({
         provider: "deepseek",
         apiBase: providerDefaults.deepseek.base,
         apiKey: "",
+        apiKeySet: false,
         temperature: 0.8,
         maxTokens: 2048,
         supportsVision: false,
       });
       setMembers([]);
     }
-  }, [open, isEdit, groupKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, isEdit, group]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onPickProvider = (picked: string) => {
     if (picked === CUSTOM_PROVIDER) {
@@ -460,9 +441,10 @@ function ProviderModal({
     }
     setSaving(true);
     try {
-      if (isEdit && groupKey) {
+      if (isEdit && group) {
         const res = await api.updateProvider({
-          groupKey,
+          groupKey: group.key,
+          providerId: group.providerId,
           provider: form.provider,
           apiBase: form.apiBase,
           apiKey: form.apiKey || undefined,
@@ -471,11 +453,6 @@ function ProviderModal({
         });
         onSaved(`已更新：新增 ${res.added.length} 个，删除 ${res.removed} 个`);
       } else {
-        if (pending.length === 0) {
-          onError("请至少添加一个模型（检测拉取或手动输入）");
-          setSaving(false);
-          return;
-        }
         const res = await api.createProvider({
           provider: form.provider,
           apiBase: form.apiBase,
@@ -485,7 +462,11 @@ function ProviderModal({
           supportsVision: form.supportsVision,
           models: pending,
         });
-        onSaved(`已创建提供商，加入 ${res.created.length} 个模型${res.skipped.length ? `，跳过 ${res.skipped.length} 个` : ""}`);
+        onSaved(
+          res.created.length
+            ? `已创建提供商，加入 ${res.created.length} 个模型${res.skipped.length ? `，跳过 ${res.skipped.length} 个` : ""}`
+            : "已创建提供商（暂未添加模型，可稍后进入「管理模型」添加）",
+        );
       }
       onClose();
     } catch (err) {
@@ -508,7 +489,7 @@ function ProviderModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={isEdit ? `管理提供商 · ${head?.providerLabel ?? ""}` : "新增提供商"}
+      title={isEdit ? `管理提供商 · ${group?.label ?? ""}` : "新增提供商"}
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
@@ -551,6 +532,13 @@ function ProviderModal({
           </div>
         </div>
 
+        <div className="flex items-center gap-2 border border-rule bg-ink/[0.02] px-3 py-2">
+          <ModelIcon modelId="" name={form.provider} providerName={form.provider} size={20} />
+          <span className="text-[12px] text-muted">
+            图标由「提供商名称」自动识别（含 openai / gemini / deepseek 等关键字即匹配），名称可自行修改。
+          </span>
+        </div>
+
         {!isPresetProvider(form.provider) && form.provider !== CUSTOM_PROVIDER && (
           <div>
             <Label>自定义提供商名称</Label>
@@ -567,7 +555,12 @@ function ProviderModal({
 
         <div>
           <Label>
-            API Key {isEdit && <span className="normal-case tracking-normal">（留空表示不修改）</span>}
+            API Key{" "}
+            {isEdit && (
+              <span className="normal-case tracking-normal">
+                （留空表示沿用已保存的{form.apiKeySet ? "" : "（当前未配置）"}）
+              </span>
+            )}
           </Label>
           <Input type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} />
         </div>
