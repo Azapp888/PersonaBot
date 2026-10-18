@@ -20,6 +20,7 @@ import { notifyUserReplied } from "../proactive/service";
 import { QQApiClient } from "../qq/client";
 import { settingsService } from "../settings/service";
 import { logger } from "../logger";
+import { sysLog } from "../logging";
 import type { Bot, ChatMessage, ContentPart, ImageContentPart, LLMUsage, Persona, QQAttachment, QQMessageEvent } from "../types";
 import { formatDate, sleep } from "../utils/id";
 import { splitReply } from "../utils/text";
@@ -213,12 +214,97 @@ export async function generateReply(
     const maxTokens = model?.maxTokens;
     const signal = opts.signal;
 
+    sysLog.info(
+      "pipeline",
+      "开始生成回复",
+      { personaId: persona.id, botId, userId, modelId, stage: "start" },
+      {
+        persona: persona.name,
+        provider: model?.provider ?? null,
+        model: model?.modelId ?? null,
+        historyCount: context.history.length,
+        hasImages: !!opts.imageParts?.length,
+        agentEnabled: !!opts.agentEnabled,
+        userText,
+      },
+    );
+
     // 启用服务器 Agent 且模型支持工具调用时，走「模型自主决定执行 shell」的循环
     const callModel = async (msgs: ChatMessage[]) => {
-      if (opts.agentEnabled && provider.supportsTools && provider.chatWithTools) {
-        return runAgentLoop(provider, msgs, { temperature, maxTokens, signal });
+      // 记录一次模型请求的完整上下文，便于事后复现与排查
+      const startedAt = Date.now();
+      const toolsEnabled = !!(opts.agentEnabled && provider.supportsTools && provider.chatWithTools);
+      const totalChars = msgs.reduce((n, m) => n + (typeof m.content === "string" ? m.content.length : 0), 0);
+      sysLog.info(
+        "model",
+        `请求模型 ${model?.modelId ?? model?.id ?? "unknown"}`,
+        {
+          personaId: persona.id,
+          botId,
+          userId,
+          modelId: model?.id ?? null,
+          provider: model?.provider ?? null,
+          stage: "request",
+        },
+        {
+          modelId: model?.modelId ?? null,
+          provider: model?.provider ?? null,
+          apiBase: model?.apiBase ?? null,
+          temperature,
+          maxTokens,
+          messageCount: msgs.length,
+          totalChars,
+          toolsEnabled,
+          messages: msgs.map((m) => ({ role: m.role, content: typeof m.content === "string" ? m.content : "[多模态内容]" })),
+        },
+      );
+      try {
+        const result = toolsEnabled
+          ? await runAgentLoop(provider, msgs, { temperature, maxTokens, signal })
+          : await provider.chat(msgs, { temperature, maxTokens, signal });
+        const durationMs = Date.now() - startedAt;
+        sysLog.info(
+          "model",
+          `模型响应成功（${durationMs}ms）`,
+          {
+            personaId: persona.id,
+            botId,
+            userId,
+            modelId: model?.id ?? null,
+            provider: model?.provider ?? null,
+            stage: "response",
+            durationMs,
+          },
+          {
+            replyChars: result.content?.length ?? 0,
+            reply: result.content,
+            usage: result.usage,
+          },
+        );
+        return result;
+      } catch (err) {
+        const durationMs = Date.now() - startedAt;
+        sysLog.error(
+          "error",
+          `模型请求失败：${(err as Error).message}`,
+          {
+            personaId: persona.id,
+            botId,
+            userId,
+            modelId: model?.id ?? null,
+            provider: model?.provider ?? null,
+            stage: "model_request",
+            durationMs,
+          },
+          {
+            error: (err as Error).message,
+            name: (err as Error).name,
+            status: (err as any)?.status ?? null,
+            stack: (err as Error).stack,
+          },
+        );
+        throw err;
       }
-      return provider.chat(msgs, { temperature, maxTokens, signal });
     };
 
     try {
@@ -232,6 +318,12 @@ export async function generateReply(
       // 模型自报支持读图、上游却拒绝图片：用视觉副模型转述后重试一次纯文本请求。
       if (!opts.imageParts?.length || !isVisionRejection(err)) throw err;
       logger.warn({ personaId: persona.id, modelId: model?.id }, "upstream rejected image input, retrying with converted description");
+      sysLog.warn(
+        "vision",
+        "上游拒绝图片输入，改用视觉副模型转述后重试",
+        { personaId: persona.id, botId, userId, modelId, stage: "vision_fallback" },
+        { error: (err as Error).message },
+      );
       const described = await describeImagesWithFallback(opts.imageParts, { primaryModelId: model?.id, signal });
       if (!described) throw err;
       const retry = await callModel(injectImageDescription(messages, described.text));
@@ -242,6 +334,12 @@ export async function generateReply(
     // 请求后拦截校验：作业未完成却输出催睡词 -> 丢弃并带强制警告重试一次
     if (guardrail && violatesGuardrail(reply, context.state)) {
       logger.warn({ personaId: persona.id, userId }, "guardrail violated, retrying with forced instruction");
+      sysLog.warn(
+        "pipeline",
+        "回复触发状态护栏，带强制指令重试",
+        { personaId: persona.id, botId, userId, modelId, stage: "guardrail" },
+        { reply },
+      );
       const retryMessages: ChatMessage[] = [
         ...messages,
         {
@@ -266,7 +364,17 @@ export async function generateReply(
     }
   } catch (err) {
     attemptedAbort = (err as Error).message.includes("abort");
-    logger.error({ personaId: persona.id, err: (err as Error).message }, "generate reply failed");
+    sysLog.error(
+      "error",
+      `生成回复失败：${(err as Error).message}`,
+      { personaId: persona.id, botId, userId, modelId, stage: "generate_reply" },
+      {
+        error: (err as Error).message,
+        name: (err as Error).name,
+        stack: (err as Error).stack,
+        aborted: attemptedAbort,
+      },
+    );
     reply = attemptedAbort ? "" : `（${persona.name}走神了，暂时没能回复，请稍后再试）`;
     usage = { inputTokens: 0, outputTokens: 0, cacheHitTokens: 0, cacheMissTokens: 0 };
   }

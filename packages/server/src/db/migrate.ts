@@ -255,6 +255,31 @@ CREATE TABLE IF NOT EXISTS providers (
 CREATE INDEX IF NOT EXISTS idx_providers_name ON providers(name);
 `,
   },
+  {
+    id: "013_system_logs",
+    sql: `
+CREATE TABLE IF NOT EXISTS system_logs (
+  id TEXT PRIMARY KEY,
+  level TEXT NOT NULL,
+  category TEXT NOT NULL,
+  persona_id TEXT,
+  bot_id TEXT,
+  user_id TEXT,
+  model_id TEXT,
+  provider TEXT,
+  stage TEXT,
+  message TEXT NOT NULL,
+  detail TEXT,
+  duration_ms INTEGER,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_system_logs_time ON system_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_system_logs_persona ON system_logs(persona_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_system_logs_user ON system_logs(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_system_logs_level ON system_logs(level, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_system_logs_category ON system_logs(category, created_at DESC);
+`,
+  },
 ];
 
 export function runMigrations(database?: Database.Database): void {

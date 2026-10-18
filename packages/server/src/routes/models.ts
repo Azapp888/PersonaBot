@@ -6,6 +6,7 @@ import { discoverModels } from "../llm/discover";
 import { scanModelsVision } from "../llm/vision-scan";
 import { classify, type ProviderGroupView } from "../llm/provider-classify";
 import { catalogModelCount, catalogReady, loadCatalog } from "../llm/models-dev";
+import { sysLog } from "../logging";
 import type { ModelRecord } from "../types";
 
 function present(model: ModelRecord) {
@@ -284,6 +285,7 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
   // 手动触发读图能力扫描：检测所有（或指定）模型的视觉支持并写回。
   app.post("/api/models/vision-scan", { preHandler: [app.authenticate] }, async (request, reply) => {
     const body = (request.body ?? {}) as any;
+    const startedAt = Date.now();
     try {
       const summary = await scanModelsVision({
         onlyEnabled: body.onlyEnabled !== false,
@@ -291,8 +293,20 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
         persist: body.persist !== false,
         fresh: body.fresh === true,
       });
+      sysLog.info(
+        "vision",
+        "读图能力扫描完成",
+        { stage: "vision_scan", durationMs: Date.now() - startedAt },
+        summary,
+      );
       return { ok: true, ...summary };
     } catch (err) {
+      sysLog.error(
+        "vision",
+        `读图能力扫描失败：${(err as Error).message}`,
+        { stage: "vision_scan", durationMs: Date.now() - startedAt },
+        { error: (err as Error).message, stack: (err as Error).stack },
+      );
       return reply.code(500).send({ ok: false, error: "vision_scan_failed", message: (err as Error).message });
     }
   });
@@ -419,14 +433,33 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const model = modelRepo.find(id);
     if (!model) return reply.code(404).send({ error: "not_found" });
+    const startedAt = Date.now();
     try {
+      sysLog.info(
+        "model",
+        `连通性测试请求：${model.modelId}`,
+        { modelId: model.id, provider: model.provider, stage: "test_request" },
+        { modelId: model.modelId, provider: model.provider, apiBase: model.apiBase },
+      );
       const provider = createProviderFromModel(model);
       const result = await provider.chat([
         { role: "system", content: "你是一个连通性测试助手。" },
         { role: "user", content: "请只回复两个字：正常" },
       ], { maxTokens: 16 });
+      sysLog.info(
+        "model",
+        `连通性测试成功：${model.modelId}`,
+        { modelId: model.id, provider: model.provider, stage: "test_response", durationMs: Date.now() - startedAt },
+        { reply: result.content, usage: result.usage },
+      );
       return { ok: true, reply: result.content, usage: result.usage };
     } catch (err) {
+      sysLog.error(
+        "error",
+        `连通性测试失败：${model.modelId}`,
+        { modelId: model.id, provider: model.provider, stage: "test_request", durationMs: Date.now() - startedAt },
+        { error: (err as Error).message, stack: (err as Error).stack },
+      );
       return reply.code(400).send({ ok: false, error: "test_failed", message: (err as Error).message });
     }
   });

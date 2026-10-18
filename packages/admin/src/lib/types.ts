@@ -205,6 +205,56 @@ export interface LogFilterParams {
   until?: number;
 }
 
+export type SystemLogLevel = "debug" | "info" | "warn" | "error";
+
+export type SystemLogCategory =
+  | "model"
+  | "pipeline"
+  | "error"
+  | "vision"
+  | "memory"
+  | "bot"
+  | "memory_file"
+  | "proactive"
+  | "system";
+
+export interface SystemLogItem {
+  id: string;
+  time: number;
+  iso: string;
+  level: SystemLogLevel;
+  category: SystemLogCategory;
+  personaId: string | null;
+  personaName: string | null;
+  botId: string | null;
+  botName: string | null;
+  userId: string | null;
+  modelId: string | null;
+  provider: string | null;
+  stage: string | null;
+  message: string;
+  detail: string | null;
+  durationMs: number | null;
+}
+
+export interface SystemLogPage {
+  total: number;
+  limit: number;
+  offset: number;
+  items: SystemLogItem[];
+}
+
+export interface EventLogFilterParams {
+  personaId?: string;
+  userId?: string;
+  level?: SystemLogLevel;
+  category?: SystemLogCategory;
+  modelId?: string;
+  q?: string;
+  since?: number;
+  until?: number;
+}
+
 export interface Skill {
   id: string;
   name: string;

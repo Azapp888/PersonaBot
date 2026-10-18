@@ -104,6 +104,19 @@ export const logRepo = {
       .prepare(`SELECT * FROM message_logs ${clause} ORDER BY created_at ASC LIMIT ?`)
       .all(...params, limit);
   },
+  /** 聚合出现过的用户 ID（可按角色过滤），用于日志筛选下拉。 */
+  distinctUsers(personaId?: string | null): string[] {
+    const conds = ["user_id IS NOT NULL", "user_id != ''"];
+    const params: unknown[] = [];
+    if (personaId) {
+      conds.push("persona_id = ?");
+      params.push(personaId);
+    }
+    const rows = this.db()
+      .prepare(`SELECT DISTINCT user_id FROM message_logs WHERE ${conds.join(" AND ")}`)
+      .all(...params) as any[];
+    return rows.map((r) => r.user_id as string).sort();
+  },
   usage(entry: {
     modelId?: string | null;
     personaId?: string | null;

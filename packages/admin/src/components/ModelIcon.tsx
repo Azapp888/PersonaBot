@@ -1,51 +1,50 @@
 /**
  * 模型/提供商图标：根据「提供商名称 / 模型 ID / 名称」里的关键字自动识别厂商，
- * 渲染仓库内置的品牌 SVG 资源（取自开源图标集，单色 currentColor）；
+ * 内联渲染仓库内置的品牌 SVG 资源（取自开源图标集，单色 currentColor）；
  * 无法识别时回退到轻量的品牌色字母标记。
  *
- * - 图标为本地 SVG，构建期打包，不依赖外网；
- * - 官方图标为单色，统一用品牌主色着色；
+ * - 图标为本地 SVG，构建期以原始文本内联，不依赖外网、不受 mask 兼容性影响；
+ * - 官方图标为单色，内联后按品牌主色着色；
  * - 识别依据优先取「提供商名称」（名称里含 openai / gemini 等即会命中）。
  */
 
-import anthropic from "@/assets/providers/anthropic.svg";
-import baidu from "@/assets/providers/baidu.svg";
-import custom from "@/assets/providers/custom.svg";
-import dashscope from "@/assets/providers/dashscope.svg";
-import deepseek from "@/assets/providers/deepseek.svg";
-import google from "@/assets/providers/google.svg";
-import groq from "@/assets/providers/groq.svg";
-import minimax from "@/assets/providers/minimax.svg";
-import mistral from "@/assets/providers/mistral.svg";
-import mock from "@/assets/providers/mock.svg";
-import moonshot from "@/assets/providers/moonshot.svg";
-import openai from "@/assets/providers/openai.svg";
-import openrouter from "@/assets/providers/openrouter.svg";
-import qianfan from "@/assets/providers/qianfan.svg";
-import qwen from "@/assets/providers/qwen.svg";
-import siliconflow from "@/assets/providers/siliconflow.svg";
-import spark from "@/assets/providers/spark.svg";
-import tencent from "@/assets/providers/tencent.svg";
-import volcengine from "@/assets/providers/volcengine.svg";
-import xai from "@/assets/providers/xai.svg";
-import yi from "@/assets/providers/yi.svg";
-import zhipu from "@/assets/providers/zhipu.svg";
+import anthropicSvg from "@/assets/providers/anthropic.svg?raw";
+import baiduSvg from "@/assets/providers/baidu.svg?raw";
+import customSvg from "@/assets/providers/custom.svg?raw";
+import dashscopeSvg from "@/assets/providers/dashscope.svg?raw";
+import deepseekSvg from "@/assets/providers/deepseek.svg?raw";
+import googleSvg from "@/assets/providers/google.svg?raw";
+import groqSvg from "@/assets/providers/groq.svg?raw";
+import minimaxSvg from "@/assets/providers/minimax.svg?raw";
+import mistralSvg from "@/assets/providers/mistral.svg?raw";
+import mockSvg from "@/assets/providers/mock.svg?raw";
+import moonshotSvg from "@/assets/providers/moonshot.svg?raw";
+import openaiSvg from "@/assets/providers/openai.svg?raw";
+import openrouterSvg from "@/assets/providers/openrouter.svg?raw";
+import qianfanSvg from "@/assets/providers/qianfan.svg?raw";
+import qwenSvg from "@/assets/providers/qwen.svg?raw";
+import siliconflowSvg from "@/assets/providers/siliconflow.svg?raw";
+import sparkSvg from "@/assets/providers/spark.svg?raw";
+import tencentSvg from "@/assets/providers/tencent.svg?raw";
+import volcengineSvg from "@/assets/providers/volcengine.svg?raw";
+import xaiSvg from "@/assets/providers/xai.svg?raw";
+import yiSvg from "@/assets/providers/yi.svg?raw";
+import zhipuSvg from "@/assets/providers/zhipu.svg?raw";
 
 export interface ModelBrand {
   /** 品牌标识 key，便于测试与排查。 */
   key: string;
   /** 展示名，用于 tooltip。 */
   label: string;
-  /** 本地 SVG 资源 URL。 */
-  icon: string;
-  /** 回退用的品牌主色（无 SVG 时）。 */
+  /** 内联 SVG 原始文本（单色 currentColor）。 */
+  svg: string;
+  /** 品牌主色。 */
   color: string;
-  /** 回退用的字形（最多 2 个字符）。 */
+  /** 回退用的字形（最多 2 个字符，无 SVG 时使用）。 */
   glyph: string;
 }
 
-interface BrandRule extends Omit<ModelBrand, "icon"> {
-  icon?: string;
+interface BrandRule extends ModelBrand {
   /** 命中该品牌的关键字/正则（对 provider 名、模型 id 与名称做小写后匹配）。 */
   patterns: RegExp[];
 }
@@ -54,7 +53,7 @@ const RULES: BrandRule[] = [
   {
     key: "anthropic",
     label: "Anthropic Claude",
-    icon: anthropic,
+    svg: anthropicSvg,
     color: "#D97757",
     glyph: "C",
     patterns: [/anthropic/, /claude/],
@@ -62,7 +61,7 @@ const RULES: BrandRule[] = [
   {
     key: "openai",
     label: "OpenAI GPT",
-    icon: openai,
+    svg: openaiSvg,
     color: "#10A37F",
     glyph: "G",
     patterns: [/openai/, /\bgpt\b/, /\bgpt-/, /gpt/, /\bo[1-4](-|$)/, /chatgpt/, /\bo3\b/, /\bo4\b/, /davinci/, /whisper/],
@@ -70,7 +69,7 @@ const RULES: BrandRule[] = [
   {
     key: "google",
     label: "Google Gemini",
-    icon: google,
+    svg: googleSvg,
     color: "#4285F4",
     glyph: "G",
     patterns: [/google/, /gemini/, /gemma/, /palm/, /bison/],
@@ -78,7 +77,7 @@ const RULES: BrandRule[] = [
   {
     key: "deepseek",
     label: "DeepSeek",
-    icon: deepseek,
+    svg: deepseekSvg,
     color: "#4D6BFE",
     glyph: "D",
     patterns: [/deepseek/, /\bds-/, /deepseek-(chat|reasoner|coder|vl|vision)/],
@@ -86,7 +85,7 @@ const RULES: BrandRule[] = [
   {
     key: "qwen",
     label: "通义千问 Qwen",
-    icon: qwen,
+    svg: qwenSvg,
     color: "#615CED",
     glyph: "Q",
     patterns: [/qwen/, /\bqvq\b/, /tongyi/, /dashscope/, /aliyun/, /bailian/],
@@ -94,7 +93,7 @@ const RULES: BrandRule[] = [
   {
     key: "volcengine",
     label: "字节豆包 Doubao",
-    icon: volcengine,
+    svg: volcengineSvg,
     color: "#1664FF",
     glyph: "豆",
     patterns: [/doubao/, /volc/, /volcengine/, /seed-1/, /ep-\d/],
@@ -102,7 +101,7 @@ const RULES: BrandRule[] = [
   {
     key: "zhipu",
     label: "智谱 GLM",
-    icon: zhipu,
+    svg: zhipuSvg,
     color: "#3859FF",
     glyph: "智",
     patterns: [/glm/, /chatglm/, /zhipu/, /bigmodel/],
@@ -110,7 +109,7 @@ const RULES: BrandRule[] = [
   {
     key: "moonshot",
     label: "Moonshot 月之暗面",
-    icon: moonshot,
+    svg: moonshotSvg,
     color: "#0A0A0A",
     glyph: "K",
     patterns: [/moonshot/, /kimi/],
@@ -118,7 +117,7 @@ const RULES: BrandRule[] = [
   {
     key: "qianfan",
     label: "百度文心 ERNIE",
-    icon: qianfan,
+    svg: qianfanSvg,
     color: "#2932E1",
     glyph: "文",
     patterns: [/ernie/, /wenxin/, /qianfan/, /baidu/],
@@ -126,7 +125,7 @@ const RULES: BrandRule[] = [
   {
     key: "tencent",
     label: "腾讯混元 Hunyuan",
-    icon: tencent,
+    svg: tencentSvg,
     color: "#0052D9",
     glyph: "混",
     patterns: [/hunyuan/, /tencent/],
@@ -134,7 +133,7 @@ const RULES: BrandRule[] = [
   {
     key: "spark",
     label: "讯飞星火 Spark",
-    icon: spark,
+    svg: sparkSvg,
     color: "#1A6EFF",
     glyph: "星",
     patterns: [/spark/, /xinghuo/, /xf-yun/, /iflytek/],
@@ -142,7 +141,7 @@ const RULES: BrandRule[] = [
   {
     key: "minimax",
     label: "MiniMax",
-    icon: minimax,
+    svg: minimaxSvg,
     color: "#FF5D5D",
     glyph: "M",
     patterns: [/minimax/, /\babab/],
@@ -150,7 +149,7 @@ const RULES: BrandRule[] = [
   {
     key: "xai",
     label: "xAI Grok",
-    icon: xai,
+    svg: xaiSvg,
     color: "#000000",
     glyph: "X",
     patterns: [/\bgrok\b/, /grok-/, /\bxai\b/],
@@ -158,7 +157,7 @@ const RULES: BrandRule[] = [
   {
     key: "mistral",
     label: "Mistral",
-    icon: mistral,
+    svg: mistralSvg,
     color: "#FA520F",
     glyph: "M",
     patterns: [/mistral/, /mixtral/, /codestral/],
@@ -166,7 +165,7 @@ const RULES: BrandRule[] = [
   {
     key: "siliconflow",
     label: "SiliconFlow 硅基流动",
-    icon: siliconflow,
+    svg: siliconflowSvg,
     color: "#7C5CFF",
     glyph: "S",
     patterns: [/siliconflow/, /silicon/],
@@ -174,7 +173,7 @@ const RULES: BrandRule[] = [
   {
     key: "openrouter",
     label: "OpenRouter",
-    icon: openrouter,
+    svg: openrouterSvg,
     color: "#6467F2",
     glyph: "OR",
     patterns: [/openrouter/],
@@ -182,7 +181,7 @@ const RULES: BrandRule[] = [
   {
     key: "groq",
     label: "Groq",
-    icon: groq,
+    svg: groqSvg,
     color: "#F55036",
     glyph: "G",
     patterns: [/groq/],
@@ -190,7 +189,7 @@ const RULES: BrandRule[] = [
   {
     key: "baidu",
     label: "百度 BAIDU",
-    icon: baidu,
+    svg: baiduSvg,
     color: "#0866FF",
     glyph: "B",
     patterns: [/baidu/],
@@ -198,7 +197,7 @@ const RULES: BrandRule[] = [
   {
     key: "yi",
     label: "零一万物 Yi",
-    icon: yi,
+    svg: yiSvg,
     color: "#1B1B1B",
     glyph: "Yi",
     patterns: [/\byi-/, /yi-vision/, /01\.ai/, /lingyi/],
@@ -206,7 +205,7 @@ const RULES: BrandRule[] = [
   {
     key: "dashscope",
     label: "阿里云百炼",
-    icon: dashscope,
+    svg: dashscopeSvg,
     color: "#3B82F6",
     glyph: "阿",
     patterns: [/dashscope/],
@@ -214,7 +213,7 @@ const RULES: BrandRule[] = [
   {
     key: "mock",
     label: "Mock（本地联调）",
-    icon: mock,
+    svg: mockSvg,
     color: "#8A8A8A",
     glyph: "M",
     patterns: [/mock/],
@@ -222,7 +221,7 @@ const RULES: BrandRule[] = [
   {
     key: "custom",
     label: "自定义（OpenAI 兼容）",
-    icon: custom,
+    svg: customSvg,
     color: "#4B5563",
     glyph: "自",
     patterns: [/^custom$/, /openai-compatible/, /自定义/],
@@ -247,13 +246,18 @@ export function matchModelBrand(
       return {
         key: rule.key,
         label: rule.label,
-        icon: rule.icon ?? custom,
+        svg: rule.svg,
         color: rule.color,
         glyph: rule.glyph,
       };
     }
   }
   return null;
+}
+
+/** 把单色 SVG 文本内的 currentColor 替换为品牌色，使其以真实品牌色渲染。 */
+function colorizedSvg(svg: string, color: string): string {
+  return svg.replace(/currentColor/gi, color).replace(/<title>[\s\S]*?<\/title>/gi, "");
 }
 
 /**
@@ -275,26 +279,15 @@ export function ModelIcon({
 }) {
   const brand = matchModelBrand(modelId, name, providerName);
   if (!brand) return null;
-  // 官方图标为单色 currentColor，用 mask 着色成品牌主色。
+  const html = colorizedSvg(brand.svg, brand.color);
   return (
     <span
       role="img"
       aria-label={brand.label}
       title={brand.label}
-      className="inline-block shrink-0 select-none align-middle"
-      style={{
-        width: size,
-        height: size,
-        background: brand.color,
-        WebkitMaskImage: `url(${brand.icon})`,
-        maskImage: `url(${brand.icon})`,
-        WebkitMaskRepeat: "no-repeat",
-        maskRepeat: "no-repeat",
-        WebkitMaskPosition: "center",
-        maskPosition: "center",
-        WebkitMaskSize: "contain",
-        maskSize: "contain",
-      }}
+      className="inline-flex shrink-0 select-none items-center justify-center align-middle [&>svg]:h-full [&>svg]:w-full"
+      style={{ width: size, height: size }}
+      dangerouslySetInnerHTML={{ __html: html }}
     />
   );
 }

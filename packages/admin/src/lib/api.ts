@@ -4,6 +4,7 @@ import type {
   ConsistencyReport,
   DashboardData,
   DiscoveredModel,
+  EventLogFilterParams,
   LogFilterParams,
   LogPage,
   Memory,
@@ -14,6 +15,7 @@ import type {
   ProviderGroup,
   ScheduleSegment,
   Skill,
+  SystemLogPage,
   SystemTime,
   TrendPoint,
   UpdateInfo,
@@ -104,6 +106,27 @@ export const api = {
     const a = document.createElement("a");
     a.href = url;
     a.download = `personabot-logs.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
+  logUsers: (personaId?: string) =>
+    request<{ users: string[] }>("GET", `/api/logs/users?${toQuery({ personaId })}`),
+  eventLogs: (params: EventLogFilterParams & { limit?: number; offset?: number }) =>
+    request<SystemLogPage>("GET", `/api/logs/events?${toQuery(params)}`),
+  exportEventLogs: async (format: "json" | "md", params: EventLogFilterParams) => {
+    const token = getToken();
+    const res = await fetch(`/api/logs/events/export?${toQuery({ ...params, format })}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: "include",
+    });
+    if (!res.ok) throw new ApiError(res.status, "导出失败");
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `personabot-events.${format}`;
     document.body.appendChild(a);
     a.click();
     a.remove();
