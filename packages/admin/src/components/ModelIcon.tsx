@@ -1,10 +1,11 @@
 /**
  * 模型/提供商图标：根据「提供商名称 / 模型 ID / 名称」里的关键字自动识别厂商，
- * 渲染仓库内置的品牌 SVG 资源；无法识别时回退到轻量的品牌色字母标记。
+ * 渲染仓库内置的品牌 SVG 资源（取自开源图标集，单色 currentColor）；
+ * 无法识别时回退到轻量的品牌色字母标记。
  *
  * - 图标为本地 SVG，构建期打包，不依赖外网；
- * - 匹配顺序从具体到宽泛，命中即返回；
- * - 识别依据优先取「提供商名称」（用户自定义名称里含 openai / gemini 等即会命中）。
+ * - 官方图标为单色，统一用品牌主色着色；
+ * - 识别依据优先取「提供商名称」（名称里含 openai / gemini 等即会命中）。
  */
 
 import anthropic from "@/assets/providers/anthropic.svg";
@@ -274,17 +275,26 @@ export function ModelIcon({
 }) {
   const brand = matchModelBrand(modelId, name, providerName);
   if (!brand) return null;
+  // 官方图标为单色 currentColor，用 mask 着色成品牌主色。
   return (
-    <img
-      src={brand.icon}
-      alt={brand.label}
+    <span
+      role="img"
+      aria-label={brand.label}
       title={brand.label}
-      width={size}
-      height={size}
-      loading="lazy"
-      draggable={false}
-      className="inline-block shrink-0 select-none object-contain"
-      style={{ width: size, height: size }}
+      className="inline-block shrink-0 select-none align-middle"
+      style={{
+        width: size,
+        height: size,
+        background: brand.color,
+        WebkitMaskImage: `url(${brand.icon})`,
+        maskImage: `url(${brand.icon})`,
+        WebkitMaskRepeat: "no-repeat",
+        maskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+        maskPosition: "center",
+        WebkitMaskSize: "contain",
+        maskSize: "contain",
+      }}
     />
   );
 }
