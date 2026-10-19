@@ -260,11 +260,24 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
       (apiBase ? modelRepo.findKeyByBase(apiBase) : null) ||
       modelRepo.findProviderKey(body.provider) ||
       "";
+    const startedAt = Date.now();
     try {
       const models = await discoverModels({ provider: body.provider, apiKey, apiBase });
+      sysLog.info(
+        "model",
+        `提供商模型检测成功：${body.provider}（${models.length} 个）`,
+        { provider: body.provider, stage: "discover", durationMs: Date.now() - startedAt },
+        { apiBase: apiBase ?? null, reusedKey: !!apiKey && !body.apiKey, models: models.map((m) => m.id) },
+      );
       return { ok: true, models, reusedKey: !!apiKey && !body.apiKey };
     } catch (err) {
       const status = (err as any)?.status && (err as any).status >= 400 ? (err as any).status : 400;
+      sysLog.error(
+        "error",
+        `提供商模型检测失败：${body.provider}`,
+        { provider: body.provider, stage: "discover", durationMs: Date.now() - startedAt },
+        { apiBase: apiBase ?? null, error: (err as Error).message, stack: (err as Error).stack },
+      );
       return reply.code(status).send({ ok: false, error: "discover_failed", message: (err as Error).message });
     }
   });
@@ -324,11 +337,24 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
       (apiBase ? modelRepo.findKeyByBase(apiBase) : null) ||
       modelRepo.findProviderKey(body.provider) ||
       "";
+    const startedAt = Date.now();
     try {
       const models = await discoverModels({ provider: body.provider, apiKey, apiBase });
+      sysLog.info(
+        "model",
+        `模型检测成功：${body.provider}（${models.length} 个）`,
+        { provider: body.provider, stage: "discover", durationMs: Date.now() - startedAt },
+        { apiBase: apiBase ?? null, reusedKey: !!apiKey && !body.apiKey, models: models.map((m) => m.id) },
+      );
       return { ok: true, models, reusedKey: !!apiKey && !body.apiKey };
     } catch (err) {
       const status = (err as any)?.status && (err as any).status >= 400 ? (err as any).status : 400;
+      sysLog.error(
+        "error",
+        `模型检测失败：${body.provider}`,
+        { provider: body.provider, stage: "discover", durationMs: Date.now() - startedAt },
+        { apiBase: apiBase ?? null, error: (err as Error).message, stack: (err as Error).stack },
+      );
       return reply.code(status).send({ ok: false, error: "discover_failed", message: (err as Error).message });
     }
   });
@@ -339,15 +365,28 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
     const model = modelRepo.find(id);
     if (!model) return reply.code(404).send({ error: "not_found" });
     const body = (request.body ?? {}) as any;
+    const startedAt = Date.now();
     try {
       const models = await discoverModels({
         provider: body.provider ?? model.provider,
         apiKey: body.apiKey || modelRepo.decryptedKey(model),
         apiBase: body.apiBase ?? model.apiBase,
       });
+      sysLog.info(
+        "model",
+        `模型检测成功：${body.provider ?? model.provider}（${models.length} 个）`,
+        { modelId: model.id, provider: body.provider ?? model.provider, stage: "discover", durationMs: Date.now() - startedAt },
+        { apiBase: body.apiBase ?? model.apiBase, models: models.map((m) => m.id) },
+      );
       return { ok: true, models };
     } catch (err) {
       const status = (err as any)?.status && (err as any).status >= 400 ? (err as any).status : 400;
+      sysLog.error(
+        "error",
+        `模型检测失败：${body.provider ?? model.provider}`,
+        { modelId: model.id, provider: body.provider ?? model.provider, stage: "discover", durationMs: Date.now() - startedAt },
+        { apiBase: body.apiBase ?? model.apiBase, error: (err as Error).message, stack: (err as Error).stack },
+      );
       return reply.code(status).send({ ok: false, error: "discover_failed", message: (err as Error).message });
     }
   });
