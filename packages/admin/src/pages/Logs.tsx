@@ -67,6 +67,7 @@ export function LogsPage() {
   const [personaId, setPersonaId] = useState("");
   const [userId, setUserId] = useState("");
   const [direction, setDirection] = useState("");
+  const [validity, setValidity] = useState("");
   const [level, setLevel] = useState("");
   const [category, setCategory] = useState("");
   const [q, setQ] = useState("");
@@ -95,11 +96,12 @@ export function LogsPage() {
       personaId: personaId || undefined,
       userId: userId || undefined,
       direction: direction || undefined,
+      invalid: validity === "" ? undefined : validity === "0" ? false : true,
       q: q.trim() || undefined,
       since: dayStart(from),
       until: dayEnd(to),
     }),
-    [personaId, userId, direction, q, from, to],
+    [personaId, userId, direction, validity, q, from, to],
   );
 
   const buildEventFilters = useCallback(
@@ -218,14 +220,24 @@ export function LogsPage() {
               </Select>
             </div>
             {tab === "messages" ? (
-              <div>
-                <Label>方向</Label>
-                <Select value={direction} onChange={(e) => setDirection(e.target.value)}>
-                  <option value="">全部</option>
-                  <option value="in">收到</option>
-                  <option value="out">发出</option>
-                </Select>
-              </div>
+              <>
+                <div>
+                  <Label>方向</Label>
+                  <Select value={direction} onChange={(e) => setDirection(e.target.value)}>
+                    <option value="">全部</option>
+                    <option value="in">收到</option>
+                    <option value="out">发出</option>
+                  </Select>
+                </div>
+                <div>
+                  <Label>有效性</Label>
+                  <Select value={validity} onChange={(e) => setValidity(e.target.value)}>
+                    <option value="">全部</option>
+                    <option value="0">有效</option>
+                    <option value="1">已标无效</option>
+                  </Select>
+                </div>
+              </>
             ) : (
               <>
                 <div>
@@ -302,9 +314,12 @@ export function LogsPage() {
                   <tr key={m.id} className="border-b border-rule last:border-0">
                     <td className="whitespace-nowrap px-4 py-3 font-mono text-[11px] text-muted">{formatDateTime(m.time)}</td>
                     <td className="px-4 py-3">
-                      <Badge variant={m.direction === "in" ? "secondary" : "success"}>
-                        {m.direction === "in" ? "收到" : "发出"}
-                      </Badge>
+                      <div className="flex items-center gap-1">
+                        <Badge variant={m.direction === "in" ? "secondary" : "success"}>
+                          {m.direction === "in" ? "收到" : "发出"}
+                        </Badge>
+                        {m.invalid && <Badge variant="warning">无效</Badge>}
+                      </div>
                     </td>
                     <td className="px-4 py-3">{m.personaName ?? <span className="text-muted">-</span>}</td>
                     <td className="px-4 py-3">{m.botName ?? <span className="text-muted">-</span>}</td>

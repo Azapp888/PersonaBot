@@ -13,6 +13,8 @@ export interface MessageLogFilter {
   since?: number | null;
   /** 结束时间戳（不含） */
   until?: number | null;
+  /** 是否只看已标记无效的记录；不传表示两者都要 */
+  invalid?: boolean | null;
 }
 
 function buildLogWhere(filter: MessageLogFilter): { clause: string; params: unknown[] } {
@@ -41,6 +43,10 @@ function buildLogWhere(filter: MessageLogFilter): { clause: string; params: unkn
   if (filter.until != null) {
     conds.push("created_at < ?");
     params.push(filter.until);
+  }
+  if (filter.invalid != null) {
+    conds.push("invalid = ?");
+    params.push(filter.invalid ? 1 : 0);
   }
   return { clause: conds.length ? `WHERE ${conds.join(" AND ")}` : "", params };
 }
@@ -73,14 +79,14 @@ export const logRepo = {
   messagesSince(personaId: string, userId: string, since: number): any[] {
     return this.db()
       .prepare(
-        `SELECT * FROM message_logs WHERE persona_id = ? AND user_id = ? AND created_at >= ? ORDER BY created_at ASC`,
+        `SELECT * FROM message_logs WHERE persona_id = ? AND user_id = ? AND created_at >= ? AND invalid = 0 ORDER BY created_at ASC`,
       )
       .all(personaId, userId, since);
   },
   allMessagesBetween(personaId: string, userId: string, since: number, until: number): any[] {
     return this.db()
       .prepare(
-        `SELECT * FROM message_logs WHERE persona_id = ? AND user_id = ? AND created_at >= ? AND created_at < ? ORDER BY created_at ASC`,
+        `SELECT * FROM message_logs WHERE persona_id = ? AND user_id = ? AND created_at >= ? AND created_at < ? AND invalid = 0 ORDER BY created_at ASC`,
       )
       .all(personaId, userId, since, until);
   },
@@ -116,6 +122,35 @@ export const logRepo = {
       .prepare(`SELECT DISTINCT user_id FROM message_logs WHERE ${conds.join(" AND ")}`)
       .all(...params) as any[];
     return rows.map((r) => r.user_id as string).sort();
+  },
+  /**
+   * 把与被删除会话消息最近的一条流水标记为无效。
+   * 记忆整理任务只读取 invalid = 0 的记录，因此错误回复不会再次进入日记忆。
+   */
+  invalidateByContent(
+    personaId: string,
+    userId: string,
+    direction: "in" | "out",
+    content: string,
+    nearMs: number,
+  ): number {
+    const row = this.db()
+      .prepare(
+        `SELECT id FROM message_logs WHERE persona_id = ? AND user_id = ? AND direction = ? AND content = ? AND invalid = 0 ORDER BY ABS(created_at - ?) ASC LIMIT 1`,
+      )
+      .get(personaId, userId, direction, content, nearMs) as { id: string } | undefined;
+    if (!row) return 0;
+    this.db().prepare(`UPDATE message_logs SET invalid = 1 WHERE id = ?`).run(row.id);
+    return 1;
+  },
+  /** 将某个时间区间内的流水全部标记为无效（用于清空会话/重置上下文）。 */
+  invalidateBetween(personaId: string, userId: string, since: number, until: number): number {
+    const info = this.db()
+      .prepare(
+        `UPDATE message_logs SET invalid = 1 WHERE persona_id = ? AND user_id = ? AND created_at >= ? AND created_at < ? AND invalid = 0`,
+      )
+      .run(personaId, userId, since, until);
+    return info.changes;
   },
   usage(entry: {
     modelId?: string | null;

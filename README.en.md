@@ -150,6 +150,8 @@ Both logs support filtering by persona, user, keyword and time range, with pagin
 - **Realtime facts**: agreements, preferences and important details detected during a conversation are written to long-term memory immediately and take effect on the next turn.
 - **Conversation governance**: a sliding window keeps the most recent N rounds verbatim while older turns are rolled into a summary; when a session times out, long-term points are migrated into core memory before a new session starts, so memory is not lost with the cache.
 - **State guardrail**: intercepts and retries "go to sleep" style replies when, for example, homework is still unfinished.
+- **Outbound quality gate**: empty replies, exact repeats of the previous reply, garbled text, control characters, leaked system prompts or role-prefixed output are retried once with a correction instruction; a second failure discards the turn without writing it to the conversation or message stream.
+- **Bad-reply cleanup**: the "Conversations" page lists history by persona and user and supports deleting a single message, clearing everything from a given message onward, or resetting the context. Removed messages are marked `invalid=1` in `message_logs`, so daily memories and atomic-fact extraction skip them; enable "also delete existing memories for affected dates" to purge generated daily memories and facts.
 
 ## Keyword filtering (optional)
 
@@ -226,10 +228,10 @@ node packages/server/dist/scripts/backup.js 20
 | `models` | LLM model config (provider / API key / base / temperature / max tokens / vision / enabled) |
 | `providers` | Provider-level config (name / base / encrypted key); empty providers are allowed |
 | `memories` | Layered memories (daily / three_day / biweekly / monthly) |
-| `conversations` | Conversation history (append-only to keep the cached prefix reusable) |
+| `conversations` | Conversation history (append-only during normal chat to reuse the cached prefix; the admin can clean it precisely) |
 | `user_profiles` | User habit profiles |
 | `stats` | Daily stats (tokens / cache hits / images / message count) |
-| `message_logs` | Message stream (source for stats and memory summaries) |
+| `message_logs` | Message stream (source for stats and memory summaries; `invalid=1` marks entries removed from the conversation) |
 | `system_logs` | Run logs (level / category / stage / duration / structured detail, indexed) |
 | `token_usage` | Token usage detail per call |
 | `painting_logs` | Painting records and the basis for daily quotas |
@@ -248,6 +250,7 @@ Migrations live in `packages/server/src/db/migrate.ts`. They run in id order and
 | Models | `GET/POST /api/models`, `POST /api/models/batch`, `PUT/DELETE /api/models/:id`, `POST /api/models/:id/test|discover`, `POST /api/models/discover`, `POST /api/models/vision-scan` |
 | Providers | `GET /api/models/providers`, `POST/PUT/DELETE /api/models/providers`, `POST /api/models/providers/discover` |
 | Memories | `GET /api/memories`, `GET /api/memories/users`, `POST /api/memories/trigger|import`, `PUT/DELETE /api/memories/:id`, `GET/PUT /api/memories/file(s)`, `POST /api/memories/file/reset`, `PUT /api/memories/file/append` |
+| Conversations | `GET /api/conversations`, `GET /api/conversations/detail`, `DELETE /api/conversations/message|from`, `POST /api/conversations/reset` |
 | Logs | `GET /api/logs`, `GET /api/logs/users`, `GET /api/logs/export`, `GET /api/logs/events`, `GET /api/logs/events/export` |
 | Stats | `GET /api/stats/dashboard|trends|persona/:id|messages` |
 | Skills | `GET/POST /api/skills`, `PUT/DELETE /api/skills/:id`, `POST /api/skills/sync` |

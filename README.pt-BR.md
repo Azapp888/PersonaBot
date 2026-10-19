@@ -150,6 +150,8 @@ Ambos os logs permitem filtrar por persona, usuário, palavra-chave e intervalo 
 - **Fatos em tempo real**: acordos, preferências e informações importantes detectados durante a conversa são gravados imediatamente na memória de longo prazo e valem a partir do próximo turno.
 - **Governança de conversas**: uma janela deslizante mantém as últimas N rodadas na íntegra e as anteriores viram resumo rolante; quando uma sessão expira, os pontos de longo prazo migram para a memória central antes de abrir uma nova sessão, para que a memória não se perca com o cache.
 - **Barreira de estado**: intercepta e repete respostas do tipo "vai dormir" quando, por exemplo, as tarefas ainda não terminaram.
+- **Filtro de qualidade da saída**: respostas vazias, repetidas exatamente, com texto corrompido, caracteres de controle, vazamento do prompt do sistema ou prefixo de papel são repetidas uma vez com instrução corretiva; se falharem novamente, o turno é descartado sem gravar na conversa nem no fluxo de mensagens.
+- **Limpeza de respostas erradas**: a página "Conversas" lista o histórico por persona e usuário e permite excluir uma mensagem, limpar a partir de um ponto ou redefinir o contexto. As mensagens removidas são marcadas com `invalid=1` em `message_logs`, então a memória diária e a extração de fatos atômicos as ignoram; marque "excluir também as memórias existentes das datas afetadas" para limpar memórias diárias e fatos já gerados.
 
 ## Filtro de palavras-chave (opcional)
 
@@ -226,10 +228,10 @@ node packages/server/dist/scripts/backup.js 20
 | `models` | Configuração de modelos LLM (provedor / chave de API / base / temperatura / tokens máximos / visão / ativo) |
 | `providers` | Configuração por provedor (nome / base / chave criptografada); provedores vazios são permitidos |
 | `memories` | Memórias em camadas (daily / three_day / biweekly / monthly) |
-| `conversations` | Histórico de conversas (somente anexar para reaproveitar o prefixo em cache) |
+| `conversations` | Histórico de conversas (somente anexar no chat normal para reaproveitar o prefixo em cache; o administrador pode limpar com precisão) |
 | `user_profiles` | Perfis de hábitos do usuário |
 | `stats` | Estatísticas diárias (tokens / acertos de cache / imagens / número de mensagens) |
-| `message_logs` | Fluxo de mensagens (fonte de estatísticas e resumos de memória) |
+| `message_logs` | Fluxo de mensagens (fonte de estatísticas e resumos de memória; `invalid=1` indica que foi removido da conversa) |
 | `system_logs` | Logs de execução (nível / categoria / etapa / duração / detalhe estruturado, com índices) |
 | `token_usage` | Detalhe do uso de tokens por chamada |
 | `painting_logs` | Registros de desenho e base das cotas diárias |
@@ -248,6 +250,7 @@ As migrações ficam em `packages/server/src/db/migrate.ts`. Executam na ordem d
 | Modelos | `GET/POST /api/models`, `POST /api/models/batch`, `PUT/DELETE /api/models/:id`, `POST /api/models/:id/test|discover`, `POST /api/models/discover`, `POST /api/models/vision-scan` |
 | Provedores | `GET /api/models/providers`, `POST/PUT/DELETE /api/models/providers`, `POST /api/models/providers/discover` |
 | Memória | `GET /api/memories`, `GET /api/memories/users`, `POST /api/memories/trigger|import`, `PUT/DELETE /api/memories/:id`, `GET/PUT /api/memories/file(s)`, `POST /api/memories/file/reset`, `PUT /api/memories/file/append` |
+| Conversas | `GET /api/conversations`, `GET /api/conversations/detail`, `DELETE /api/conversations/message|from`, `POST /api/conversations/reset` |
 | Logs | `GET /api/logs`, `GET /api/logs/users`, `GET /api/logs/export`, `GET /api/logs/events`, `GET /api/logs/events/export` |
 | Estatísticas | `GET /api/stats/dashboard|trends|persona/:id|messages` |
 | Habilidades | `GET/POST /api/skills`, `PUT/DELETE /api/skills/:id`, `POST /api/skills/sync` |

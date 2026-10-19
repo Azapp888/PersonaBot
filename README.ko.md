@@ -150,6 +150,8 @@ pnpm start
 - **실시간 사실**: 대화 중 감지한 약속 / 선호 / 중요한 정보를 즉시 장기 기억에 기록해 다음 턴부터 반영합니다.
 - **대화 관리**: 슬라이딩 윈도로 최근 N턴의 원문을 유지하고 더 이전 대화는 롤링 요약으로 합칩니다. 세션이 타임아웃되면 장기 기억 포인트를 핵심 기억으로 옮긴 뒤 새 세션을 시작하므로 캐시와 함께 기억이 사라지지 않습니다.
 - **상태 가드레일**: 숙제가 끝나지 않은 등의 상황에서 "자러 가" 류의 응답을 차단하고 재시도합니다.
+- **출력 품질 게이트**: 빈 응답, 이전 응답의 완전한 반복, 깨진 문자, 제어 문자, 시스템 프롬프트 유출, 역할 접두사로 시작하는 응답은 교정 지시와 함께 한 번 재시도합니다. 두 번째도 통과하지 못하면 해당 턴을 버리고 대화 기록과 메시지 로그에 쓰지 않습니다.
+- **잘못된 응답 정리**: "대화 관리" 페이지에서 페르소나와 사용자별로 원문을 확인하고 단일 메시지 삭제, 특정 지점부터 이후 모두 삭제, 컨텍스트 초기화를 할 수 있습니다. 삭제된 메시지는 `message_logs`에서 `invalid=1`로 표시되어 이후 일간 기억과 원자적 사실 추출에서 건너뜁니다. "영향받은 날짜의 기존 기억도 삭제"를 선택하면 이미 생성된 일간 기억과 원자적 사실도 함께 정리됩니다.
 
 ## 키워드 필터(선택)
 
@@ -179,7 +181,7 @@ pnpm start
 # 타입 검사(server + admin)
 pnpm -r typecheck
 
-# 단위 테스트(node:test. 시계 / 텍스트 분할 / 상태 가드 / 키워드 필터 / 컨텍스트와 기억 / 공급자 설정 / 실행 로그 / 속도 제한 포함)
+# 단위 테스트(node:test. 시계 / 텍스트 분할 / 상태 가드 / 키워드 필터 / 컨텍스트와 기억 / 공급자 설정 / 실행 로그 / 대화 정리 / 응답 품질 / 속도 제한 포함)
 pnpm test
 
 # 빌드
@@ -226,10 +228,10 @@ node packages/server/dist/scripts/backup.js 20
 | `models` | LLM 모델 설정(Provider / API 키 / Base / temperature / 최대 토큰 / 이미지 / 활성) |
 | `providers` | 공급자 단위 설정(이름 / Base / 암호화 키). 모델이 없는 빈 공급자 허용 |
 | `memories` | 계층 기억(daily / three_day / biweekly / monthly) |
-| `conversations` | 대화 기록(캐시 접두사 재사용을 위해 추가 전용) |
+| `conversations` | 대화 기록(일반 대화는 캐시 접두사 재사용을 위해 추가 전용, 관리자에서 정밀 정리 가능) |
 | `user_profiles` | 사용자 습관 프로필 |
 | `stats` | 일간 통계(토큰 / 캐시 적중 / 이미지 / 메시지 수) |
-| `message_logs` | 메시지 스트림(통계와 기억 요약의 데이터 소스) |
+| `message_logs` | 메시지 스트림(통계와 기억 요약의 데이터 소스, `invalid=1`은 대화에서 정리됨) |
 | `system_logs` | 실행 로그(레벨 / 카테고리 / 단계 / 소요 시간 / 구조화 상세, 인덱스 포함) |
 | `token_usage` | 호출별 토큰 사용량 |
 | `painting_logs` | 그림 기록과 일일 한도 근거 |
@@ -248,6 +250,7 @@ node packages/server/dist/scripts/backup.js 20
 | 모델 | `GET/POST /api/models`, `POST /api/models/batch`, `PUT/DELETE /api/models/:id`, `POST /api/models/:id/test|discover`, `POST /api/models/discover`, `POST /api/models/vision-scan` |
 | 공급자 | `GET /api/models/providers`, `POST/PUT/DELETE /api/models/providers`, `POST /api/models/providers/discover` |
 | 기억 | `GET /api/memories`, `GET /api/memories/users`, `POST /api/memories/trigger|import`, `PUT/DELETE /api/memories/:id`, `GET/PUT /api/memories/file(s)`, `POST /api/memories/file/reset`, `PUT /api/memories/file/append` |
+| 대화 | `GET /api/conversations`, `GET /api/conversations/detail`, `DELETE /api/conversations/message|from`, `POST /api/conversations/reset` |
 | 로그 | `GET /api/logs`, `GET /api/logs/users`, `GET /api/logs/export`, `GET /api/logs/events`, `GET /api/logs/events/export` |
 | 통계 | `GET /api/stats/dashboard|trends|persona/:id|messages` |
 | 스킬 | `GET/POST /api/skills`, `PUT/DELETE /api/skills/:id`, `POST /api/skills/sync` |

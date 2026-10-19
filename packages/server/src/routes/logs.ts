@@ -22,6 +22,12 @@ function parseFilter(query: Record<string, unknown>): MessageLogFilter {
   const q = typeof query.q === "string" ? query.q.trim() : "";
   const since = query.since != null && query.since !== "" ? Number(query.since) : undefined;
   const until = query.until != null && query.until !== "" ? Number(query.until) : undefined;
+  const invalid =
+    query.invalid === "1" || query.invalid === "true"
+      ? true
+      : query.invalid === "0" || query.invalid === "false"
+        ? false
+        : undefined;
   return {
     personaId: typeof query.personaId === "string" && query.personaId ? query.personaId : undefined,
     userId: typeof query.userId === "string" && query.userId ? query.userId : undefined,
@@ -29,6 +35,7 @@ function parseFilter(query: Record<string, unknown>): MessageLogFilter {
     q: q || undefined,
     since: Number.isFinite(since) ? since : undefined,
     until: Number.isFinite(until) ? until : undefined,
+    invalid,
   };
 }
 
@@ -40,6 +47,7 @@ function describeFilter(filter: MessageLogFilter): string {
   if (filter.q) parts.push(`关键字=${filter.q}`);
   if (filter.since != null) parts.push(`起=${formatDateTime(filter.since)}`);
   if (filter.until != null) parts.push(`止=${formatDateTime(filter.until)}`);
+  if (filter.invalid != null) parts.push(filter.invalid ? "仅无效记录" : "仅有效记录");
   return parts.length ? parts.join("，") : "无（全部记录）";
 }
 
@@ -54,6 +62,7 @@ interface PresentedLog {
   botId: string | null;
   botName: string | null;
   content: string;
+  invalid: boolean;
 }
 
 function presentRows(rows: any[]): PresentedLog[] {
@@ -70,6 +79,7 @@ function presentRows(rows: any[]): PresentedLog[] {
     botId: r.bot_id ?? null,
     botName: r.bot_id ? botName.get(r.bot_id) ?? r.bot_id : null,
     content: r.content,
+    invalid: r.invalid === 1,
   }));
 }
 
@@ -96,6 +106,7 @@ function toMarkdown(items: PresentedLog[], filter: MessageLogFilter, exportedAt:
       lines.push("");
     }
     const meta = [formatDateTime(item.time).slice(11), item.direction === "in" ? "收到" : "发出"];
+    if (item.invalid) meta.push("已标记无效");
     if (item.personaName) meta.push(`角色 ${item.personaName}`);
     meta.push(`用户 ${item.userId}`);
     lines.push(`### ${meta.join(" · ")}`);

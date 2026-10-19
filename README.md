@@ -151,6 +151,8 @@ pnpm start
 - **实时事实**：对话中命中约定 / 偏好 / 重要信息立即写入长期记忆，下一轮即可生效。
 - **会话治理**：滑动窗口保留最近 N 轮原文，更早对话滚动摘要；会话超时后先把长期记忆点迁移到核心记忆再开启新会话，避免记忆随缓存丢失。
 - **状态护栏**：作业未完成等场景下拦截并重试催睡类回复。
+- **出站质量闸**：回复为空、复读上一条、乱码、控制字符、泄露系统提示词或以角色前缀开头时，先带纠错指令重试；二次仍不通过则丢弃本轮，不写入会话与消息流水。
+- **错误回复清理**：「会话管理」页可按角色与用户查看原文，支持删除单条、从某条起清空后续、重置上下文。被删除的消息会在 `message_logs` 中标记 `invalid=1`，后续日记忆与原子事实提炼自动跳过；勾选「同时删除受影响日期的已有记忆」可一并清理已生成的日记忆与原子事实。
 
 ## 敏感词过滤（可选）
 
@@ -180,7 +182,7 @@ pnpm start
 # 类型检查（server + admin）
 pnpm -r typecheck
 
-# 单元测试（node:test，覆盖时钟/文本拆分/状态守卫/敏感词过滤/上下文与记忆/提供商配置/运行日志/限流）
+# 单元测试（node:test，覆盖时钟/文本拆分/状态守卫/敏感词过滤/上下文与记忆/提供商配置/运行日志/会话清理/回复质量/限流）
 pnpm test
 
 # 构建
@@ -227,10 +229,10 @@ node packages/server/dist/scripts/backup.js 20
 | `models` | LLM 模型配置（Provider / API Key / Base / 温度 / 最大 token / 读图 / 启用） |
 | `providers` | 提供商级配置（名称 / Base / 加密密钥），支持暂无模型的空提供商 |
 | `memories` | 分层记忆（daily / three_day / biweekly / monthly） |
-| `conversations` | 会话历史（只追加，保证缓存前缀复用） |
+| `conversations` | 会话历史（正常对话只追加以复用缓存前缀，管理端可精确清理） |
 | `user_profiles` | 用户习惯画像 |
 | `stats` | 每日统计（Token / 缓存命中 / 图片 / 消息数） |
-| `message_logs` | 消息流水（统计与记忆总结的数据来源） |
+| `message_logs` | 消息流水（统计与记忆总结的数据来源；`invalid=1` 表示已从会话中清理） |
 | `system_logs` | 运行日志（级别 / 类别 / 阶段 / 耗时 / 结构化明细，含索引） |
 | `token_usage` | 每次调用的 Token 用量明细 |
 | `painting_logs` | 绘画记录与每日限额依据 |
@@ -249,6 +251,7 @@ node packages/server/dist/scripts/backup.js 20
 | 模型 | `GET/POST /api/models`、`POST /api/models/batch`、`PUT/DELETE /api/models/:id`、`POST /api/models/:id/test|discover`、`POST /api/models/discover`、`POST /api/models/vision-scan` |
 | 提供商 | `GET /api/models/providers`、`POST/PUT/DELETE /api/models/providers`、`POST /api/models/providers/discover` |
 | 记忆 | `GET /api/memories`、`GET /api/memories/users`、`POST /api/memories/trigger|import`、`PUT/DELETE /api/memories/:id`、`GET/PUT /api/memories/file(s)`、`POST /api/memories/file/reset`、`PUT /api/memories/file/append` |
+| 会话 | `GET /api/conversations`、`GET /api/conversations/detail`、`DELETE /api/conversations/message|from`、`POST /api/conversations/reset` |
 | 日志 | `GET /api/logs`、`GET /api/logs/users`、`GET /api/logs/export`、`GET /api/logs/events`、`GET /api/logs/events/export` |
 | 统计 | `GET /api/stats/dashboard|trends|persona/:id|messages` |
 | 技能 | `GET/POST /api/skills`、`PUT/DELETE /api/skills/:id`、`POST /api/skills/sync` |

@@ -187,6 +187,7 @@ export interface MessageLog {
   botId: string | null;
   botName: string | null;
   content: string;
+  invalid: boolean;
 }
 
 export interface LogPage {
@@ -200,6 +201,7 @@ export interface LogFilterParams {
   personaId?: string;
   userId?: string;
   direction?: string;
+  invalid?: boolean;
   q?: string;
   since?: number;
   until?: number;
@@ -407,4 +409,31 @@ export interface TrendPoint {
   images: number;
   messages: number;
   cacheHitRate: number;
+}
+
+export interface ConversationOverviewItem {
+  personaId: string;
+  personaName: string;
+  userId: string;
+  messageCount: number;
+  updatedAt: number;
+  lastMessage: string;
+  lastRole: string | null;
+}
+
+export interface ConversationMessageItem {
+  index: number;
+  role: string;
+  content: string;
+  timestamp: number | null;
+}
+
+export interface ConversationDetail {
+  personaId: string;
+  userId: string;
+  personaName: string;
+  updatedAt: number | null;
+  messages: ConversationMessageItem[];
+  summary: string;
+  summarizedUpto: number;
 }

@@ -150,6 +150,8 @@ pnpm start
 - **リアルタイム事実**：会話中に検出した約束 / 好み / 重要情報を即座に長期記憶へ書き込み、次のターンから反映します。
 - **会話管理**：スライディングウィンドウで直近 N ターンの原文を保持し、それ以前はローリング要約にまとめます。セッションがタイムアウトした場合は長期記憶ポイントをコア記憶へ移行してから新しいセッションを開始するため、キャッシュとともに記憶が失われることはありません。
 - **状態ガードレール**：宿題が未完了などの状況で「早く寝てね」系の応答を遮断して再試行します。
+- **出力品質ゲート**：空の応答、前回応答の完全な繰り返し、文字化け、制御文字、システムプロンプトの漏洩、役割プレフィックスで始まる応答は、修正指示付きで 1 回再試行します。2 回目も不合格ならそのターンを破棄し、会話履歴やメッセージログには書き込みません。
+- **誤応答の整理**：「会話管理」ページでペルソナとユーザーごとに原文を確認でき、1 件の削除、指定位置以降の一括削除、コンテキストのリセットに対応します。削除したメッセージは `message_logs` で `invalid=1` とマークされ、以降の日次記憶と原子的事実の抽出ではスキップされます。「影響日の既存記憶も削除」を選ぶと、生成済みの日次記憶と原子的事実も削除できます。
 
 ## キーワードフィルタ（任意）
 
@@ -226,10 +228,10 @@ node packages/server/dist/scripts/backup.js 20
 | `models` | LLM モデル設定（Provider / API キー / Base / temperature / 最大トークン数 / 画像対応 / 有効） |
 | `providers` | プロバイダー単位の設定（名前 / Base / 暗号化キー）。モデルを持たない空のプロバイダーも可 |
 | `memories` | 階層記憶（daily / three_day / biweekly / monthly） |
-| `conversations` | 会話履歴（キャッシュプレフィックスを再利用するため追記のみ） |
+| `conversations` | 会話履歴（通常の会話はキャッシュプレフィックス再利用のため追記のみ、管理画面から正確に削除可能） |
 | `user_profiles` | ユーザーの習慣プロファイル |
 | `stats` | 日次統計（トークン / キャッシュヒット / 画像 / メッセージ数） |
-| `message_logs` | メッセージストリーム（統計と記憶要約のデータ源） |
+| `message_logs` | メッセージストリーム（統計と記憶要約のデータ源。`invalid=1` は会話から削除済み） |
 | `system_logs` | 実行ログ（レベル / カテゴリ / ステージ / 所要時間 / 構造化詳細、インデックス付き） |
 | `token_usage` | 呼び出しごとのトークン使用量 |
 | `painting_logs` | お絵かき記録と日次上限の根拠 |
@@ -248,6 +250,7 @@ node packages/server/dist/scripts/backup.js 20
 | モデル | `GET/POST /api/models`、`POST /api/models/batch`、`PUT/DELETE /api/models/:id`、`POST /api/models/:id/test|discover`、`POST /api/models/discover`、`POST /api/models/vision-scan` |
 | プロバイダー | `GET /api/models/providers`、`POST/PUT/DELETE /api/models/providers`、`POST /api/models/providers/discover` |
 | 記憶 | `GET /api/memories`、`GET /api/memories/users`、`POST /api/memories/trigger|import`、`PUT/DELETE /api/memories/:id`、`GET/PUT /api/memories/file(s)`、`POST /api/memories/file/reset`、`PUT /api/memories/file/append` |
+| 会話 | `GET /api/conversations`、`GET /api/conversations/detail`、`DELETE /api/conversations/message|from`、`POST /api/conversations/reset` |
 | ログ | `GET /api/logs`、`GET /api/logs/users`、`GET /api/logs/export`、`GET /api/logs/events`、`GET /api/logs/events/export` |
 | 統計 | `GET /api/stats/dashboard|trends|persona/:id|messages` |
 | スキル | `GET/POST /api/skills`、`PUT/DELETE /api/skills/:id`、`POST /api/skills/sync` |

@@ -150,6 +150,8 @@ Beide Protokolle lassen sich nach Persona, Benutzer, Stichwort und Zeitraum filt
 - **Echtzeitfakten**: Im Gespräch erkannte Vereinbarungen, Vorlieben und wichtige Informationen werden sofort ins Langzeitgedächtnis geschrieben und wirken ab dem nächsten Zug.
 - **Gesprächsführung**: Ein Schiebefenster hält die letzten N Züge im Wortlaut, ältere werden rollierend zusammengefasst; bei Sitzungs-Timeout werden Langzeitpunkte ins Kerngedächtnis migriert, bevor eine neue Sitzung beginnt, damit das Gedächtnis nicht mit dem Cache verloren geht.
 - **Status-Leitplanke**: Blockiert und wiederholt Antworten der Art „geh schlafen“, wenn beispielsweise Hausaufgaben noch offen sind.
+- **Qualitätsprüfung ausgehender Antworten**: Leere Antworten, exakte Wiederholungen, fehlerhafte Zeichen, Steuerzeichen, geleakte System-Prompts oder Antworten mit Rollenpräfix werden einmal mit einer Korrekturanweisung wiederholt; scheitert auch der zweite Versuch, wird der Zug verworfen und weder im Gespräch noch im Nachrichtenstrom gespeichert.
+- **Bereinigung fehlerhafter Antworten**: Die Seite „Gespräche“ zeigt den Verlauf nach Persona und Benutzer und erlaubt das Löschen einzelner Nachrichten, das Leeren ab einer Stelle oder das Zurücksetzen des Kontexts. Gelöschte Nachrichten werden in `message_logs` mit `invalid=1` markiert, sodass Tagesgedächtnis und Faktenextraktion sie überspringen; mit „bestehende Erinnerungen der betroffenen Tage ebenfalls löschen“ werden bereits erzeugte Tageserinnerungen und Fakten entfernt.
 
 ## Stichwortfilter (optional)
 
@@ -179,7 +181,7 @@ Nach der Aktivierung hängt der tägliche Gedächtnislauf die neuen Inhalte des 
 # Typprüfung (server + admin)
 pnpm -r typecheck
 
-# Unit-Tests (node:test; deckt Uhr, Textaufteilung, Status-Leitplanke, Stichwortfilter, Kontext und Gedächtnis, Anbieterkonfiguration, Ausführungsprotokolle und Ratenbegrenzung ab)
+# Unit-Tests (node:test; deckt Uhr, Textaufteilung, Status-Leitplanke, Stichwortfilter, Kontext und Gedächtnis, Anbieterkonfiguration, Ausführungsprotokolle, Gesprächsbereinigung, Antwortqualität und Ratenbegrenzung ab)
 pnpm test
 
 # Build
@@ -226,10 +228,10 @@ node packages/server/dist/scripts/backup.js 20
 | `models` | LLM-Modellkonfiguration (Provider / API-Schlüssel / Base / Temperatur / maximale Tokens / Bild / Aktiv) |
 | `providers` | Konfiguration pro Anbieter (Name / Base / verschlüsselter Schlüssel); leere Anbieter erlaubt |
 | `memories` | Geschichtetes Gedächtnis (daily / three_day / biweekly / monthly) |
-| `conversations` | Gesprächsverlauf (nur Anhängen, um den Cache-Präfix wiederzuverwenden) |
+| `conversations` | Gesprächsverlauf (im normalen Chat nur Anhängen, um den Cache-Präfix wiederzuverwenden; im Admin gezielt bereinigbar) |
 | `user_profiles` | Benutzergewohnheitsprofile |
 | `stats` | Tagesstatistiken (Tokens / Cache-Treffer / Bilder / Nachrichtenanzahl) |
-| `message_logs` | Nachrichtenstrom (Quelle für Statistiken und Gedächtniszusammenfassungen) |
+| `message_logs` | Nachrichtenstrom (Quelle für Statistiken und Gedächtniszusammenfassungen; `invalid=1` markiert aus dem Gespräch entfernte Einträge) |
 | `system_logs` | Ausführungsprotokoll (Ebene / Kategorie / Phase / Dauer / strukturierte Details, indiziert) |
 | `token_usage` | Tokenverbrauch pro Aufruf |
 | `painting_logs` | Zeichnungsverlauf und Grundlage der Tageskontingente |
@@ -248,6 +250,7 @@ Die Migrationen liegen in `packages/server/src/db/migrate.ts`. Sie laufen in id-
 | Modelle | `GET/POST /api/models`, `POST /api/models/batch`, `PUT/DELETE /api/models/:id`, `POST /api/models/:id/test|discover`, `POST /api/models/discover`, `POST /api/models/vision-scan` |
 | Anbieter | `GET /api/models/providers`, `POST/PUT/DELETE /api/models/providers`, `POST /api/models/providers/discover` |
 | Gedächtnis | `GET /api/memories`, `GET /api/memories/users`, `POST /api/memories/trigger|import`, `PUT/DELETE /api/memories/:id`, `GET/PUT /api/memories/file(s)`, `POST /api/memories/file/reset`, `PUT /api/memories/file/append` |
+| Gespräche | `GET /api/conversations`, `GET /api/conversations/detail`, `DELETE /api/conversations/message|from`, `POST /api/conversations/reset` |
 | Protokolle | `GET /api/logs`, `GET /api/logs/users`, `GET /api/logs/export`, `GET /api/logs/events`, `GET /api/logs/events/export` |
 | Statistiken | `GET /api/stats/dashboard|trends|persona/:id|messages` |
 | Skills | `GET/POST /api/skills`, `PUT/DELETE /api/skills/:id`, `POST /api/skills/sync` |

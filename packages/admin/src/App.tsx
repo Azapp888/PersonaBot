@@ -11,6 +11,9 @@ const BotsPage = lazy(() => import("@/pages/Bots").then((m) => ({ default: m.Bot
 const PersonasPage = lazy(() => import("@/pages/Personas").then((m) => ({ default: m.PersonasPage })));
 const ModelsPage = lazy(() => import("@/pages/Models").then((m) => ({ default: m.ModelsPage })));
 const MemoriesPage = lazy(() => import("@/pages/Memories").then((m) => ({ default: m.MemoriesPage })));
+const ConversationsPage = lazy(() =>
+  import("@/pages/Conversations").then((m) => ({ default: m.ConversationsPage })),
+);
 const StatsPage = lazy(() => import("@/pages/Stats").then((m) => ({ default: m.StatsPage })));
 const LogsPage = lazy(() => import("@/pages/Logs").then((m) => ({ default: m.LogsPage })));
 const SkillsPage = lazy(() => import("@/pages/Skills").then((m) => ({ default: m.SkillsPage })));
@@ -48,6 +51,7 @@ export default function App() {
               <Route path="/personas" element={<PersonasPage />} />
               <Route path="/models" element={<ModelsPage />} />
               <Route path="/memories" element={<MemoriesPage />} />
+              <Route path="/conversations" element={<ConversationsPage />} />
               <Route path="/stats" element={<StatsPage />} />
               <Route path="/logs" element={<LogsPage />} />
               <Route path="/skills" element={<SkillsPage />} />

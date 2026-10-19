@@ -2,6 +2,8 @@ import type {
   AppSettings,
   Bot,
   ConsistencyReport,
+  ConversationDetail,
+  ConversationOverviewItem,
   DashboardData,
   DiscoveredModel,
   EventLogFilterParams,
@@ -132,6 +134,30 @@ export const api = {
     a.remove();
     URL.revokeObjectURL(url);
   },
+
+  // conversations
+  conversations: (params: { personaId?: string; userId?: string } = {}) =>
+    request<{ items: ConversationOverviewItem[]; total: number }>("GET", `/api/conversations?${toQuery(params)}`),
+  conversationDetail: (personaId: string, userId: string) =>
+    request<ConversationDetail>("GET", `/api/conversations/detail?${toQuery({ personaId, userId })}`),
+  deleteConversationMessage: (personaId: string, userId: string, index: number, purgeMemories = false) =>
+    request<{ ok: boolean; removed: number; invalidated: number; memoriesRemoved: number }>(
+      "DELETE",
+      "/api/conversations/message",
+      { personaId, userId, index, purgeMemories },
+    ),
+  deleteConversationFrom: (personaId: string, userId: string, index: number, purgeMemories = false) =>
+    request<{ ok: boolean; removed: number; invalidated: number; memoriesRemoved: number }>(
+      "DELETE",
+      "/api/conversations/from",
+      { personaId, userId, index, purgeMemories },
+    ),
+  resetConversation: (personaId: string, userId: string, purgeMemories = false) =>
+    request<{ ok: boolean; removed: number; invalidated: number; memoriesRemoved: number }>(
+      "POST",
+      "/api/conversations/reset",
+      { personaId, userId, purgeMemories },
+    ),
 
   // bots
   bots: () => request<Bot[]>("GET", "/api/bots"),

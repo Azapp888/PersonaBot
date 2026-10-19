@@ -151,6 +151,8 @@ pnpm start
 - **即時事實**：對話中命中約定 / 偏好 / 重要資訊立即寫入長期記憶，下一輪即可生效。
 - **會話治理**：滑動視窗保留最近 N 輪原文，更早對話滾動摘要；會話逾時後先把長期記憶點遷移到核心記憶再開啟新會話，避免記憶隨快取遺失。
 - **狀態護欄**：作業未完成等情境下攔截並重試催睡類回覆。
+- **出站品質閘**：回覆為空、複讀上一條、亂碼、控制字元、洩漏系統提示詞或以角色前綴開頭時，先帶糾錯指令重試；二次仍未通過則丟棄本輪，不寫入會話與訊息流水。
+- **錯誤回覆清理**：「會話管理」頁可依角色與使用者檢視原文，支援刪除單條、從某條起清空後續、重置上下文。被刪除的訊息會在 `message_logs` 中標記 `invalid=1`，後續日記憶與原子事實提煉自動跳過；勾選「同時刪除受影響日期的既有記憶」可一併清理已生成的日記憶與原子事實。
 
 ## 敏感詞過濾（選用）
 
@@ -227,10 +229,10 @@ node packages/server/dist/scripts/backup.js 20
 | `models` | LLM 模型設定（Provider / API Key / Base / 溫度 / 最大 token / 讀圖 / 啟用） |
 | `providers` | 供應商級設定（名稱 / Base / 加密金鑰），支援尚無模型的空供應商 |
 | `memories` | 分層記憶（daily / three_day / biweekly / monthly） |
-| `conversations` | 會話歷史（只追加，保證快取前綴重用） |
+| `conversations` | 會話歷史（正常對話只追加以重用快取前綴，管理端可精確清理） |
 | `user_profiles` | 使用者習慣畫像 |
 | `stats` | 每日統計（Token / 快取命中 / 圖片 / 訊息數） |
-| `message_logs` | 訊息流水（統計與記憶總結的資料來源） |
+| `message_logs` | 訊息流水（統計與記憶總結的資料來源；`invalid=1` 表示已從會話清理） |
 | `system_logs` | 運行日誌（層級 / 類別 / 階段 / 耗時 / 結構化明細，含索引） |
 | `token_usage` | 每次呼叫的 Token 用量明細 |
 | `painting_logs` | 繪畫記錄與每日限額依據 |
@@ -249,6 +251,7 @@ node packages/server/dist/scripts/backup.js 20
 | 模型 | `GET/POST /api/models`、`POST /api/models/batch`、`PUT/DELETE /api/models/:id`、`POST /api/models/:id/test|discover`、`POST /api/models/discover`、`POST /api/models/vision-scan` |
 | 供應商 | `GET /api/models/providers`、`POST/PUT/DELETE /api/models/providers`、`POST /api/models/providers/discover` |
 | 記憶 | `GET /api/memories`、`GET /api/memories/users`、`POST /api/memories/trigger|import`、`PUT/DELETE /api/memories/:id`、`GET/PUT /api/memories/file(s)`、`POST /api/memories/file/reset`、`PUT /api/memories/file/append` |
+| 會話 | `GET /api/conversations`、`GET /api/conversations/detail`、`DELETE /api/conversations/message|from`、`POST /api/conversations/reset` |
 | 日誌 | `GET /api/logs`、`GET /api/logs/users`、`GET /api/logs/export`、`GET /api/logs/events`、`GET /api/logs/events/export` |
 | 統計 | `GET /api/stats/dashboard|trends|persona/:id|messages` |
 | 技能 | `GET/POST /api/skills`、`PUT/DELETE /api/skills/:id`、`POST /api/skills/sync` |

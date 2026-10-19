@@ -180,6 +180,13 @@ export const memoryRepo = {
       .prepare(`DELETE FROM memories WHERE persona_id = ? AND user_id = ? AND type = ? AND source_date = ?`)
       .run(personaId, userId, type, sourceDate);
   },
+  /** 删除某一天生成的所有记忆（日记忆与原子事实），用于清理被污染的历史。 */
+  removeByDate(personaId: string, userId: string, sourceDate: string): number {
+    const info = this.db()
+      .prepare(`DELETE FROM memories WHERE persona_id = ? AND user_id = ? AND source_date = ?`)
+      .run(personaId, userId, sourceDate);
+    return info.changes;
+  },
   /**
    * 剪枝已浓缩进上层记忆的日记忆：删除 source_date 早于 cutoffDate 的 daily。
    * 原子事实（type=fact）不受影响，重要内容靠 fact 层长期保留。

@@ -280,6 +280,13 @@ CREATE INDEX IF NOT EXISTS idx_system_logs_level ON system_logs(level, created_a
 CREATE INDEX IF NOT EXISTS idx_system_logs_category ON system_logs(category, created_at DESC);
 `,
   },
+  {
+    id: "014_message_logs_invalid",
+    sql: `
+ALTER TABLE message_logs ADD COLUMN invalid INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_message_logs_valid ON message_logs(persona_id, user_id, invalid, created_at);
+`,
+  },
 ];
 
 export function runMigrations(database?: Database.Database): void {

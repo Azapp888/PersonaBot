@@ -14,6 +14,7 @@ import {
   Boxes,
   BarChart3,
   Brain,
+  MessagesSquare,
   ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -25,10 +26,11 @@ const navItems = [
   { to: "/personas", label: "角色管理", icon: UserRound, code: "03" },
   { to: "/models", label: "模型管理", icon: Boxes, code: "04" },
   { to: "/memories", label: "记忆管理", icon: Brain, code: "05" },
-  { to: "/stats", label: "统计", icon: BarChart3, code: "06" },
-  { to: "/logs", label: "日志", icon: ScrollText, code: "07" },
-  { to: "/skills", label: "技能", icon: Sparkles, code: "08" },
-  { to: "/settings", label: "系统设置", icon: Settings, code: "09" },
+  { to: "/conversations", label: "会话管理", icon: MessagesSquare, code: "06" },
+  { to: "/stats", label: "统计", icon: BarChart3, code: "07" },
+  { to: "/logs", label: "日志", icon: ScrollText, code: "08" },
+  { to: "/skills", label: "技能", icon: Sparkles, code: "09" },
+  { to: "/settings", label: "系统设置", icon: Settings, code: "10" },
 ];
 
 function Brand() {

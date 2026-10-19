@@ -150,6 +150,8 @@ Les deux journaux se filtrent par persona, utilisateur, mot-clé et plage de dat
 - **Faits en temps réel** : les accords, préférences et informations importantes détectés pendant la conversation sont écrits immédiatement en mémoire long terme et prennent effet au tour suivant.
 - **Gouvernance des conversations** : une fenêtre glissante conserve les N derniers tours tels quels, les plus anciens étant résumés ; à l'expiration d'une session, les points long terme migrent vers la mémoire centrale avant l'ouverture d'une nouvelle session, afin que la mémoire ne disparaisse pas avec le cache.
 - **Garde-fou d'état** : intercepte et relance les réponses du type « va te coucher » lorsque, par exemple, les devoirs ne sont pas terminés.
+- **Filtre de qualité de sortie** : les réponses vides, répétées à l'identique, corrompues, contenant des caractères de contrôle, une fuite du prompt système ou un préfixe de rôle sont relancées une fois avec une consigne corrective ; en cas de second échec, le tour est abandonné sans être écrit dans la conversation ni dans le flux de messages.
+- **Nettoyage des réponses erronées** : la page « Conversations » affiche l'historique par persona et utilisateur et permet de supprimer un message, vider à partir d'un message ou réinitialiser le contexte. Les messages supprimés sont marqués `invalid=1` dans `message_logs`, donc la mémoire journalière et l'extraction de faits atomiques les ignorent ; cochez « supprimer aussi les mémoires existantes des dates concernées » pour purger les mémoires journalières et les faits déjà générés.
 
 ## Filtrage par mots-clés (facultatif)
 
@@ -226,10 +228,10 @@ node packages/server/dist/scripts/backup.js 20
 | `models` | Configuration des modèles LLM (fournisseur / clé API / base / température / tokens max / vision / actif) |
 | `providers` | Configuration par fournisseur (nom / base / clé chiffrée) ; les fournisseurs vides sont autorisés |
 | `memories` | Mémoires par couches (daily / three_day / biweekly / monthly) |
-| `conversations` | Historique des conversations (ajout seul pour réutiliser le préfixe en cache) |
+| `conversations` | Historique des conversations (ajout seul pendant le chat normal pour réutiliser le préfixe en cache ; l'administrateur peut le nettoyer précisément) |
 | `user_profiles` | Profils d'habitudes utilisateur |
 | `stats` | Statistiques quotidiennes (tokens / succès de cache / images / nombre de messages) |
-| `message_logs` | Flux de messages (source des statistiques et des synthèses de mémoire) |
+| `message_logs` | Flux de messages (source des statistiques et des synthèses de mémoire ; `invalid=1` indique un message supprimé de la conversation) |
 | `system_logs` | Journaux d'exécution (niveau / catégorie / étape / durée / détail structuré, indexés) |
 | `token_usage` | Détail de l'usage des tokens par appel |
 | `painting_logs` | Historique de dessin et base des quotas quotidiens |
@@ -248,6 +250,7 @@ Les migrations se trouvent dans `packages/server/src/db/migrate.ts`. Elles s'ex�
 | Modèles | `GET/POST /api/models`, `POST /api/models/batch`, `PUT/DELETE /api/models/:id`, `POST /api/models/:id/test|discover`, `POST /api/models/discover`, `POST /api/models/vision-scan` |
 | Fournisseurs | `GET /api/models/providers`, `POST/PUT/DELETE /api/models/providers`, `POST /api/models/providers/discover` |
 | Mémoire | `GET /api/memories`, `GET /api/memories/users`, `POST /api/memories/trigger|import`, `PUT/DELETE /api/memories/:id`, `GET/PUT /api/memories/file(s)`, `POST /api/memories/file/reset`, `PUT /api/memories/file/append` |
+| Conversations | `GET /api/conversations`, `GET /api/conversations/detail`, `DELETE /api/conversations/message|from`, `POST /api/conversations/reset` |
 | Journaux | `GET /api/logs`, `GET /api/logs/users`, `GET /api/logs/export`, `GET /api/logs/events`, `GET /api/logs/events/export` |
 | Statistiques | `GET /api/stats/dashboard|trends|persona/:id|messages` |
 | Compétences | `GET/POST /api/skills`, `PUT/DELETE /api/skills/:id`, `POST /api/skills/sync` |

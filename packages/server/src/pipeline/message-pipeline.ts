@@ -33,6 +33,7 @@ import { detectShellCommand, formatShellReply, runAgentLoop } from "../agent";
 import { isUserAllowedForShell, runShellCommand } from "../agent/shell";
 import { filterText } from "../moderation/filter";
 import { clearAbort, abortActive, registerAbort } from "./abort-store";
+import { inspectReply, qualityRetryInstruction } from "./reply-quality";
 
 const PAINT_KEYWORDS = ["画一张", "画个", "画幅", "画画", "画一下", "帮我画", "给我画", "作画", "绘一张", "来张图"];
 
@@ -382,6 +383,39 @@ export async function generateReply(
       if (violatesGuardrail(reply, context.state)) {
         logger.warn({ personaId: persona.id, userId }, "guardrail still violated after retry, sanitizing");
         reply = sanitizeReply(reply);
+      }
+    }
+
+    // 出站质量闸：明显异常的回复先重试一次，仍不通过则丢弃本轮，避免污染会话历史与长期记忆
+    const previousAssistant = [...context.history].reverse().find((m) => m.role === "assistant");
+    let issues = inspectReply(reply, previousAssistant ? contentToText(previousAssistant.content) : null);
+    if (issues.length) {
+      sysLog.warn(
+        "pipeline",
+        "回复质量校验未通过，带纠错指令重试",
+        { personaId: persona.id, botId, userId, modelId, stage: "quality_gate" },
+        { reply, issues },
+      );
+      const retry = await provider.chat(
+        [...messages, { role: "system", content: qualityRetryInstruction(issues) }],
+        { temperature, maxTokens },
+      );
+      usage = {
+        inputTokens: usage.inputTokens + retry.usage.inputTokens,
+        outputTokens: usage.outputTokens + retry.usage.outputTokens,
+        cacheHitTokens: usage.cacheHitTokens + retry.usage.cacheHitTokens,
+        cacheMissTokens: usage.cacheMissTokens + retry.usage.cacheMissTokens,
+      };
+      reply = retry.content.trim();
+      issues = inspectReply(reply, previousAssistant ? contentToText(previousAssistant.content) : null);
+      if (issues.length) {
+        sysLog.error(
+          "error",
+          `回复质量校验二次失败，丢弃本轮回复：${issues.map((i) => i.message).join("；")}`,
+          { personaId: persona.id, botId, userId, modelId, stage: "quality_gate" },
+          { reply, issues },
+        );
+        throw new Error(`reply_quality_rejected: ${issues.map((i) => i.code).join(",")}`);
       }
     }
   } catch (err) {
