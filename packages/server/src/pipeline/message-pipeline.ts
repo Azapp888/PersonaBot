@@ -206,7 +206,6 @@ export async function generateReply(
     return { reply, usage, modelId, painting };
   }
 
-  let attemptedAbort = false;
   try {
     const { provider, model } = resolved;
     modelId = model?.id ?? null;
@@ -307,8 +306,31 @@ export async function generateReply(
       }
     };
 
+    // 网络抖动 / 上游失败时静默重试，避免一失败就发「走神了」并污染会话历史
+    const callModelWithRetry = async (msgs: ChatMessage[]) => {
+      const maxAttempts = 3;
+      for (let attempt = 1; ; attempt++) {
+        try {
+          return await callModel(msgs);
+        } catch (err) {
+          const message = (err as Error)?.message ?? "";
+          const aborted =
+            message.includes("abort") || (err as Error)?.name === "AbortError" || !!signal?.aborted;
+          if (aborted || attempt >= maxAttempts) throw err;
+          const delayMs = 700 * attempt * attempt;
+          sysLog.warn(
+            "model",
+            `模型请求失败，${delayMs}ms 后重试（第 ${attempt} 次）`,
+            { personaId: persona.id, botId, userId, modelId, stage: "retry" },
+            { error: message, attempt, delayMs },
+          );
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+      }
+    };
+
     try {
-      const run = await callModel(messages);
+      const run = await callModelWithRetry(messages);
       reply = run.content.trim();
       usage = run.usage;
       if (!reply && opts.agentEnabled && provider.supportsTools && provider.chatWithTools) {
@@ -326,7 +348,7 @@ export async function generateReply(
       );
       const described = await describeImagesWithFallback(opts.imageParts, { primaryModelId: model?.id, signal });
       if (!described) throw err;
-      const retry = await callModel(injectImageDescription(messages, described.text));
+      const retry = await callModelWithRetry(injectImageDescription(messages, described.text));
       reply = retry.content.trim();
       usage = retry.usage;
     }
@@ -363,24 +385,22 @@ export async function generateReply(
       }
     }
   } catch (err) {
-    attemptedAbort = (err as Error).message.includes("abort");
+    const message = (err as Error)?.message ?? "";
+    const aborted = message.includes("abort") || (err as Error)?.name === "AbortError";
+    if (aborted) throw new Error("aborted");
     sysLog.error(
       "error",
-      `生成回复失败：${(err as Error).message}`,
+      `生成回复失败：${message}`,
       { personaId: persona.id, botId, userId, modelId, stage: "generate_reply" },
       {
-        error: (err as Error).message,
+        error: message,
         name: (err as Error).name,
         stack: (err as Error).stack,
-        aborted: attemptedAbort,
+        aborted: false,
       },
     );
-    reply = attemptedAbort ? "" : `（${persona.name}走神了，暂时没能回复，请稍后再试）`;
-    usage = { inputTokens: 0, outputTokens: 0, cacheHitTokens: 0, cacheMissTokens: 0 };
-  }
-
-  if (attemptedAbort && !reply) {
-    throw new Error("aborted");
+    // 失败不再以「走神了」的形式写进会话历史：直接抛出，由调用方静默跳过本轮
+    throw err;
   }
 
   conversationRepo.append(persona.id, userId, [
