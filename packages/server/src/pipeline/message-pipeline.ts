@@ -28,7 +28,7 @@ import { systemClock } from "../utils/clock";
 import { buildConversationContext } from "../context/manager";
 import { buildGuardrail, violatesGuardrail, sanitizeReply } from "../context/state";
 import { buildFileContext, renderFileContext, buildImageParts } from "../attachments/service";
-import { pickQQImages, mediaPlaceholder, QQ_IMAGE_MAX_BYTES } from "../qq/capabilities";
+import { pickQQImages, mediaPlaceholder, isQQImageAttachment, QQ_IMAGE_MAX_BYTES } from "../qq/capabilities";
 import { detectShellCommand, formatShellReply, runAgentLoop } from "../agent";
 import { isUserAllowedForShell, runShellCommand } from "../agent/shell";
 import { filterText } from "../moderation/filter";
@@ -601,7 +601,7 @@ class MessagePipeline {
     // 图片处理：主模型支持视觉就直接发图；不支持则用视觉副模型转述成文本。
     let imageParts: ImageContentPart[] = [];
     let imageContext = "";
-    if (imageUrls.length) {
+    if (imageUrls.length || attachments.some(isQQImageAttachment)) {
       const { model } = resolveProviderForBot(batch.bot, batch.persona);
       const supportsVision = !!model?.supportsVision;
       const fallback = supportsVision ? null : resolveVisionFallbackModel(model?.id);
@@ -612,11 +612,22 @@ class MessagePipeline {
         return;
       }
 
-      // 按 QQ 开放平台约束收敛图片：仅图片类型，单条最多 5 张
-      const imageAtts: QQAttachment[] = imageUrls.map((url) => ({ url }));
+      // 优先使用原始附件：其中保留了 content_type / filename，避免仅凭 URL 猜类型
+      // （QQ 的媒体地址常常没有扩展名，压成 imageUrls 后再判断会把图片全部丢掉）。
+      const imageAtts = attachments.some(isQQImageAttachment)
+        ? attachments
+        : imageUrls.map((url) => ({ url }));
       const { images, overflow } = pickQQImages(imageAtts);
       if (overflow > 0) {
         logger.info({ key, overflow }, "qq attachment count exceeds platform limit, extra images ignored");
+      }
+      if (!images.length) {
+        logger.warn({ key }, "no readable image attachment detected");
+        if (!merged.trim() && !fileContext) {
+          await this.send(batch, "【没能识别到可读取的图片，请重试或换一张图片】");
+          this.batches.delete(key);
+          return;
+        }
       }
       // 同时满足 QQ 平台与上游厂商的大小/格式限制（取更严格的一方）
       const providerLimit = imageLimitFor(model?.provider);

@@ -4,6 +4,7 @@ import type { Bot, QQAttachment, QQFace, QQMessageEvent } from "../types";
 import { QQApiClient } from "./client";
 import { getAccessToken } from "./token";
 import { QQ_OP, type QQGatewayPayload } from "./types";
+import { isQQImageAttachment, normalizeMediaUrl } from "./capabilities";
 import { config } from "../config";
 
 export type QQEventHandler = (bot: Bot, event: QQMessageEvent) => void;
@@ -306,10 +307,12 @@ function parseAttachments(d: any): QQAttachment[] | undefined {
   const list: QQAttachment[] = [];
   for (const a of raw) {
     if (!a || typeof a !== "object") continue;
+    const contentType = a.content_type ?? a.contentType;
+    const filename = typeof a.filename === "string" ? a.filename : typeof a.name === "string" ? a.name : undefined;
     list.push({
-      url: typeof a.url === "string" ? a.url : undefined,
-      filename: typeof a.filename === "string" ? a.filename : undefined,
-      contentType: typeof a.content_type === "string" ? a.content_type : undefined,
+      url: typeof a.url === "string" ? normalizeMediaUrl(a.url) : undefined,
+      filename,
+      contentType: typeof contentType === "string" ? contentType : undefined,
       size: typeof a.size === "number" ? a.size : undefined,
     });
   }
@@ -348,17 +351,11 @@ function parseFaces(d: any): QQFace[] | undefined {
   return faces.length ? faces : undefined;
 }
 
-/** 从附件中提取图片地址（contentType 为 image/*，或图片扩展名）。 */
+/** 从附件中提取图片地址（contentType 为 image 前缀，或图片扩展名）。 */
 function parseImageUrls(attachments: QQAttachment[] | undefined): string[] | undefined {
   if (!attachments?.length) return undefined;
-  const urls: string[] = [];
-  for (const a of attachments) {
-    if (!a.url) continue;
-    const mime = (a.contentType ?? "").toLowerCase();
-    const ext = (a.filename ?? a.url).split("?")[0].split(".").pop()?.toLowerCase() ?? "";
-    if (mime.startsWith("image/") || ["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) {
-      urls.push(a.url);
-    }
-  }
+  const urls = attachments
+    .filter((a) => !!a.url && isQQImageAttachment(a))
+    .map((a) => a.url!);
   return urls.length ? urls : undefined;
 }

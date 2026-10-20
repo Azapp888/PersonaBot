@@ -17,13 +17,27 @@ export const QQ_MAX_ATTACHMENTS = 5;
 /** 图片扩展名白名单（QQ 富媒体 file_type=1 为图片）。 */
 export const QQ_IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp"]);
 
-/** 是否属于 QQ 平台的图片附件（按 content_type 或文件名）。 */
+/**
+ * 是否属于 QQ 平台的图片附件（按 content_type 或文件名）。
+ *
+ * QQ 不一定按标准 MIME 上报图片，可能只有 `image` 前缀（没有 `/子类型`），
+ * 也可能完全不报 MIME；此时退化为扩展名判断。
+ */
 export function isQQImageAttachment(att: QQAttachment): boolean {
-  const mime = (att.contentType ?? "").toLowerCase();
-  if (mime.startsWith("image/")) return true;
+  const mime = (att.contentType ?? "").trim().toLowerCase();
+  if (mime.startsWith("image")) return true;
   const name = (att.filename ?? att.url ?? "").split("?")[0];
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
   return QQ_IMAGE_EXTENSIONS.has(ext);
+}
+
+/** QQ 有时下发不带协议头的媒体地址，补全为可直接下载的 https URL。 */
+export function normalizeMediaUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  const trimmed = url.trim();
+  if (!trimmed) return undefined;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed.replace(/^\/+/, "")}`;
 }
 
 /** 纯媒体消息在送入模型前使用的占位符（对齐 QQ 平台的 (image)/(file) 约定）。 */

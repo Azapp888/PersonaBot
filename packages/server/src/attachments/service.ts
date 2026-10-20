@@ -4,6 +4,7 @@ import { logger } from "../logger";
 import { settingsService } from "../settings/service";
 import { fetchWithTimeout } from "../utils/http";
 import { imageLimitFor, toImageDataUrl, type ImageLimit, type SupportedImageMime } from "../llm/multimodal";
+import { isQQImageAttachment, normalizeMediaUrl } from "../qq/capabilities";
 
 /** 可直接按纯文本读取的扩展名白名单 */
 const TEXT_EXTENSIONS = new Set([
@@ -64,21 +65,14 @@ function looksBinary(buf: Buffer): boolean {
   return nulls > sample.length * 0.1;
 }
 
-const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp"]);
-
-function isImageLike(att: QQAttachment, name: string): boolean {
-  const mime = (att.contentType ?? "").toLowerCase();
-  if (mime.startsWith("image/")) return true;
-  const ext = extname(name).replace(/^\./, "").toLowerCase();
-  return IMAGE_EXTENSIONS.has(ext);
-}
-
 /** 下载图片并转为 data:URL（base64），供多模态模型读取。 */
 export async function downloadImageAsDataUrl(
   url: string,
   maxBytes: number,
 ): Promise<{ dataUrl: string; mediaType: SupportedImageMime }> {
-  const res = await fetchWithTimeout(url, { timeoutMs: 15000 });
+  const target = normalizeMediaUrl(url);
+  if (!target) throw new Error("缺少下载地址");
+  const res = await fetchWithTimeout(target, { timeoutMs: 15000 });
   if (!res.ok) throw new Error(`下载失败 ${res.status}`);
   const lenHeader = Number(res.headers.get("content-length") ?? "0");
   if (lenHeader && lenHeader > maxBytes) throw new Error(`图片过大（${Math.round(lenHeader / 1024)}KB）`);
@@ -103,7 +97,7 @@ export async function buildImageParts(
   for (let i = 0; i < attachments.length; i++) {
     const att = attachments[i];
     const name = fileNameOf(att, i);
-    if (!att.url || !isImageLike(att, name)) continue;
+    if (!att.url || !isQQImageAttachment(att)) continue;
     try {
       const { dataUrl, mediaType } = await downloadImageAsDataUrl(att.url, limit.maxBytes);
       if (!limit.mimes.includes(mediaType)) {
@@ -120,7 +114,9 @@ export async function buildImageParts(
 }
 
 async function download(url: string, maxBytes: number): Promise<Buffer> {
-  const res = await fetchWithTimeout(url, { timeoutMs: 15000 });
+  const target = normalizeMediaUrl(url);
+  if (!target) throw new Error("缺少下载地址");
+  const res = await fetchWithTimeout(target, { timeoutMs: 15000 });
   if (!res.ok) throw new Error(`下载失败 ${res.status}`);
   const lenHeader = Number(res.headers.get("content-length") ?? "0");
   if (lenHeader && lenHeader > maxBytes) throw new Error(`文件过大（${Math.round(lenHeader / 1024)}KB）`);
