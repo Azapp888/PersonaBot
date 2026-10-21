@@ -28,6 +28,7 @@ import {
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { ModelIcon } from "@/components/ModelIcon";
+import { SearchProvidersPanel } from "@/components/SearchProvidersPanel";
 
 /** 内置预设提供商的默认地址与推荐模型（与 server 端保持一致）。 */
 const providerDefaults: Record<string, { base: string; model: string }> = {
@@ -65,6 +66,7 @@ function modelsOfGroup(models: ModelRecord[], key: string): ModelRecord[] {
 
 export function ModelsPage() {
   const { push } = useToast();
+  const [tab, setTab] = useState<"models" | "search">("models");
   const [models, setModels] = useState<ModelRecord[]>([]);
   const [groups, setGroups] = useState<ProviderGroup[]>([]);
   const [editing, setEditing] = useState<ProviderGroup | null>(null);
@@ -164,6 +166,30 @@ export function ModelsPage() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center gap-1 border-b border-rule">
+        {[
+          { key: "models" as const, label: "模型提供商" },
+          { key: "search" as const, label: "联网搜索" },
+        ].map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            className={
+              tab === t.key
+                ? "border-b-2 border-ink px-3 py-2 text-[13px] font-medium text-ink"
+                : "border-b-2 border-transparent px-3 py-2 text-[13px] text-muted hover:text-ink"
+            }
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "search" && <SearchProvidersPanel />}
+
+      {tab === "models" && (
+      <>
       <Card>
         <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center">
           <CardTitle>模型提供商</CardTitle>
@@ -229,6 +255,8 @@ export function ModelsPage() {
         onError={(msg) => push(msg, "error")}
         onNotice={(msg) => push(msg)}
       />
+      </>
+      )}
     </div>
   );
 }

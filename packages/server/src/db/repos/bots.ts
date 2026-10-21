@@ -27,6 +27,8 @@ function map(row: any): Bot {
     agentEnabled: !!row.agent_enabled,
     proactiveEnabled: !!row.proactive_enabled,
     proactiveMaxMessages: row.proactive_max_messages ?? 3,
+    searchEnabled: !!row.search_enabled,
+    searchProviderId: row.search_provider_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -42,6 +44,8 @@ export interface BotInput {
   agentEnabled?: boolean;
   proactiveEnabled?: boolean;
   proactiveMaxMessages?: number;
+  searchEnabled?: boolean;
+  searchProviderId?: string | null;
 }
 
 export const botRepo = {
@@ -67,8 +71,8 @@ export const botRepo = {
     const ts = now();
     this.db()
       .prepare(
-        `INSERT INTO bots (id, name, app_id, client_secret, persona_id, model_id, enabled, agent_enabled, proactive_enabled, proactive_max_messages, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO bots (id, name, app_id, client_secret, persona_id, model_id, enabled, agent_enabled, proactive_enabled, proactive_max_messages, search_enabled, search_provider_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -81,6 +85,8 @@ export const botRepo = {
         input.agentEnabled ? 1 : 0,
         input.proactiveEnabled ? 1 : 0,
         clampProactiveMax(input.proactiveMaxMessages),
+        input.searchEnabled ? 1 : 0,
+        input.searchProviderId ?? null,
         ts,
         ts,
       );
@@ -103,10 +109,12 @@ export const botRepo = {
       proactiveEnabled: input.proactiveEnabled !== undefined ? input.proactiveEnabled : current.proactiveEnabled,
       proactiveMaxMessages:
         input.proactiveMaxMessages !== undefined ? clampProactiveMax(input.proactiveMaxMessages) : current.proactiveMaxMessages,
+      searchEnabled: input.searchEnabled !== undefined ? input.searchEnabled : current.searchEnabled,
+      searchProviderId: input.searchProviderId !== undefined ? input.searchProviderId : current.searchProviderId,
     };
     this.db()
       .prepare(
-        `UPDATE bots SET name = ?, app_id = ?, client_secret = ?, persona_id = ?, model_id = ?, enabled = ?, agent_enabled = ?, proactive_enabled = ?, proactive_max_messages = ?, updated_at = ? WHERE id = ?`,
+        `UPDATE bots SET name = ?, app_id = ?, client_secret = ?, persona_id = ?, model_id = ?, enabled = ?, agent_enabled = ?, proactive_enabled = ?, proactive_max_messages = ?, search_enabled = ?, search_provider_id = ?, updated_at = ? WHERE id = ?`,
       )
       .run(
         next.name,
@@ -118,6 +126,8 @@ export const botRepo = {
         next.agentEnabled ? 1 : 0,
         next.proactiveEnabled ? 1 : 0,
         next.proactiveMaxMessages,
+        next.searchEnabled ? 1 : 0,
+        next.searchProviderId,
         now(),
         id,
       );

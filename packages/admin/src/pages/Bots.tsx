@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Plus, RefreshCw, RotateCw, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
-import type { Bot, ModelRecord, Persona } from "@/lib/types";
+import type { Bot, ModelRecord, Persona, SearchProviderRecord } from "@/lib/types";
 import {
   Badge,
   Button,
@@ -36,6 +36,8 @@ const emptyForm = {
   agentEnabled: false,
   proactiveEnabled: false,
   proactiveMaxMessages: 3,
+  searchEnabled: false,
+  searchProviderId: "",
 };
 
 export function BotsPage() {
@@ -43,16 +45,23 @@ export function BotsPage() {
   const [bots, setBots] = useState<Bot[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [models, setModels] = useState<ModelRecord[]>([]);
+  const [searchProviders, setSearchProviders] = useState<SearchProviderRecord[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Bot | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
-    const [b, p, m] = await Promise.all([api.botStatus(), api.personas(), api.models()]);
+    const [b, p, m, sp] = await Promise.all([
+      api.botStatus(),
+      api.personas(),
+      api.models(),
+      api.searchProviders().catch(() => ({ presets: [], providers: [] })),
+    ]);
     setBots(b);
     setPersonas(p);
     setModels(m);
+    setSearchProviders(sp.providers);
   };
 
   useEffect(() => {
@@ -79,6 +88,8 @@ export function BotsPage() {
       agentEnabled: bot.agentEnabled,
       proactiveEnabled: bot.proactiveEnabled,
       proactiveMaxMessages: bot.proactiveMaxMessages,
+      searchEnabled: bot.searchEnabled,
+      searchProviderId: bot.searchProviderId ?? "",
     });
     setModalOpen(true);
   };
@@ -95,6 +106,8 @@ export function BotsPage() {
         agentEnabled: form.agentEnabled,
         proactiveEnabled: form.proactiveEnabled,
         proactiveMaxMessages: form.proactiveMaxMessages,
+        searchEnabled: form.searchEnabled,
+        searchProviderId: form.searchProviderId || null,
       };
       if (form.clientSecret) payload.clientSecret = form.clientSecret;
       if (editing) {
@@ -159,6 +172,7 @@ export function BotsPage() {
                 <th className="call-label px-4 py-2.5 font-normal">启用</th>
                 <th className="call-label px-4 py-2.5 font-normal">Agent</th>
                 <th className="call-label px-4 py-2.5 font-normal">主动消息</th>
+                <th className="call-label px-4 py-2.5 font-normal">联网搜索</th>
                 <th className="call-label px-4 py-2.5 font-normal">Token 过期</th>
                 <th className="call-label px-4 py-2.5 text-right font-normal">操作</th>
               </tr>
@@ -195,6 +209,15 @@ export function BotsPage() {
                         <span className="font-mono text-[11px] text-muted">关闭</span>
                       )}
                     </td>
+                    <td className="px-4 py-3">
+                      {bot.searchEnabled ? (
+                        <span className="font-mono text-[11px] text-ink">
+                          {searchProviders.find((p) => p.id === bot.searchProviderId)?.label ?? "自动选择"}
+                        </span>
+                      ) : (
+                        <span className="font-mono text-[11px] text-muted">关闭</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 font-mono text-[11px] text-muted">{formatDateTime(bot.tokenExpiresAt)}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
@@ -221,7 +244,7 @@ export function BotsPage() {
               })}
               {bots.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center font-mono text-[12px] text-muted">
+                  <td colSpan={11} className="px-4 py-12 text-center font-mono text-[12px] text-muted">
                     还没有 Bot，点击「新建 Bot」开始接入。
                   </td>
                 </tr>
@@ -316,6 +339,36 @@ export function BotsPage() {
               <p className="mt-1 text-[12px] leading-relaxed text-muted">
                 用户回复后计数重置；范围 1-10，默认 3。
               </p>
+            </div>
+          </div>
+          <div className="space-y-2 border border-rule bg-ink/[0.02] p-3">
+            <div className="flex items-center gap-2">
+              <Switch checked={form.searchEnabled} onCheckedChange={(v) => setForm({ ...form, searchEnabled: v })} />
+              <span className="text-[13px] font-medium text-ink">启用联网搜索</span>
+            </div>
+            <p className="text-[12px] leading-relaxed text-muted">
+              开启后，模型会在遇到新闻、实时数据等需要最新信息的场景时自主调用搜索工具。
+            </p>
+            <div>
+              <Label>搜索提供商</Label>
+              <Select
+                value={form.searchProviderId}
+                onChange={(e) => setForm({ ...form, searchProviderId: e.target.value })}
+                disabled={!form.searchEnabled}
+              >
+                <option value="">（自动选择第一个启用的提供商）</option>
+                {searchProviders.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                    {p.enabled ? "" : "（已停用）"}
+                  </option>
+                ))}
+              </Select>
+              {searchProviders.length === 0 && (
+                <p className="mt-1 text-[12px] leading-relaxed text-alert">
+                  还没有配置搜索提供商，请先到「模型管理 → 联网搜索」添加。
+                </p>
+              )}
             </div>
           </div>
           <div className="space-y-2 border-l-[3px] border-alert bg-alert/10 p-3">

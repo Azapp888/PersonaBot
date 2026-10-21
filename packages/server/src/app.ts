@@ -9,6 +9,7 @@ import { authRoutes } from "./routes/auth";
 import { botRoutes } from "./routes/bots";
 import { personaRoutes } from "./routes/personas";
 import { modelRoutes } from "./routes/models";
+import { searchRoutes } from "./routes/search";
 import { memoryRoutes } from "./routes/memories";
 import { statsRoutes } from "./routes/stats";
 import { settingsRoutes } from "./routes/settings";
@@ -77,6 +78,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(botRoutes);
   await app.register(personaRoutes);
   await app.register(modelRoutes);
+  await app.register(searchRoutes);
   await app.register(memoryRoutes);
   await app.register(statsRoutes);
   await app.register(logRoutes);

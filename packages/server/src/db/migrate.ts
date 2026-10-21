@@ -294,6 +294,24 @@ ALTER TABLE bots ADD COLUMN proactive_enabled INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE bots ADD COLUMN proactive_max_messages INTEGER NOT NULL DEFAULT 3;
 `,
   },
+  {
+    id: "016_web_search",
+    sql: `
+CREATE TABLE IF NOT EXISTS search_providers (
+  id TEXT PRIMARY KEY,
+  vendor TEXT NOT NULL,
+  api_base TEXT,
+  model TEXT,
+  api_key TEXT,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_search_providers_vendor ON search_providers(vendor);
+ALTER TABLE bots ADD COLUMN search_enabled INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE bots ADD COLUMN search_provider_id TEXT;
+`,
+  },
 ];
 
 export function runMigrations(database?: Database.Database): void {

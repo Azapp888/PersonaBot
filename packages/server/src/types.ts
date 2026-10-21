@@ -16,6 +16,10 @@ export interface Bot {
   proactiveEnabled: boolean;
   /** 该 Bot 每个用户在一轮对话内最多主动发送的条数。 */
   proactiveMaxMessages: number;
+  /** 是否允许模型自主调用联网搜索。 */
+  searchEnabled: boolean;
+  /** 使用哪个搜索提供商（search_providers.id），为空时用第一个启用的提供商。 */
+  searchProviderId: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -389,4 +393,27 @@ export interface QQReplyTarget {
   guildId?: string;
   channelId?: string;
   msgId: string;
+}
+
+/** 联网搜索返回的单条结果（已归一化为各厂商通用结构）。 */
+export interface WebSearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
+/** 内置搜索提供商标识。 */
+export type SearchVendor = "deepseek" | "volcengine" | "tavily" | "bocha" | "exa" | "serper";
+
+/** 搜索提供商配置（密钥加密存储）。 */
+export interface SearchProvider {
+  id: string;
+  vendor: SearchVendor;
+  apiBase: string | null;
+  /** 火山方舟等需要指定模型来执行搜索。 */
+  model: string | null;
+  apiKey: string | null;
+  enabled: boolean;
+  createdAt: number;
+  updatedAt: number;
 }

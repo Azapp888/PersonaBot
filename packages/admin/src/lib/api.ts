@@ -16,12 +16,15 @@ import type {
   ProactiveRunResult,
   ProviderGroup,
   ScheduleSegment,
+  SearchPreset,
+  SearchProviderRecord,
   Skill,
   SystemLogPage,
   SystemTime,
   TrendPoint,
   UpdateInfo,
   UpdateResult,
+  WebSearchResult,
 } from "./types";
 
 const TOKEN_KEY = "pb_token";
@@ -167,6 +170,16 @@ export const api = {
   toggleBot: (id: string) => request<Bot>("POST", `/api/bots/${id}/toggle`),
   restartBot: (id: string) => request<{ ok: boolean }>("POST", `/api/bots/${id}/restart`),
   deleteBot: (id: string) => request<{ ok: boolean }>("DELETE", `/api/bots/${id}`),
+
+  // search providers
+  searchProviders: () => request<{ presets: SearchPreset[]; providers: SearchProviderRecord[] }>("GET", "/api/search/providers"),
+  createSearchProvider: (data: { vendor: string; apiKey?: string; apiBase?: string; model?: string; enabled?: boolean }) =>
+    request<SearchProviderRecord>("POST", "/api/search/providers", data),
+  updateSearchProvider: (id: string, data: { apiKey?: string; apiBase?: string | null; model?: string | null; enabled?: boolean }) =>
+    request<SearchProviderRecord>("PUT", `/api/search/providers/${id}`, data),
+  deleteSearchProvider: (id: string) => request<{ ok: boolean }>("DELETE", `/api/search/providers/${id}`),
+  testSearchProvider: (id: string, query?: string) =>
+    request<{ ok: boolean; results?: WebSearchResult[]; message?: string }>("POST", `/api/search/providers/${id}/test`, { query }),
 
   // personas
   personas: () => request<Persona[]>("GET", "/api/personas"),

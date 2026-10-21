@@ -17,6 +17,12 @@ export const SHELL_TOOL: ToolDefinition = {
   },
 };
 
+/** 一个可由模型调用的工具及其执行器。 */
+export interface AgentTool {
+  definition: ToolDefinition;
+  execute: (args: any, signal?: AbortSignal) => Promise<{ output: string; ok: boolean }>;
+}
+
 export interface ShellRunRecord {
   command: string;
   output: string;
@@ -27,6 +33,19 @@ export interface AgentRunResult {
   content: string;
   usage: LLMUsage;
   toolRuns: ShellRunRecord[];
+}
+
+export interface ToolRunRecord {
+  name: string;
+  args: Record<string, unknown>;
+  output: string;
+  ok: boolean;
+}
+
+export interface ToolLoopResult {
+  content: string;
+  usage: LLMUsage;
+  toolRuns: ToolRunRecord[];
 }
 
 function emptyUsage(): LLMUsage {
@@ -67,22 +86,29 @@ export function formatShellReply(command: string, result: ShellResult): string {
 }
 
 /**
- * 带工具调用的 Agent 循环：模型可多次请求执行 shell，直到给出最终文本回复。
- * 仅在 provider 支持工具调用时使用。
+ * 通用工具调用循环：模型可以多次调用任意已注册工具，直到给出最终文本回复。
+ * 工具输出会回填到对话中，并在回填前截断，避免上下文与 token 失控。
  */
-export async function runAgentLoop(
+export async function runToolLoop(
   provider: LLMProvider,
   messages: ChatMessage[],
-  options: { temperature?: number; maxTokens?: number; signal?: AbortSignal } = {},
-): Promise<AgentRunResult> {
+  tools: AgentTool[],
+  options: { temperature?: number; maxTokens?: number; signal?: AbortSignal; maxIterations?: number } = {},
+): Promise<ToolLoopResult> {
   if (!provider.chatWithTools) throw new Error("provider does not support tools");
-  const maxIterations = 5;
+  if (!tools.length) throw new Error("no tools registered");
+  const maxIterations = options.maxIterations ?? 5;
+  const byName = new Map(tools.map((t) => [t.definition.name, t]));
   const convo: ChatMessage[] = [...messages];
   const usage = emptyUsage();
-  const toolRuns: ShellRunRecord[] = [];
+  const toolRuns: ToolRunRecord[] = [];
 
   for (let i = 0; i < maxIterations; i++) {
-    const res = await provider.chatWithTools(convo, [SHELL_TOOL], options);
+    const res = await provider.chatWithTools(
+      convo,
+      tools.map((t) => t.definition),
+      { temperature: options.temperature, maxTokens: options.maxTokens, signal: options.signal },
+    );
     addUsage(usage, res.usage);
     if (!res.toolCalls.length) {
       return { content: res.content, usage, toolRuns };
@@ -92,26 +118,64 @@ export async function runAgentLoop(
       if (options.signal?.aborted) {
         return { content: "", usage, toolRuns };
       }
-      let command = "";
+      let args: Record<string, unknown> = {};
       try {
-        command = String((JSON.parse(call.arguments || "{}") as any)?.command ?? "");
+        args = JSON.parse(call.arguments || "{}");
       } catch {
-        command = "";
+        args = {};
       }
       let output: string;
       let ok = false;
-      if (!command.trim()) {
-        output = "错误：工具调用未提供 command 参数";
+      const tool = byName.get(call.name);
+      if (!tool) {
+        output = `错误：未知工具 ${call.name}`;
       } else {
-        const r = await runShellCommand(command);
-        ok = r.ok;
-        output = r.output || `(无输出，退出码 ${r.exitCode})`;
+        try {
+          const r = await tool.execute(args, options.signal);
+          ok = r.ok;
+          output = r.output || "(无输出)";
+        } catch (err) {
+          output = `工具执行失败：${(err as Error).message}`;
+        }
       }
-      // 工具输出可能很长，回填给模型前再做一次截断，避免上下文与 token 失控
-      if (output.length > 4000) output = output.slice(0, 4000) + "\n…（已截断）";
-      toolRuns.push({ command, output, ok });
+      if (output.length > 6000) output = output.slice(0, 6000) + "\n…（已截断）";
+      toolRuns.push({ name: call.name, args, output, ok });
       convo.push({ role: "tool", content: output, toolCallId: call.id });
     }
   }
   return { content: "", usage, toolRuns };
+}
+
+/** 内置 shell 工具。 */
+export const SHELL_AGENT_TOOL: AgentTool = {
+  definition: SHELL_TOOL,
+  execute: async (args) => {
+    const command = String((args as any)?.command ?? "").trim();
+    if (!command) return { output: "错误：工具调用未提供 command 参数", ok: false };
+    const r = await runShellCommand(command);
+    return { output: r.output || `(无输出，退出码 ${r.exitCode})`, ok: r.ok };
+  },
+};
+
+/**
+ * 带工具调用的 Agent 循环：模型可多次请求执行 shell，直到给出最终文本回复。
+ * 仅在 provider 支持工具调用时使用。
+ */
+export async function runAgentLoop(
+  provider: LLMProvider,
+  messages: ChatMessage[],
+  options: { temperature?: number; maxTokens?: number; signal?: AbortSignal; extraTools?: AgentTool[] } = {},
+): Promise<AgentRunResult> {
+  const res = await runToolLoop(provider, messages, [SHELL_AGENT_TOOL, ...(options.extraTools ?? [])], options);
+  return {
+    content: res.content,
+    usage: res.usage,
+    toolRuns: res.toolRuns
+      .filter((r) => r.name === SHELL_TOOL.name)
+      .map((r) => ({
+        command: String((r.args as any)?.command ?? ""),
+        output: r.output,
+        ok: r.ok,
+      })),
+  };
 }

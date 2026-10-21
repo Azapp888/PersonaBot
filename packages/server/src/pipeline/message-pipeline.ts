@@ -29,11 +29,13 @@ import { buildConversationContext } from "../context/manager";
 import { buildGuardrail, violatesGuardrail, sanitizeReply } from "../context/state";
 import { buildFileContext, renderFileContext, buildImageParts } from "../attachments/service";
 import { pickQQImages, mediaPlaceholder, isQQImageAttachment, QQ_IMAGE_MAX_BYTES } from "../qq/capabilities";
-import { detectShellCommand, formatShellReply, runAgentLoop } from "../agent";
+import { detectShellCommand, formatShellReply, runToolLoop, SHELL_AGENT_TOOL, type AgentTool } from "../agent";
 import { isUserAllowedForShell, runShellCommand } from "../agent/shell";
 import { filterText } from "../moderation/filter";
 import { clearAbort, abortActive, registerAbort } from "./abort-store";
 import { inspectReply, qualityRetryInstruction } from "./reply-quality";
+import { searchProviderRepo } from "../db/repos/search-providers";
+import { WEB_SEARCH_TOOL, formatSearchResults, runWebSearch } from "../search/service";
 
 const PAINT_KEYWORDS = ["画一张", "画个", "画幅", "画画", "画一下", "帮我画", "给我画", "作画", "绘一张", "来张图"];
 
@@ -128,6 +130,16 @@ export async function generateReply(
   // 模型按 Bot 分配：优先 Bot 上配置的模型，未配置或不可用时回退到角色配置
   const boundBot = botId ? botRepo.find(botId) : null;
   const resolved = resolveProviderForBot(boundBot, persona);
+
+  // 联网搜索：仅当 Bot 开启且配置了可用的搜索提供商时，才向模型暴露 web_search 工具。
+  const searchProvider = (() => {
+    if (!boundBot?.searchEnabled) return null;
+    if (boundBot.searchProviderId) {
+      const picked = searchProviderRepo.find(boundBot.searchProviderId);
+      if (picked?.enabled) return picked;
+    }
+    return searchProviderRepo.listEnabled()[0] ?? null;
+  })();
 
   // 滑动窗口 + 滚动摘要 + 状态机（每次请求都按最新用户输入更新）
   const context = await buildConversationContext(persona, userId, userText);
@@ -229,11 +241,30 @@ export async function generateReply(
       },
     );
 
-    // 启用服务器 Agent 且模型支持工具调用时，走「模型自主决定执行 shell」的循环
+    // 按 Bot 配置组装工具：shell 仅在该 Bot 开启 Agent 时暴露，搜索仅在开启且配置了提供商时暴露。
+    const tools: AgentTool[] = [];
+    if (opts.agentEnabled) tools.push(SHELL_AGENT_TOOL);
+    if (searchProvider) {
+      const providerConfig = searchProvider;
+      tools.push({
+        definition: WEB_SEARCH_TOOL,
+        execute: async (args) => {
+          const query = String((args as any)?.query ?? "").trim();
+          if (!query) return { output: "错误：工具调用未提供 query 参数", ok: false };
+          try {
+            const results = await runWebSearch(providerConfig, query, Number((args as any)?.count) || undefined);
+            return { output: formatSearchResults(query, results), ok: true };
+          } catch (err) {
+            return { output: `联网搜索失败：${(err as Error).message}`, ok: false };
+          }
+        },
+      });
+    }
+
     const callModel = async (msgs: ChatMessage[]) => {
       // 记录一次模型请求的完整上下文，便于事后复现与排查
       const startedAt = Date.now();
-      const toolsEnabled = !!(opts.agentEnabled && provider.supportsTools && provider.chatWithTools);
+      const toolsEnabled = !!(tools.length && provider.supportsTools && provider.chatWithTools);
       const totalChars = msgs.reduce((n, m) => n + (typeof m.content === "string" ? m.content.length : 0), 0);
       sysLog.info(
         "model",
@@ -260,7 +291,7 @@ export async function generateReply(
       );
       try {
         const result = toolsEnabled
-          ? await runAgentLoop(provider, msgs, { temperature, maxTokens, signal })
+          ? await runToolLoop(provider, msgs, tools, { temperature, maxTokens, signal })
           : await provider.chat(msgs, { temperature, maxTokens, signal });
         const durationMs = Date.now() - startedAt;
         sysLog.info(
@@ -281,6 +312,24 @@ export async function generateReply(
             usage: result.usage,
           },
         );
+        const toolRuns = (result as { toolRuns?: { name: string; args: Record<string, unknown>; output: string; ok: boolean }[] })
+          .toolRuns;
+        if (toolRuns?.length) {
+          sysLog.info(
+            "pipeline",
+            `模型调用工具：${toolRuns.map((r) => r.name).join("、")}`,
+            { personaId: persona.id, botId, userId, modelId: model?.id ?? null, stage: "tool" },
+            {
+              toolRuns: toolRuns.map((r) => ({
+                name: r.name,
+                args: r.args,
+                ok: r.ok,
+                outputChars: r.output.length,
+                output: r.name === WEB_SEARCH_TOOL.name ? r.output.slice(0, 2000) : undefined,
+              })),
+            },
+          );
+        }
         return result;
       } catch (err) {
         const durationMs = Date.now() - startedAt;

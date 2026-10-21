@@ -113,6 +113,8 @@ export interface Bot {
   agentEnabled: boolean;
   proactiveEnabled: boolean;
   proactiveMaxMessages: number;
+  searchEnabled: boolean;
+  searchProviderId: string | null;
   clientSecretSet: boolean;
   tokenExpiresAt: number | null;
   createdAt: number;
@@ -120,6 +122,36 @@ export interface Bot {
   gatewayState?: string;
   lastError?: string | null;
   connectedAt?: number | null;
+}
+
+export type SearchVendor = "volcengine" | "deepseek" | "tavily" | "bocha" | "exa" | "serper";
+
+export interface SearchPreset {
+  vendor: SearchVendor;
+  label: string;
+  description: string;
+  apiBase: string;
+  model: string | null;
+  consoleUrl: string;
+  keyHint: string;
+}
+
+export interface SearchProviderRecord {
+  id: string;
+  vendor: SearchVendor;
+  label: string;
+  apiBase: string | null;
+  model: string | null;
+  enabled: boolean;
+  apiKeySet: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface WebSearchResult {
+  title: string;
+  url: string;
+  snippet: string;
 }
 
 export interface ModelRecord {
