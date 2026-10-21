@@ -493,7 +493,7 @@ class MessagePipeline {
       return;
     }
     const key = `${bot.id}:${event.authorId}`;
-    notifyUserReplied(persona.id, event.authorId);
+    notifyUserReplied(bot.id, event.authorId);
     let batch = this.batches.get(key);
     if (!batch) {
       batch = {

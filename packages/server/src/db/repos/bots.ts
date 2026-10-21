@@ -4,6 +4,15 @@ import type { Bot } from "../../types";
 import { newId, now } from "../../utils/id";
 import { decryptSecret, encryptSecret } from "../../utils/crypto";
 
+const PROACTIVE_MAX_LIMIT = 10;
+
+/** 主动消息条数收敛到 1..10，避免误填 0 或过大值。 */
+function clampProactiveMax(value: number | undefined): number {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n)) return 3;
+  return Math.min(PROACTIVE_MAX_LIMIT, Math.max(1, n));
+}
+
 function map(row: any): Bot {
   return {
     id: row.id,
@@ -16,6 +25,8 @@ function map(row: any): Bot {
     modelId: row.model_id ?? null,
     enabled: !!row.enabled,
     agentEnabled: !!row.agent_enabled,
+    proactiveEnabled: !!row.proactive_enabled,
+    proactiveMaxMessages: row.proactive_max_messages ?? 3,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -29,6 +40,8 @@ export interface BotInput {
   modelId?: string | null;
   enabled?: boolean;
   agentEnabled?: boolean;
+  proactiveEnabled?: boolean;
+  proactiveMaxMessages?: number;
 }
 
 export const botRepo = {
@@ -54,8 +67,8 @@ export const botRepo = {
     const ts = now();
     this.db()
       .prepare(
-        `INSERT INTO bots (id, name, app_id, client_secret, persona_id, model_id, enabled, agent_enabled, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO bots (id, name, app_id, client_secret, persona_id, model_id, enabled, agent_enabled, proactive_enabled, proactive_max_messages, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -66,6 +79,8 @@ export const botRepo = {
         input.modelId ?? null,
         input.enabled === false ? 0 : 1,
         input.agentEnabled ? 1 : 0,
+        input.proactiveEnabled ? 1 : 0,
+        clampProactiveMax(input.proactiveMaxMessages),
         ts,
         ts,
       );
@@ -85,12 +100,27 @@ export const botRepo = {
       modelId: input.modelId !== undefined ? input.modelId : current.modelId,
       enabled: input.enabled !== undefined ? input.enabled : current.enabled,
       agentEnabled: input.agentEnabled !== undefined ? input.agentEnabled : current.agentEnabled,
+      proactiveEnabled: input.proactiveEnabled !== undefined ? input.proactiveEnabled : current.proactiveEnabled,
+      proactiveMaxMessages:
+        input.proactiveMaxMessages !== undefined ? clampProactiveMax(input.proactiveMaxMessages) : current.proactiveMaxMessages,
     };
     this.db()
       .prepare(
-        `UPDATE bots SET name = ?, app_id = ?, client_secret = ?, persona_id = ?, model_id = ?, enabled = ?, agent_enabled = ?, updated_at = ? WHERE id = ?`,
+        `UPDATE bots SET name = ?, app_id = ?, client_secret = ?, persona_id = ?, model_id = ?, enabled = ?, agent_enabled = ?, proactive_enabled = ?, proactive_max_messages = ?, updated_at = ? WHERE id = ?`,
       )
-      .run(next.name, next.appId, next.clientSecret, next.personaId, next.modelId, next.enabled ? 1 : 0, next.agentEnabled ? 1 : 0, now(), id);
+      .run(
+        next.name,
+        next.appId,
+        next.clientSecret,
+        next.personaId,
+        next.modelId,
+        next.enabled ? 1 : 0,
+        next.agentEnabled ? 1 : 0,
+        next.proactiveEnabled ? 1 : 0,
+        next.proactiveMaxMessages,
+        now(),
+        id,
+      );
     return this.find(id);
   },
   updateToken(id: string, accessToken: string, expiresAt: number): void {

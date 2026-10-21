@@ -12,6 +12,10 @@ export interface Bot {
   modelId: string | null;
   enabled: boolean;
   agentEnabled: boolean; // 是否启用「服务器本地 Agent（可运行 shell 命令）」
+  /** 该 Bot 是否启用主动消息（按 Bot 独立配置，不再有全局开关）。 */
+  proactiveEnabled: boolean;
+  /** 该 Bot 每个用户在一轮对话内最多主动发送的条数。 */
+  proactiveMaxMessages: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -252,8 +256,6 @@ export interface AppSettings {
   paintingApiKey: string;
   paintingModel: string;
   paintingSize: string;
-  proactiveEnabled: boolean;
-  proactiveMaxMessages: number;
   skillRepoUrl: string;
   skillBranch: string;
   githubToken: string;

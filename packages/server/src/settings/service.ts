@@ -28,8 +28,6 @@ function defaultSettings(): AppSettings {
     paintingApiKey: "",
     paintingModel: "gpt-image-1",
     paintingSize: "1024x1024",
-    proactiveEnabled: config.defaults.proactiveEnabled,
-    proactiveMaxMessages: config.defaults.proactiveMaxMessages,
     skillRepoUrl: "",
     skillBranch: "main",
     githubToken: "",

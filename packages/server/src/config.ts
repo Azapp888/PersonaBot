@@ -78,8 +78,6 @@ export const config = {
     adminPort: num("PORT", 3000),
     paintingGlobalDailyLimit: 50,
     paintingPersonaDailyLimit: 1,
-    proactiveMaxMessages: 3,
-    proactiveEnabled: true,
     skillUpdateCron: "0 */6 * * *",
     messageDebounceMs: 1200,
     memoryInjectConversationLimit: 40,

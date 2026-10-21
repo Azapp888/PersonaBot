@@ -287,6 +287,13 @@ ALTER TABLE message_logs ADD COLUMN invalid INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS idx_message_logs_valid ON message_logs(persona_id, user_id, invalid, created_at);
 `,
   },
+  {
+    id: "015_bot_proactive",
+    sql: `
+ALTER TABLE bots ADD COLUMN proactive_enabled INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE bots ADD COLUMN proactive_max_messages INTEGER NOT NULL DEFAULT 3;
+`,
+  },
 ];
 
 export function runMigrations(database?: Database.Database): void {

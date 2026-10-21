@@ -111,6 +111,8 @@ export interface Bot {
   modelName?: string | null;
   enabled: boolean;
   agentEnabled: boolean;
+  proactiveEnabled: boolean;
+  proactiveMaxMessages: number;
   clientSecretSet: boolean;
   tokenExpiresAt: number | null;
   createdAt: number;
@@ -283,8 +285,6 @@ export interface AppSettings {
   paintingApiKeySet?: boolean;
   paintingModel: string;
   paintingSize: string;
-  proactiveEnabled: boolean;
-  proactiveMaxMessages: number;
   skillRepoUrl: string;
   skillBranch: string;
   githubToken?: string;

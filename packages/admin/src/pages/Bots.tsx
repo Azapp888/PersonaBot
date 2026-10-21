@@ -26,7 +26,17 @@ const stateMap: Record<string, { label: string; variant: any }> = {
   stopped: { label: "停止", variant: "secondary" },
 };
 
-const emptyForm = { name: "", appId: "", clientSecret: "", personaId: "", modelId: "", enabled: true, agentEnabled: false };
+const emptyForm = {
+  name: "",
+  appId: "",
+  clientSecret: "",
+  personaId: "",
+  modelId: "",
+  enabled: true,
+  agentEnabled: false,
+  proactiveEnabled: false,
+  proactiveMaxMessages: 3,
+};
 
 export function BotsPage() {
   const { push } = useToast();
@@ -67,6 +77,8 @@ export function BotsPage() {
       modelId: bot.modelId ?? "",
       enabled: bot.enabled,
       agentEnabled: bot.agentEnabled,
+      proactiveEnabled: bot.proactiveEnabled,
+      proactiveMaxMessages: bot.proactiveMaxMessages,
     });
     setModalOpen(true);
   };
@@ -81,6 +93,8 @@ export function BotsPage() {
         modelId: form.modelId || null,
         enabled: form.enabled,
         agentEnabled: form.agentEnabled,
+        proactiveEnabled: form.proactiveEnabled,
+        proactiveMaxMessages: form.proactiveMaxMessages,
       };
       if (form.clientSecret) payload.clientSecret = form.clientSecret;
       if (editing) {
@@ -134,7 +148,7 @@ export function BotsPage() {
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto p-0">
-          <table className="w-full min-w-[760px] text-[13.5px]">
+          <table className="w-full min-w-[900px] text-[13.5px]">
             <thead>
               <tr className="border-b border-rule text-left">
                 <th className="call-label px-4 py-2.5 font-normal">名称</th>
@@ -144,6 +158,7 @@ export function BotsPage() {
                 <th className="call-label px-4 py-2.5 font-normal">状态</th>
                 <th className="call-label px-4 py-2.5 font-normal">启用</th>
                 <th className="call-label px-4 py-2.5 font-normal">Agent</th>
+                <th className="call-label px-4 py-2.5 font-normal">主动消息</th>
                 <th className="call-label px-4 py-2.5 font-normal">Token 过期</th>
                 <th className="call-label px-4 py-2.5 text-right font-normal">操作</th>
               </tr>
@@ -169,6 +184,13 @@ export function BotsPage() {
                     <td className="px-4 py-3">
                       {bot.agentEnabled ? (
                         <Badge variant="warning">已启用</Badge>
+                      ) : (
+                        <span className="font-mono text-[11px] text-muted">关闭</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {bot.proactiveEnabled ? (
+                        <span className="font-mono text-[11px] text-ink">开启 · 每轮 {bot.proactiveMaxMessages} 条</span>
                       ) : (
                         <span className="font-mono text-[11px] text-muted">关闭</span>
                       )}
@@ -199,7 +221,7 @@ export function BotsPage() {
               })}
               {bots.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center font-mono text-[12px] text-muted">
+                  <td colSpan={10} className="px-4 py-12 text-center font-mono text-[12px] text-muted">
                     还没有 Bot，点击「新建 Bot」开始接入。
                   </td>
                 </tr>
@@ -270,6 +292,31 @@ export function BotsPage() {
           <div className="flex items-center gap-2">
             <Switch checked={form.enabled} onCheckedChange={(v) => setForm({ ...form, enabled: v })} />
             <span className="text-[13px]">启用该 Bot</span>
+          </div>
+          <div className="space-y-2 border border-rule bg-ink/[0.02] p-3">
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={form.proactiveEnabled}
+                onCheckedChange={(v) => setForm({ ...form, proactiveEnabled: v })}
+              />
+              <span className="text-[13px] font-medium text-ink">启用主动消息</span>
+            </div>
+            <p className="text-[12px] leading-relaxed text-muted">
+              开启后，该 Bot 会按角色与用户活跃时段主动发起对话。每个 Bot 独立配置，互不影响。
+            </p>
+            <div>
+              <Label>每个用户每轮最多主动发送条数</Label>
+              <Input
+                type="number"
+                min={1}
+                max={10}
+                value={form.proactiveMaxMessages}
+                onChange={(e) => setForm({ ...form, proactiveMaxMessages: Number(e.target.value) })}
+              />
+              <p className="mt-1 text-[12px] leading-relaxed text-muted">
+                用户回复后计数重置；范围 1-10，默认 3。
+              </p>
+            </div>
           </div>
           <div className="space-y-2 border-l-[3px] border-alert bg-alert/10 p-3">
             <div className="flex items-center gap-2">

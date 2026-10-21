@@ -53,13 +53,14 @@ export interface ProactiveRunResult {
   errors: string[];
 }
 
-function key(personaId: string, userId: string): string {
-  return `${personaId}:${userId}`;
+function key(botId: string, userId: string): string {
+  return `${botId}:${userId}`;
 }
 
-export function notifyUserReplied(personaId: string, userId: string): void {
+/** 用户回复后，重置该 Bot 对该用户的主动消息计数。 */
+export function notifyUserReplied(botId: string, userId: string): void {
   sweepSentSinceReply();
-  sentSinceReply.set(key(personaId, userId), 0);
+  sentSinceReply.set(key(botId, userId), 0);
 }
 
 interface Window {
@@ -252,35 +253,38 @@ export async function runDailyGreetings(force = false): Promise<ProactiveRunResu
 
 /**
  * 主动消息周期任务：依据用户活跃时段与角色性格，判断是否主动发起。
- * 每次最多发 maxMessages 条，用户回复后计数刷新。发送前遵循 10/qps 频控。
+ * 开关与「每次最多发几条」都按 Bot 独立配置；每个用户一轮对话内最多发
+ * bot.proactiveMaxMessages 条，用户回复后计数刷新。发送前遵循 10/qps 频控。
  *
  * force=true 时用于后台「立即执行」按钮：跳过冷却与活跃时段判断，直接尝试发送，
- * 并把每个目标的跳过原因 / 发送结果返回给调用方，便于排查。
+ * 并把每个目标的跳过原因 / 发送结果返回给调用方，便于排查。仍然只处理启用了
+ * 主动消息的 Bot，避免手动执行时给未开启的 Bot 发消息。
  */
 export async function runProactiveCycle(force = false): Promise<ProactiveRunResult> {
-  const settings = settingsService.get();
-  const result = emptyResult(settings.proactiveEnabled, force);
-  if (!settings.proactiveEnabled && !force) return result;
+  const bots = botRepo.listEnabled();
+  const enabledBots = bots.filter((b) => b.proactiveEnabled);
+  const result = emptyResult(enabledBots.length > 0, force);
+  if (!enabledBots.length) return result;
   sweepSentSinceReply();
-  const maxMessages = settings.proactiveMaxMessages;
 
-  for (const persona of personaRepo.listEnabled()) {
-    result.personas++;
-    const bot = botRepo.listEnabled().find((b) => b.personaId === persona.id);
-    if (!bot) {
-      result.skipped.push({ persona: persona.name, userId: "-", reason: "该角色没有绑定已启用的 Bot" });
+  for (const bot of enabledBots) {
+    const persona = bot.personaId ? personaRepo.find(bot.personaId) : null;
+    if (!persona || !persona.enabled) {
+      result.skipped.push({ persona: bot.name, userId: "-", reason: "该 Bot 未绑定已启用的角色" });
       continue;
     }
+    result.personas++;
 
     const profiles = profileRepo.listByPersona(persona.id);
     if (!profiles.length) {
       result.skipped.push({ persona: persona.name, userId: "-", reason: "该角色还没有对话过的用户" });
       continue;
     }
+    const maxMessages = Math.max(1, bot.proactiveMaxMessages);
 
     for (const profile of profiles) {
       result.profiles++;
-      const k = key(persona.id, profile.userId);
+      const k = key(bot.id, profile.userId);
       const sent = sentSinceReply.get(k) ?? 0;
       const now = Date.now();
 

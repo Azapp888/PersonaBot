@@ -552,26 +552,6 @@ export function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>主动消息</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <ToggleRow
-            label="启用主动消息"
-            checked={settings.proactiveEnabled}
-            onChange={(v) => set({ proactiveEnabled: v })}
-          />
-          <Field label="一次性最多主动发送条数">
-            <Input
-              type="number"
-              value={settings.proactiveMaxMessages}
-              onChange={(e) => set({ proactiveMaxMessages: Number(e.target.value) })}
-            />
-          </Field>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
           <CardTitle>AI 绘画</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">

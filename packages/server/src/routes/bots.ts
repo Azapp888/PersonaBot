@@ -18,6 +18,8 @@ function present(bot: Bot) {
     modelName: model ? `${model.name}（${model.provider}/${model.modelId}）` : null,
     enabled: bot.enabled,
     agentEnabled: bot.agentEnabled,
+    proactiveEnabled: bot.proactiveEnabled,
+    proactiveMaxMessages: bot.proactiveMaxMessages,
     clientSecretSet: !!bot.clientSecret,
     tokenExpiresAt: bot.tokenExpiresAt,
     createdAt: bot.createdAt,
@@ -56,6 +58,8 @@ export async function botRoutes(app: FastifyInstance): Promise<void> {
       modelId: body.modelId ?? null,
       enabled: body.enabled !== false,
       agentEnabled: body.agentEnabled === true,
+      proactiveEnabled: body.proactiveEnabled === true,
+      proactiveMaxMessages: body.proactiveMaxMessages,
     });
     if (bot.enabled) await botManager.startBot(bot);
     return present(bot);
@@ -74,6 +78,8 @@ export async function botRoutes(app: FastifyInstance): Promise<void> {
       modelId: body.modelId,
       enabled: body.enabled,
       agentEnabled: body.agentEnabled,
+      proactiveEnabled: body.proactiveEnabled,
+      proactiveMaxMessages: body.proactiveMaxMessages,
     });
     const fresh = botRepo.find(id)!;
     if (body.clientSecret) invalidateToken(id);
