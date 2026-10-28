@@ -118,19 +118,59 @@ export function resolveProviderForPersona(_persona: Persona): { provider: LLMPro
  * 模型分配以 Bot 为单位（同一个角色可被多个 Bot 复用，各 Bot 可用不同模型）。
  * 这里保持纯"选一个可用模型"的语义，不做失败后自动切换其它模型的故障转移。
  */
-export function resolveProviderForBot(
+export interface ProviderCandidate {
+  provider: LLMProvider;
+  model: ModelRecord | null;
+}
+
+/**
+ * 解析一次对话的「模型候选链」：Bot 绑定的模型优先，其余已启用模型依次兜底。
+ *
+ * 单个模型故障（超时、5xx、限流）时切换到下一个候选，避免整轮回复直接失败。
+ * mock 只作为最后兜底，且仅当没有真实模型可用时才会被选中，保证真实模型优先。
+ */
+export function resolveProviderChain(
   bot: Pick<Bot, "modelId"> | null | undefined,
   _persona: Persona,
-): { provider: LLMProvider; model: ModelRecord | null } {
+): ProviderCandidate[] {
+  const chain: ProviderCandidate[] = [];
+  const seen = new Set<string>();
+  const push = (model: ModelRecord) => {
+    if (seen.has(model.id)) return;
+    try {
+      chain.push({ provider: createProviderFromModel(model), model });
+      seen.add(model.id);
+    } catch (err) {
+      logger.warn({ modelId: model.id, err: (err as Error).message }, "failed to construct provider, skipping candidate");
+    }
+  };
+
   const targetId = bot?.modelId;
   if (targetId) {
     const model = modelRepo.find(targetId);
     if (model && model.enabled) {
-      return { provider: createProviderFromModel(model), model };
+      push(model);
+    } else {
+      logger.warn({ modelId: targetId }, "bot-configured model unavailable, falling back to other models");
     }
-    logger.warn({ modelId: targetId }, "bot-configured model unavailable, falling back to default model");
   }
-  return resolveDefaultProvider();
+
+  const enabled = modelRepo.listEnabled();
+  for (const model of enabled) if (model.provider !== "mock") push(model);
+  for (const model of enabled) if (model.provider === "mock") push(model);
+
+  if (chain.length === 0) {
+    logger.warn("no enabled model found, falling back to MockProvider");
+    chain.push({ provider: new MockProvider(), model: null });
+  }
+  return chain;
+}
+
+export function resolveProviderForBot(
+  bot: Pick<Bot, "modelId"> | null | undefined,
+  persona: Persona,
+): ProviderCandidate {
+  return resolveProviderChain(bot, persona)[0];
 }
 
 /**

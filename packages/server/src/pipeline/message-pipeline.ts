@@ -5,7 +5,8 @@ import { contextRepo } from "../db/repos/context";
 import { profileRepo } from "../db/repos/profiles";
 import { logRepo } from "../db/repos/logs";
 import { statsRepo } from "../db/repos/stats";
-import { resolveProviderForBot, resolveVisionFallbackModel } from "../llm/factory";
+import { resolveProviderChain, resolveProviderForBot, resolveVisionFallbackModel, type ProviderCandidate } from "../llm/factory";
+import { circuitBreaker } from "../llm/circuit-breaker";
 import { contentToText } from "../llm/provider";
 import { isVisionRejection } from "../llm/vision";
 import { imageLimitFor } from "../llm/multimodal";
@@ -104,7 +105,8 @@ export async function generateReply(
 
   // 模型按 Bot 分配：优先 Bot 上配置的模型，未配置或不可用时回退到角色配置
   const boundBot = botId ? botRepo.find(botId) : null;
-  const resolved = resolveProviderForBot(boundBot, persona);
+  // 模型候选链：Bot 绑定模型优先，其余已启用模型按顺序兜底；熔断中的模型会被跳过。
+  const chain = resolveProviderChain(boundBot, persona);
 
   // 联网搜索：仅当 Bot 开启且配置了可用的搜索提供商时，才向模型暴露 web_search 工具。
   const searchProvider = (() => {
@@ -186,11 +188,9 @@ export async function generateReply(
   }
 
   try {
-    const { provider, model } = resolved;
-    modelId = model?.id ?? null;
-    const temperature = model?.temperature;
-    const maxTokens = model?.maxTokens;
     const signal = opts.signal;
+    let active: ProviderCandidate = chain[0];
+    modelId = active.model?.id ?? null;
 
     sysLog.info(
       "pipeline",
@@ -198,8 +198,9 @@ export async function generateReply(
       { personaId: persona.id, botId, userId, modelId, stage: "start" },
       {
         persona: persona.name,
-        provider: model?.provider ?? null,
-        model: model?.modelId ?? null,
+        provider: active.model?.provider ?? null,
+        model: active.model?.modelId ?? null,
+        fallbackChain: chain.map((c) => c.model?.id ?? "mock"),
         historyCount: context.history.length,
         hasImages: !!opts.imageParts?.length,
         agentEnabled: !!opts.agentEnabled,
@@ -227,7 +228,10 @@ export async function generateReply(
       });
     }
 
-    const callModel = async (msgs: ChatMessage[]) => {
+    const callModel = async (msgs: ChatMessage[], cand: ProviderCandidate) => {
+      const { provider, model } = cand;
+      const temperature = model?.temperature;
+      const maxTokens = model?.maxTokens;
       // 记录一次模型请求的完整上下文，便于事后复现与排查
       const startedAt = Date.now();
       const toolsEnabled = !!(tools.length && provider.supportsTools && provider.chatWithTools);
@@ -322,51 +326,81 @@ export async function generateReply(
       }
     };
 
-    // 网络抖动 / 上游失败时静默重试，避免一失败就发「走神了」并污染会话历史
-    const callModelWithRetry = async (msgs: ChatMessage[]) => {
-      const maxAttempts = 3;
-      for (let attempt = 1; ; attempt++) {
-        try {
-          return await callModel(msgs);
-        } catch (err) {
-          const message = (err as Error)?.message ?? "";
-          const aborted =
-            message.includes("abort") || (err as Error)?.name === "AbortError" || !!signal?.aborted;
-          if (aborted || attempt >= maxAttempts) throw err;
-          const delayMs = 700 * attempt * attempt;
-          sysLog.warn(
-            "model",
-            `模型请求失败，${delayMs}ms 后重试（第 ${attempt} 次）`,
-            { personaId: persona.id, botId, userId, modelId, stage: "retry" },
-            { error: message, attempt, delayMs },
-          );
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
+    // 网络抖动 / 上游失败时静默重试；同一模型重试仍失败则切换候选模型（熔断中跳过）。
+    // 候选数受控：主模型 2 次尝试，其余候选各 1 次，避免延迟爆炸。
+    const callModelWithRetry = async (msgs: ChatMessage[]): Promise<{ run: Awaited<ReturnType<typeof callModel>>; candidate: ProviderCandidate }> => {
+      const available = chain.filter((c) => !circuitBreaker.isOpen(c.model?.id));
+      // 全部熔断时仍尝试主模型一次，避免长时间无回复。
+      const candidates = available.length ? available : chain.slice(0, 1);
+      let lastErr: unknown = null;
+      for (let i = 0; i < candidates.length; i++) {
+        const cand = candidates[i];
+        const maxAttempts = i === 0 ? 2 : 1;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            const run = await callModel(msgs, cand);
+            circuitBreaker.recordSuccess(cand.model?.id);
+            if (i > 0) {
+              sysLog.warn(
+                "model",
+                `已切换到备用模型 ${cand.model?.modelId ?? "mock"}`,
+                { personaId: persona.id, botId, userId, modelId: cand.model?.id ?? null, stage: "failover" },
+                { from: active.model?.id ?? null, to: cand.model?.id ?? null },
+              );
+            }
+            return { run, candidate: cand };
+          } catch (err) {
+            lastErr = err;
+            const message = (err as Error)?.message ?? "";
+            const aborted =
+              message.includes("abort") || (err as Error)?.name === "AbortError" || !!signal?.aborted;
+            if (aborted) throw err;
+            circuitBreaker.recordFailure(cand.model?.id);
+            const hasNext = attempt < maxAttempts || i < candidates.length - 1;
+            if (!hasNext) break;
+            if (attempt < maxAttempts) {
+              const delayMs = 700 * attempt * attempt;
+              sysLog.warn(
+                "model",
+                `模型请求失败，${delayMs}ms 后重试（第 ${attempt} 次）`,
+                { personaId: persona.id, botId, userId, modelId: cand.model?.id ?? null, stage: "retry" },
+                { error: message, attempt, delayMs, modelId: cand.model?.id ?? null },
+              );
+              await new Promise((resolve) => setTimeout(resolve, delayMs));
+            }
+          }
         }
       }
+      throw lastErr instanceof Error ? lastErr : new Error(String(lastErr ?? "model request failed"));
     };
 
     try {
-      const run = await callModelWithRetry(messages);
+      const first = await callModelWithRetry(messages);
+      active = first.candidate;
+      modelId = active.model?.id ?? null;
+      const run = first.run;
       reply = run.content.trim();
       usage = run.usage;
-      if (!reply && opts.agentEnabled && provider.supportsTools && provider.chatWithTools) {
+      if (!reply && opts.agentEnabled && active.provider.supportsTools && active.provider.chatWithTools) {
         reply = "（命令已经执行完了，不过我没有需要额外补充的。）";
       }
     } catch (err) {
       // 模型自报支持读图、上游却拒绝图片：用视觉副模型转述后重试一次纯文本请求。
       if (!opts.imageParts?.length || !isVisionRejection(err)) throw err;
-      logger.warn({ personaId: persona.id, modelId: model?.id }, "upstream rejected image input, retrying with converted description");
+      logger.warn({ personaId: persona.id, modelId: active.model?.id }, "upstream rejected image input, retrying with converted description");
       sysLog.warn(
         "vision",
         "上游拒绝图片输入，改用视觉副模型转述后重试",
         { personaId: persona.id, botId, userId, modelId, stage: "vision_fallback" },
         { error: (err as Error).message },
       );
-      const described = await describeImagesWithFallback(opts.imageParts, { primaryModelId: model?.id, signal });
+      const described = await describeImagesWithFallback(opts.imageParts, { primaryModelId: active.model?.id, signal });
       if (!described) throw err;
-      const retry = await callModelWithRetry(injectImageDescription(messages, described.text));
-      reply = retry.content.trim();
-      usage = retry.usage;
+      const retried = await callModelWithRetry(injectImageDescription(messages, described.text));
+      active = retried.candidate;
+      modelId = active.model?.id ?? null;
+      reply = retried.run.content.trim();
+      usage = retried.run.usage;
     }
 
     // 请求后拦截校验：作业未完成却输出催睡词 -> 丢弃并带强制警告重试一次
@@ -386,7 +420,10 @@ export async function generateReply(
             "你上一条回复违反了状态约束：用户在作业未完成时需要的是任务拆解与陪伴，而不是催促休息。请严格遵守上方【系统强制警告】重新回复。",
         },
       ];
-      const retry = await provider.chat(retryMessages, { temperature, maxTokens });
+      const retried = await callModelWithRetry(retryMessages);
+      active = retried.candidate;
+      modelId = active.model?.id ?? null;
+      const retry = retried.run;
       usage = {
         inputTokens: usage.inputTokens + retry.usage.inputTokens,
         outputTokens: usage.outputTokens + retry.usage.outputTokens,
@@ -411,10 +448,13 @@ export async function generateReply(
         { personaId: persona.id, botId, userId, modelId, stage: "quality_gate" },
         { reply, issues },
       );
-      const retry = await provider.chat(
-        [...messages, { role: "system", content: qualityRetryInstruction(issues) }],
-        { temperature, maxTokens },
-      );
+      const retried = await callModelWithRetry([
+        ...messages,
+        { role: "system", content: qualityRetryInstruction(issues) },
+      ]);
+      active = retried.candidate;
+      modelId = active.model?.id ?? null;
+      const retry = retried.run;
       usage = {
         inputTokens: usage.inputTokens + retry.usage.inputTokens,
         outputTokens: usage.outputTokens + retry.usage.outputTokens,
