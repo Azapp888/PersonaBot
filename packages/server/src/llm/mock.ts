@@ -2,6 +2,7 @@ import type { ChatMessage, LLMChatOptions, LLMChatResult } from "../types";
 import type { LLMProvider } from "./provider";
 import { contentToText } from "./provider";
 import { sleep } from "../utils/id";
+import type { StreamChunk } from "./stream";
 
 /**
  * Mock Provider：无需任何真实凭据即可本地联调。
@@ -10,6 +11,18 @@ import { sleep } from "../utils/id";
 export class MockProvider implements LLMProvider {
   readonly name = "mock";
   readonly model = "mock-roleplay";
+
+  async *chatStream(messages: ChatMessage[], options: LLMChatOptions = {}): AsyncIterable<StreamChunk> {
+    const result = await this.chat(messages, options);
+    // 模拟逐字输出：按小块产出，便于本地验证分段下发与 TTFT。
+    const step = 6;
+    for (let i = 0; i < result.content.length; i += step) {
+      if (options.signal?.aborted) throw new Error("aborted");
+      yield { delta: result.content.slice(i, i + step) };
+      await sleep(15);
+    }
+    yield { delta: "", usage: result.usage, model: result.model };
+  }
 
   async chat(messages: ChatMessage[], options: LLMChatOptions = {}): Promise<LLMChatResult> {
     await sleep(120);

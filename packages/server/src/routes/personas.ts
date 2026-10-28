@@ -3,6 +3,7 @@ import { personaRepo } from "../db/repos/personas";
 import { userIdentityRepo } from "../db/repos/user-identities";
 import { scheduleRepo } from "../db/repos/schedules";
 import { messagePipeline } from "../pipeline/message-pipeline";
+import type { StreamEvent } from "../pipeline/stream-events";
 import { buildStablePrefix } from "../persona/prompt";
 import { checkPersonaConsistency } from "../persona/consistency";
 import { generateDailySchedule } from "../memory/schedule";
@@ -118,6 +119,31 @@ export async function personaRoutes(app: FastifyInstance): Promise<void> {
     if (!personaRepo.find(id)) return reply.code(404).send({ error: "not_found" });
     userIdentityRepo.remove(id, userId);
     return { ok: true };
+  });
+
+  // 本地模拟（流式）：SSE 推送 delta / first-bubble / done / stop，前端可即时显示并感知中断。
+  app.post("/api/personas/:id/simulate/stream", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as { userId?: string; message?: string } | undefined;
+    if (!body?.message) return reply.code(400).send({ error: "bad_request", message: "message 必填" });
+
+    reply.hijack();
+    reply.raw.writeHead(200, {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+    const send = (event: StreamEvent) => {
+      reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
+    };
+    try {
+      await messagePipeline.simulateStream(id, body.userId || "sim-user", body.message, send);
+    } catch (err) {
+      send({ type: "stop", reason: (err as Error).message });
+    } finally {
+      reply.raw.end();
+    }
   });
 
   // 本地模拟对话：不需要 QQ 凭据即可调试角色人格与记忆注入

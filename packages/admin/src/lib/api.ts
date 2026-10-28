@@ -29,6 +29,12 @@ import type {
 
 const TOKEN_KEY = "pb_token";
 
+export type SimulateStreamEvent =
+  | { type: "delta"; text: string; delta: string; ttftMs?: number }
+  | { type: "first-bubble"; text: string; atMs: number }
+  | { type: "done"; reply: string }
+  | { type: "stop"; reason: string };
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -189,6 +195,52 @@ export const api = {
   personaConsistency: (id: string) => request<ConsistencyReport>("GET", `/api/personas/${id}/consistency`),
   simulate: (id: string, userId: string, message: string) =>
     request<{ reply: string; usage: any; painting?: any }>("POST", `/api/personas/${id}/simulate`, { userId, message }),
+  simulateStream: async (
+    id: string,
+    userId: string,
+    message: string,
+    onEvent: (event: SimulateStreamEvent) => void,
+    signal?: AbortSignal,
+  ): Promise<void> => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const token = getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch(`/api/personas/${id}/simulate/stream`, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify({ userId, message }),
+      signal,
+    });
+    if (!res.ok || !res.body) {
+      throw new ApiError(res.status, `流式请求失败 (${res.status})`);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let index = buffer.indexOf("\n\n");
+      while (index >= 0) {
+        const block = buffer.slice(0, index);
+        buffer = buffer.slice(index + 2);
+        const line = block.split("\n").find((l) => l.startsWith("data:"));
+        if (line) {
+          const payload = line.slice(5).trim();
+          if (payload) {
+            try {
+              onEvent(JSON.parse(payload) as SimulateStreamEvent);
+            } catch {
+              // 忽略无法解析的心跳/空块
+            }
+          }
+        }
+        index = buffer.indexOf("\n\n");
+      }
+    }
+  },
   personaSchedule: (id: string, date?: string) =>
     request<PersonaSchedule>("GET", `/api/personas/${id}/schedule${date ? `?date=${date}` : ""}`),
   generatePersonaSchedule: (id: string, date?: string) =>

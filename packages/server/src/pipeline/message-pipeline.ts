@@ -12,6 +12,8 @@ import { isVisionRejection } from "../llm/vision";
 import { imageLimitFor } from "../llm/multimodal";
 import { describeImagesWithFallback } from "../llm/vision-describe";
 import { buildReplyMessages } from "./prompt-build";
+import { firstSentenceEnd } from "../llm/stream";
+import type { StreamEvent, StreamEventListener } from "./stream-events";
 import { buildMemoryInjection, syncMemoryFiles } from "../memory/service";
 import { extractUserHabits } from "../memory/profile";
 import { captureRealtimeFacts } from "../memory/realtime";
@@ -79,6 +81,8 @@ export interface GenerateOptions {
   hasFaces?: boolean;
   /** 用于中止在途 LLM / 工具调用（消息打断） */
   signal?: AbortSignal;
+  /** 流式事件回调：逐块文本、首条气泡、完成与中断。 */
+  onEvent?: StreamEventListener;
 }
 
 /** 把最近一条用户消息里的图片替换为视觉模型转述，供不支持读图的上游重试。 */
@@ -191,6 +195,7 @@ export async function generateReply(
     logRepo.message({ personaId: persona.id, botId, userId, direction: "out", content: reply });
     statsRepo.increment(formatDate(), persona.id, { messages: 2 });
     syncMemoryFiles(persona, userId);
+    opts.onEvent?.({ type: "done", reply });
     return { reply, usage, modelId, painting };
   }
 
@@ -235,6 +240,9 @@ export async function generateReply(
       });
     }
 
+    // 本轮已经吐出多少可见字符：一旦开始流式下发，就不能再静默重试/切换模型，否则会重复发送。
+    let streamedChars = 0;
+
     const callModel = async (msgs: ChatMessage[], cand: ProviderCandidate) => {
       const { provider, model } = cand;
       const temperature = model?.temperature;
@@ -271,6 +279,51 @@ export async function generateReply(
         },
       );
       try {
+        const canStream = !toolsEnabled && !!opts.onEvent && typeof provider.chatStream === "function";
+        if (canStream) {
+          let text = "";
+          let usage: LLMUsage = { inputTokens: 0, outputTokens: 0, cacheHitTokens: 0, cacheMissTokens: 0 };
+          let modelName = provider.model;
+          let firstTokenAt = 0;
+          for await (const chunk of provider.chatStream!(msgs, {
+            temperature,
+            maxTokens,
+            signal,
+            thinking: reasoningScene,
+          })) {
+            if (chunk.delta) {
+              text += chunk.delta;
+              if (!firstTokenAt) firstTokenAt = Date.now();
+              streamedChars += chunk.delta.length;
+              opts.onEvent!({
+                type: "delta",
+                text,
+                delta: chunk.delta,
+                ttftMs: firstTokenAt - startedAt,
+              });
+            }
+            if (chunk.usage) usage = chunk.usage;
+            if (chunk.model) modelName = chunk.model;
+          }
+          const durationMs = Date.now() - startedAt;
+          const ttftMs = firstTokenAt ? firstTokenAt - startedAt : null;
+          sysLog.info(
+            "model",
+            `模型流式响应完成（${durationMs}ms，TTFT ${ttftMs ?? "?"}ms）`,
+            {
+              personaId: persona.id,
+              botId,
+              userId,
+              modelId: model?.id ?? null,
+              provider: model?.provider ?? null,
+              stage: "response",
+              durationMs,
+            },
+            { replyChars: text.length, ttftMs, usage },
+          );
+          return { content: text, usage, model: modelName };
+        }
+
         const result = toolsEnabled
           ? await runToolLoop(provider, msgs, tools, { temperature, maxTokens, signal, thinking: reasoningScene })
           : await provider.chat(msgs, { temperature, maxTokens, signal, thinking: reasoningScene });
@@ -347,6 +400,7 @@ export async function generateReply(
       for (let i = 0; i < candidates.length; i++) {
         const cand = candidates[i];
         const maxAttempts = i === 0 ? 2 : 1;
+        streamedChars = 0;
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
           try {
             const run = await callModel(msgs, cand);
@@ -366,6 +420,8 @@ export async function generateReply(
             const aborted =
               message.includes("abort") || (err as Error)?.name === "AbortError" || !!signal?.aborted;
             if (aborted) throw err;
+            // 已经开始向下游吐字，不能重试或切换模型，否则会出现重复气泡。
+            if (streamedChars > 0) throw err;
             circuitBreaker.recordFailure(cand.model?.id);
             const hasNext = attempt < maxAttempts || i < candidates.length - 1;
             if (!hasNext) break;
@@ -416,6 +472,11 @@ export async function generateReply(
 
     // 请求后拦截校验：作业未完成却输出催睡词 -> 丢弃并带强制警告重试一次
     if (guardrail && violatesGuardrail(reply, context.state)) {
+      if (streamedChars > 0) {
+        // 已经下发过气泡，无法撤回重试，只能在代码层清理违规句子。
+        logger.warn({ personaId: persona.id, userId }, "streamed reply violated guardrail, sanitizing");
+        reply = sanitizeReply(reply);
+      } else {
       logger.warn({ personaId: persona.id, userId }, "guardrail violated, retrying with forced instruction");
       sysLog.warn(
         "pipeline",
@@ -447,12 +508,26 @@ export async function generateReply(
         logger.warn({ personaId: persona.id, userId }, "guardrail still violated after retry, sanitizing");
         reply = sanitizeReply(reply);
       }
+      }
     }
 
     // 出站质量闸：明显异常的回复先重试一次，仍不通过则丢弃本轮，避免污染会话历史与长期记忆
     const previousAssistant = [...context.history].reverse().find((m) => m.role === "assistant");
     let issues = inspectReply(reply, previousAssistant ? contentToText(previousAssistant.content) : null);
-    if (issues.length) {
+    if (issues.length && streamedChars > 0) {
+      // 已流式下发，不能整体重试；只做代码层清理，避免用户看到前后不一致的两版。
+      logger.warn({ personaId: persona.id, userId }, "streamed reply failed quality gate, sanitizing");
+      reply = sanitizeReply(reply);
+      issues = inspectReply(reply, previousAssistant ? contentToText(previousAssistant.content) : null);
+      if (issues.length) {
+        sysLog.warn(
+          "pipeline",
+          "流式回复质量校验未完全通过，保留已下发内容",
+          { personaId: persona.id, botId, userId, modelId, stage: "quality_gate" },
+          { reply, issues },
+        );
+      }
+    } else if (issues.length) {
       sysLog.warn(
         "pipeline",
         "回复质量校验未通过，带纠错指令重试",
@@ -487,7 +562,10 @@ export async function generateReply(
   } catch (err) {
     const message = (err as Error)?.message ?? "";
     const aborted = message.includes("abort") || (err as Error)?.name === "AbortError";
-    if (aborted) throw new Error("aborted");
+    if (aborted) {
+      opts.onEvent?.({ type: "stop", reason: "aborted" });
+      throw new Error("aborted");
+    }
     sysLog.error(
       "error",
       `生成回复失败：${message}`,
@@ -499,6 +577,7 @@ export async function generateReply(
         aborted: false,
       },
     );
+    opts.onEvent?.({ type: "stop", reason: message || "generate_failed" });
     // 失败不再以「走神了」的形式写进会话历史：直接抛出，由调用方静默跳过本轮
     throw err;
   }
@@ -525,6 +604,7 @@ export async function generateReply(
   // 异步更新用户画像，不阻塞回复
   void extractUserHabits(persona, userId).catch(() => undefined);
 
+  opts.onEvent?.({ type: "done", reply });
   return { reply, usage, modelId };
 }
 
@@ -732,6 +812,32 @@ class MessagePipeline {
     batch.abort = abort;
     registerAbort(key, abort);
 
+    // 首条气泡：首个句子（按换行/。！？切分）一生成完就下发，其余内容继续流式补齐。
+    const startedAt = Date.now();
+    let firstBubbleSent = false;
+    let sentPrefix = 0;
+    let bubbleChain: Promise<void> = Promise.resolve();
+
+    const onEvent = (event: StreamEvent) => {
+      if (event.type !== "delta" || firstBubbleSent) return;
+      const end = firstSentenceEnd(event.text);
+      if (end <= 0) return;
+      const head = event.text.slice(0, end).trim();
+      if (!head) return;
+      firstBubbleSent = true;
+      sentPrefix = end;
+      const atMs = Date.now() - startedAt;
+      bubbleChain = bubbleChain
+        .then(() => this.sendSegments(batch, head, 1))
+        .catch((err) => logger.warn({ key, err: (err as Error).message }, "send first bubble failed"));
+      sysLog.info(
+        "pipeline",
+        `首条气泡下发（${atMs}ms，TTFT ${event.ttftMs ?? "?"}ms）`,
+        { personaId: batch.persona.id, botId: batch.bot.id, userId: batch.userId, stage: "first_bubble", durationMs: atMs },
+        { ttftMs: event.ttftMs ?? null, firstBubbleMs: atMs },
+      );
+    };
+
     try {
       const { reply, painting } = await generateReply(batch.persona, batch.userId, merged, batch.bot.id, {
         agentEnabled: batch.bot.agentEnabled,
@@ -740,12 +846,28 @@ class MessagePipeline {
         imageParts,
         hasFaces: faceCount > 0,
         signal: abort.signal,
+        onEvent,
       });
+      await bubbleChain;
       if (abort.signal.aborted) return;
-      await this.send(batch, reply, painting);
+      if (firstBubbleSent) {
+        const rest = reply.slice(sentPrefix).trim();
+        if (rest) await this.sendSegments(batch, rest, 2);
+      } else {
+        await this.send(batch, reply, painting);
+      }
     } catch (err) {
       if ((err as Error).message !== "aborted") {
         logger.error({ key, err: (err as Error).message }, "pipeline flush failed");
+      }
+      // 流式中断/超时也要给下游一个明确的 stop，而不是让人一直等空白。
+      if (firstBubbleSent) {
+        sysLog.warn(
+          "pipeline",
+          "流式生成中断",
+          { personaId: batch.persona.id, botId: batch.bot.id, userId: batch.userId, stage: "stop" },
+          { error: (err as Error).message },
+        );
       }
     } finally {
       clearAbort(key, abort);
@@ -764,11 +886,10 @@ class MessagePipeline {
   }
 
   private async send(batch: Batch, reply: string, painting?: PaintingResult): Promise<void> {
-    const client = new QQApiClient(batch.bot);
     const event = batch.lastEvent;
-    const settings = settingsService.get();
     try {
       if (painting?.ok && (painting.imageUrl || painting.imageBase64)) {
+        const client = new QQApiClient(batch.bot);
         const scope =
           event.type === "c2c"
             ? ({ type: "c2c", openid: event.authorId } as const)
@@ -783,30 +904,43 @@ class MessagePipeline {
           }
         }
       }
-
-      // 多行回复拆分为多条消息，携带同一 msg_id 与递增 msg_seq。
-      // 被动回复上限：单聊 4 次 / 群聊 5 次，超出部分合并进最后一条。
-      const sceneCap = event.type === "c2c" ? 4 : event.type === "group" ? 5 : settings.splitMaxMessages;
-      const maxParts = Math.max(1, Math.min(settings.splitMaxMessages, sceneCap));
-      const segments = settings.splitMessages ? splitReply(reply, maxParts) : [reply];
-      if (!segments.length) return;
-
-      for (let i = 0; i < segments.length; i++) {
-        const msgSeq = i + 1;
-        const segment = segments[i];
-        if (event.type === "c2c") {
-          await client.sendC2C(event.authorId, segment, event.msgId, msgSeq);
-        } else if (event.type === "group") {
-          await client.sendGroup(event.groupOpenid!, segment, event.msgId, msgSeq);
-        } else if (event.type === "guild") {
-          await client.sendGuildChannel(event.channelId!, segment, event.msgId);
-        } else if (event.type === "direct") {
-          await client.sendDirect(event.guildId!, segment, event.msgId);
-        }
-        if (i < segments.length - 1) await sleep(300);
-      }
+      await this.sendSegments(batch, reply, 1);
     } catch (err) {
       logger.error({ botId: batch.bot.id, err: (err as Error).message }, "send reply failed");
+    }
+  }
+
+  /**
+   * 按段下发文本。startSeq 用于流式场景：首条气泡先用 1，剩余内容从 2 继续，
+   * 保证 QQ 被动回复的 msg_seq 连续且不超过平台上限。
+   */
+  private async sendSegments(batch: Batch, text: string, startSeq: number): Promise<void> {
+    const event = batch.lastEvent;
+    const settings = settingsService.get();
+    const client = new QQApiClient(batch.bot);
+    // 被动回复上限：单聊 4 次 / 群聊 5 次，超出部分合并进最后一条。
+    const sceneCap = event.type === "c2c" ? 4 : event.type === "group" ? 5 : settings.splitMaxMessages;
+    const totalCap = Math.max(1, Math.min(settings.splitMaxMessages, sceneCap));
+    const slots = Math.max(1, totalCap - (startSeq - 1));
+    const segments = settings.splitMessages ? splitReply(text, slots) : [text.trim()].filter(Boolean);
+    let seq = startSeq;
+    for (const segment of segments) {
+      if (!segment.trim()) continue;
+      await this.deliver(client, event, segment, seq);
+      seq += 1;
+      if (seq <= totalCap) await sleep(300);
+    }
+  }
+
+  private async deliver(client: QQApiClient, event: QQMessageEvent, segment: string, msgSeq: number): Promise<void> {
+    if (event.type === "c2c") {
+      await client.sendC2C(event.authorId, segment, event.msgId, msgSeq);
+    } else if (event.type === "group") {
+      await client.sendGroup(event.groupOpenid!, segment, event.msgId, msgSeq);
+    } else if (event.type === "guild") {
+      await client.sendGuildChannel(event.channelId!, segment, event.msgId);
+    } else if (event.type === "direct") {
+      await client.sendDirect(event.guildId!, segment, event.msgId);
     }
   }
 
@@ -815,6 +949,19 @@ class MessagePipeline {
     const persona = personaRepo.find(personaId);
     if (!persona) throw new Error("角色不存在");
     return generateReply(persona, userId, text);
+  }
+
+  /** 本地模拟（流式）：逐块回调，供后台页面做打字机效果与 stop 提示。 */
+  async simulateStream(
+    personaId: string,
+    userId: string,
+    text: string,
+    onEvent: StreamEventListener,
+    signal?: AbortSignal,
+  ): Promise<GenerateResult> {
+    const persona = personaRepo.find(personaId);
+    if (!persona) throw new Error("角色不存在");
+    return generateReply(persona, userId, text, undefined, { onEvent, signal });
   }
 
   activeCount(): number {

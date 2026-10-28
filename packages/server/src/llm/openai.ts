@@ -9,6 +9,7 @@ import type {
 import { LLMError, normalizeUsage, type LLMProvider } from "./provider";
 import { toOpenAIPart } from "./multimodal";
 import { fetchWithTimeout } from "../utils/http";
+import { extractSseEvents, sseData, type StreamChunk } from "./stream";
 import {
   capabilitiesFor,
   chatThinkingEnabled,
@@ -163,14 +164,20 @@ export class OpenAICompatibleProvider implements LLMProvider {
     return parseUsage(data, this.cacheStyle);
   }
 
-  private async request(data: any, tools: ToolDefinition[] | undefined, options: LLMChatOptions): Promise<any> {
+  private buildRequestBody(
+    data: any,
+    tools: ToolDefinition[] | undefined,
+    options: LLMChatOptions,
+    stream: boolean,
+  ): Record<string, unknown> {
     const body: Record<string, unknown> = {
       model: this.model,
       messages: data.messages,
-      stream: false,
+      stream,
       // 统一 maxTokens 语义：非法/未设置回退 2048，且不超过模型输出上限。
       max_tokens: normalizeMaxTokens(options.maxTokens, this.capabilities),
     };
+    if (stream) body.stream_options = { include_usage: true };
     if (options.temperature !== undefined) body.temperature = options.temperature;
     if (options.topP !== undefined) body.top_p = options.topP;
 
@@ -187,23 +194,70 @@ export class OpenAICompatibleProvider implements LLMProvider {
       }));
       body.tool_choice = "auto";
     }
+    return body;
+  }
 
+  private async post(body: Record<string, unknown>, options: LLMChatOptions, stream: boolean): Promise<Response> {
     const res = await fetchWithTimeout(`${this.apiBase}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Accept: stream ? "text/event-stream" : "application/json",
         Authorization: `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify(body),
       signal: options.signal,
       timeoutMs: 120000,
     });
-
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       throw new LLMError(`LLM request failed (${res.status})`, res.status, text);
     }
+    return res;
+  }
+
+  private async request(data: any, tools: ToolDefinition[] | undefined, options: LLMChatOptions): Promise<any> {
+    const body = this.buildRequestBody(data, tools, options, false);
+    const res = await this.post(body, options, false);
     return res.json();
+  }
+
+  async *chatStream(messages: ChatMessage[], options: LLMChatOptions = {}): AsyncIterable<StreamChunk> {
+    const body = this.buildRequestBody({ messages: toApiMessages(messages) }, undefined, options, true);
+    const res = await this.post(body, options, true);
+    if (!res.body) throw new LLMError("LLM 流式响应缺少 body", res.status);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let usage: StreamChunk["usage"];
+    let model: string | undefined;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const { events, rest } = extractSseEvents(buffer);
+        buffer = rest;
+        for (const block of events) {
+          const payload = sseData(block);
+          if (!payload || payload === "[DONE]") continue;
+          let json: any;
+          try {
+            json = JSON.parse(payload);
+          } catch {
+            continue;
+          }
+          if (json?.model) model = json.model;
+          if (json?.usage) usage = this.buildUsage(json);
+          const delta: string = json?.choices?.[0]?.delta?.content ?? "";
+          if (delta) yield { delta };
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    if (usage || model) yield { delta: "", usage, model };
   }
 
   async chat(messages: ChatMessage[], options: LLMChatOptions = {}): Promise<LLMChatResult> {

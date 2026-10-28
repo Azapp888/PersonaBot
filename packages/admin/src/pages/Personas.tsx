@@ -121,8 +121,13 @@ export function PersonasPage() {
     setSimLoading(true);
     setSimReply("");
     try {
-      const res = await api.simulate(simPersona.id, "sim-user", simMessage);
-      setSimReply(res.reply);
+      await api.simulateStream(simPersona.id, "sim-user", simMessage, (event) => {
+        if (event.type === "delta") setSimReply(event.text);
+        else if (event.type === "done") setSimReply(event.reply);
+        else if (event.type === "stop") {
+          setSimReply((prev) => (prev ? `${prev}\n\n[已停止：${event.reason}]` : `[已停止：${event.reason}]`));
+        }
+      });
     } catch (err) {
       setSimReply(`错误：${(err as Error).message}`);
     } finally {

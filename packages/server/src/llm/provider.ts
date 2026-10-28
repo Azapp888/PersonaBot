@@ -6,6 +6,7 @@ import type {
   LLMToolResult,
   ToolDefinition,
 } from "../types";
+import type { StreamChunk } from "./stream";
 
 /** 从多模态/文本 content 中提取纯文本（用于日志、摘要等场景）。 */
 export function contentToText(content: ChatMessage["content"]): string {
@@ -28,6 +29,8 @@ export interface LLMProvider {
   /** 是否支持工具调用（function calling） */
   readonly supportsTools?: boolean;
   chat(messages: ChatMessage[], options?: LLMChatOptions): Promise<LLMChatResult>;
+  /** 流式输出；不支持流式的 Provider 省略该方法，调用方回退到 chat。 */
+  chatStream?(messages: ChatMessage[], options?: LLMChatOptions): AsyncIterable<StreamChunk>;
   /** 支持工具调用的 Provider 可选实现 */
   chatWithTools?(
     messages: ChatMessage[],
