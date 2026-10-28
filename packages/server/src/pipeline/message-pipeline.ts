@@ -105,8 +105,15 @@ export async function generateReply(
 
   // 模型按 Bot 分配：优先 Bot 上配置的模型，未配置或不可用时回退到角色配置
   const boundBot = botId ? botRepo.find(botId) : null;
+  // 场景判定：闲聊默认关闭思考以压低延迟；长文/剧情/工具调用等复杂场景才允许思考。
+  const reasoningScene =
+    !!opts.agentEnabled ||
+    userText.length >= 400 ||
+    wantsPainting(userText) ||
+    /剧情|长篇|写作|分析|推理|代码|debug|重构/i.test(userText);
+
   // 模型候选链：Bot 绑定模型优先，其余已启用模型按顺序兜底；熔断中的模型会被跳过。
-  const chain = resolveProviderChain(boundBot, persona);
+  const chain = resolveProviderChain(boundBot, persona, reasoningScene ? "reasoning" : "chat");
 
   // 联网搜索：仅当 Bot 开启且配置了可用的搜索提供商时，才向模型暴露 web_search 工具。
   const searchProvider = (() => {
@@ -231,7 +238,11 @@ export async function generateReply(
     const callModel = async (msgs: ChatMessage[], cand: ProviderCandidate) => {
       const { provider, model } = cand;
       const temperature = model?.temperature;
-      const maxTokens = model?.maxTokens;
+      // 复杂场景保留思考时需要足够预算，避免正文被推理 token 挤空；
+      // 闲聊场景直接关闭思考，2048 已足够。
+      const maxTokens = reasoningScene
+        ? Math.max(model?.maxTokens ?? 2048, 4096)
+        : model?.maxTokens;
       // 记录一次模型请求的完整上下文，便于事后复现与排查
       const startedAt = Date.now();
       const toolsEnabled = !!(tools.length && provider.supportsTools && provider.chatWithTools);
@@ -261,8 +272,8 @@ export async function generateReply(
       );
       try {
         const result = toolsEnabled
-          ? await runToolLoop(provider, msgs, tools, { temperature, maxTokens, signal })
-          : await provider.chat(msgs, { temperature, maxTokens, signal });
+          ? await runToolLoop(provider, msgs, tools, { temperature, maxTokens, signal, thinking: reasoningScene })
+          : await provider.chat(msgs, { temperature, maxTokens, signal, thinking: reasoningScene });
         const durationMs = Date.now() - startedAt;
         sysLog.info(
           "model",

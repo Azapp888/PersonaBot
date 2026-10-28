@@ -2,12 +2,14 @@ import type { ChatMessage, ContentPart, LLMChatOptions, LLMChatResult, ImageCont
 import { LLMError, normalizeUsage, contentToText, type LLMProvider } from "./provider";
 import { imageLimitFor, parseImageDataUrl, toGeminiPart, toImageDataUrl } from "./multimodal";
 import { fetchWithTimeout } from "../utils/http";
+import { capabilitiesFor, normalizeMaxTokens, type ModelCapabilities } from "./capabilities";
 
 export interface GoogleOptions {
   apiKey: string;
   /** 原生 Gemini API 根地址，默认 https://generativelanguage.googleapis.com */
   apiBase?: string;
   model: string;
+  capabilities?: ModelCapabilities;
 }
 
 interface GeminiContent {
@@ -66,11 +68,14 @@ export class GoogleProvider implements LLMProvider {
   readonly supportsTools = false;
   private readonly apiKey: string;
   private readonly apiBase: string;
+  private readonly capabilities: ModelCapabilities;
 
   constructor(opts: GoogleOptions) {
     this.model = opts.model;
     this.apiKey = opts.apiKey;
     this.apiBase = opts.apiBase || "https://generativelanguage.googleapis.com";
+    this.capabilities =
+      opts.capabilities ?? capabilitiesFor({ provider: "google", modelId: opts.model, apiBase: opts.apiBase });
   }
 
   async chat(messages: ChatMessage[], options: LLMChatOptions = {}): Promise<LLMChatResult> {
@@ -99,7 +104,7 @@ export class GoogleProvider implements LLMProvider {
     }
     const generationConfig: Record<string, unknown> = {};
     if (options.temperature !== undefined) generationConfig.temperature = options.temperature;
-    if (options.maxTokens !== undefined) generationConfig.maxOutputTokens = options.maxTokens;
+    generationConfig.maxOutputTokens = normalizeMaxTokens(options.maxTokens, this.capabilities);
     if (options.topP !== undefined) generationConfig.topP = options.topP;
     if (Object.keys(generationConfig).length) body.generationConfig = generationConfig;
 

@@ -9,6 +9,13 @@ import type {
 import { LLMError, normalizeUsage, type LLMProvider } from "./provider";
 import { toOpenAIPart } from "./multimodal";
 import { fetchWithTimeout } from "../utils/http";
+import {
+  capabilitiesFor,
+  chatThinkingEnabled,
+  normalizeMaxTokens,
+  thinkingDisabledBody,
+  type ModelCapabilities,
+} from "./capabilities";
 
 export interface OpenAICompatibleOptions {
   apiKey: string;
@@ -23,6 +30,8 @@ export interface OpenAICompatibleOptions {
    * 实际解析始终按「探测式」兜底，避免上游字段差异导致缓存一律记 0。
    */
   cacheStyle?: "openai" | "deepseek" | "volcengine";
+  /** 模型能力声明（由 factory 按模型注入），用于统一 maxTokens 与思考开关。 */
+  capabilities?: ModelCapabilities;
 }
 
 /** 将统一消息转换为 OpenAI 兼容 Chat Completions 的 messages。 */
@@ -127,6 +136,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
   private readonly apiKey: string;
   private readonly apiBase: string;
   private readonly cacheStyle: "openai" | "deepseek" | "volcengine";
+  private readonly capabilities: ModelCapabilities;
 
   constructor(opts: OpenAICompatibleOptions) {
     this.name = opts.name ?? "openai-compatible";
@@ -134,6 +144,8 @@ export class OpenAICompatibleProvider implements LLMProvider {
     this.apiKey = opts.apiKey;
     this.apiBase = opts.apiBase.replace(/\/$/, "");
     this.cacheStyle = opts.cacheStyle ?? "openai";
+    this.capabilities =
+      opts.capabilities ?? capabilitiesFor({ provider: this.name as any, modelId: opts.model, apiBase: opts.apiBase });
   }
 
   /**
@@ -156,10 +168,18 @@ export class OpenAICompatibleProvider implements LLMProvider {
       model: this.model,
       messages: data.messages,
       stream: false,
+      // 统一 maxTokens 语义：非法/未设置回退 2048，且不超过模型输出上限。
+      max_tokens: normalizeMaxTokens(options.maxTokens, this.capabilities),
     };
     if (options.temperature !== undefined) body.temperature = options.temperature;
-    if (options.maxTokens !== undefined) body.max_tokens = options.maxTokens;
     if (options.topP !== undefined) body.top_p = options.topP;
+
+    // 闲聊场景默认关闭思考，避免可见回复的 token 预算被推理过程吃光。
+    const wantThinking = options.thinking ?? chatThinkingEnabled();
+    if (!wantThinking) {
+      const disabled = thinkingDisabledBody(this.capabilities);
+      if (disabled) Object.assign(body, disabled);
+    }
     if (tools?.length) {
       body.tools = tools.map((t) => ({
         type: "function",

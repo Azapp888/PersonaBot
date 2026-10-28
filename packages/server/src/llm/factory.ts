@@ -8,6 +8,7 @@ import type { LLMProvider } from "./provider";
 import { pickVisionFallback } from "./vision";
 import { settingsService } from "../settings/service";
 import { logger } from "../logger";
+import { capabilitiesFor } from "./capabilities";
 
 const DEFAULT_BASES: Record<string, string> = {
   openai: "https://api.openai.com/v1",
@@ -40,12 +41,13 @@ function isVolcengine(model: ModelRecord): boolean {
 export function createProviderFromModel(model: ModelRecord): LLMProvider {
   const apiKey = modelRepo.decryptedKey(model);
   const apiBase = model.apiBase || DEFAULT_BASES[model.provider] || DEFAULT_BASES.openai;
+  const capabilities = capabilitiesFor(model);
 
   switch (model.provider) {
     case "mock":
       return new MockProvider();
     case "anthropic":
-      return new AnthropicProvider({ apiKey, apiBase, model: model.modelId });
+      return new AnthropicProvider({ apiKey, apiBase, model: model.modelId, capabilities });
     case "deepseek":
       return new OpenAICompatibleProvider({
         apiKey,
@@ -53,6 +55,7 @@ export function createProviderFromModel(model: ModelRecord): LLMProvider {
         model: model.modelId,
         name: "deepseek",
         cacheStyle: "deepseek",
+        capabilities,
       });
     case "volcengine":
       return new OpenAICompatibleProvider({
@@ -61,13 +64,14 @@ export function createProviderFromModel(model: ModelRecord): LLMProvider {
         model: model.modelId,
         name: "volcengine",
         cacheStyle: "volcengine",
+        capabilities,
       });
     case "google":
       // 允许把 Gemini 切成 OpenAI 兼容端点；否则走原生 generateContent。
       if (/\/openai\/?$/i.test(apiBase)) {
-        return new OpenAICompatibleProvider({ apiKey, apiBase, model: model.modelId, name: "google", cacheStyle: "openai" });
+        return new OpenAICompatibleProvider({ apiKey, apiBase, model: model.modelId, name: "google", cacheStyle: "openai", capabilities });
       }
-      return new GoogleProvider({ apiKey, apiBase, model: model.modelId });
+      return new GoogleProvider({ apiKey, apiBase, model: model.modelId, capabilities });
     case "dashscope":
       return new OpenAICompatibleProvider({
         apiKey,
@@ -75,6 +79,7 @@ export function createProviderFromModel(model: ModelRecord): LLMProvider {
         model: model.modelId,
         name: "dashscope",
         cacheStyle: "openai",
+        capabilities,
       });
     case "openai":
     case "custom":
@@ -86,6 +91,7 @@ export function createProviderFromModel(model: ModelRecord): LLMProvider {
         model: model.modelId,
         name: model.provider,
         cacheStyle: isVolcengine(model) ? "volcengine" : "openai",
+        capabilities,
       });
   }
 }
@@ -129,9 +135,32 @@ export interface ProviderCandidate {
  * 单个模型故障（超时、5xx、限流）时切换到下一个候选，避免整轮回复直接失败。
  * mock 只作为最后兜底，且仅当没有真实模型可用时才会被选中，保证真实模型优先。
  */
+export type ChatScene = "chat" | "reasoning";
+
+/**
+ * 按场景路由：CHAT_MODEL_ROUTING=on 时，允许用环境变量指定闲聊/深度场景的首选模型，
+ * 未开启时完全保持原顺序（Bot 绑定模型优先），保证默认行为不变。
+ */
+function promoteForScene(chain: ProviderCandidate[], scene: ChatScene): ProviderCandidate[] {
+  const routing = (process.env.CHAT_MODEL_ROUTING ?? "off").toLowerCase() === "on";
+  if (!routing) return chain;
+  const envId =
+    scene === "reasoning"
+      ? process.env.CHAT_REASONING_MODEL_ID
+      : process.env.CHAT_LOW_LATENCY_MODEL_ID;
+  if (!envId) return chain;
+  const index = chain.findIndex((c) => c.model?.id === envId);
+  if (index <= 0) return chain;
+  const next = [...chain];
+  const [picked] = next.splice(index, 1);
+  next.unshift(picked);
+  return next;
+}
+
 export function resolveProviderChain(
   bot: Pick<Bot, "modelId"> | null | undefined,
   _persona: Persona,
+  scene: ChatScene = "chat",
 ): ProviderCandidate[] {
   const chain: ProviderCandidate[] = [];
   const seen = new Set<string>();
@@ -163,7 +192,7 @@ export function resolveProviderChain(
     logger.warn("no enabled model found, falling back to MockProvider");
     chain.push({ provider: new MockProvider(), model: null });
   }
-  return chain;
+  return promoteForScene(chain, scene);
 }
 
 export function resolveProviderForBot(

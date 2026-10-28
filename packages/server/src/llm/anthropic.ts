@@ -2,11 +2,13 @@ import type { ChatMessage, LLMChatOptions, LLMChatResult } from "../types";
 import { LLMError, normalizeUsage, contentToText, type LLMProvider } from "./provider";
 import { toAnthropicContent } from "./multimodal";
 import { fetchWithTimeout } from "../utils/http";
+import { capabilitiesFor, normalizeMaxTokens, type ModelCapabilities } from "./capabilities";
 
 export interface AnthropicOptions {
   apiKey: string;
   apiBase?: string;
   model: string;
+  capabilities?: ModelCapabilities;
 }
 
 /**
@@ -18,11 +20,14 @@ export class AnthropicProvider implements LLMProvider {
   readonly model: string;
   private readonly apiKey: string;
   private readonly apiBase: string;
+  private readonly capabilities: ModelCapabilities;
 
   constructor(opts: AnthropicOptions) {
     this.model = opts.model;
     this.apiKey = opts.apiKey;
     this.apiBase = (opts.apiBase || "https://api.anthropic.com").replace(/\/$/, "");
+    this.capabilities =
+      opts.capabilities ?? capabilitiesFor({ provider: "anthropic", modelId: opts.model, apiBase: opts.apiBase });
   }
 
   async chat(messages: ChatMessage[], options: LLMChatOptions = {}): Promise<LLMChatResult> {
@@ -33,7 +38,7 @@ export class AnthropicProvider implements LLMProvider {
 
     const body: Record<string, unknown> = {
       model: this.model,
-      max_tokens: options.maxTokens ?? 2048,
+      max_tokens: normalizeMaxTokens(options.maxTokens, this.capabilities),
       messages: convo.length ? convo : [{ role: "user", content: "..." }],
     };
     if (systemParts.length) {

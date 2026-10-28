@@ -346,6 +346,8 @@ export interface LLMChatOptions {
   maxTokens?: number;
   topP?: number;
   signal?: AbortSignal;
+  /** 是否允许思考（不传时按 CHAT_THINKING 配置，默认关闭以降低闲聊延迟与 token）。 */
+  thinking?: boolean;
 }
 
 export interface LLMChatResult {

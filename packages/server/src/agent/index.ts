@@ -1,4 +1,4 @@
-import type { ChatMessage, LLMUsage, ToolDefinition } from "../types";
+import type { ChatMessage, LLMChatOptions, LLMUsage, ToolDefinition } from "../types";
 import type { LLMProvider } from "../llm/provider";
 import { runShellCommand, type ShellResult } from "./shell";
 
@@ -93,7 +93,7 @@ export async function runToolLoop(
   provider: LLMProvider,
   messages: ChatMessage[],
   tools: AgentTool[],
-  options: { temperature?: number; maxTokens?: number; signal?: AbortSignal; maxIterations?: number } = {},
+  options: LLMChatOptions & { maxIterations?: number } = {},
 ): Promise<ToolLoopResult> {
   if (!provider.chatWithTools) throw new Error("provider does not support tools");
   if (!tools.length) throw new Error("no tools registered");
@@ -107,7 +107,7 @@ export async function runToolLoop(
     const res = await provider.chatWithTools(
       convo,
       tools.map((t) => t.definition),
-      { temperature: options.temperature, maxTokens: options.maxTokens, signal: options.signal },
+      { temperature: options.temperature, maxTokens: options.maxTokens, signal: options.signal, thinking: options.thinking },
     );
     addUsage(usage, res.usage);
     if (!res.toolCalls.length) {
@@ -164,7 +164,7 @@ export const SHELL_AGENT_TOOL: AgentTool = {
 export async function runAgentLoop(
   provider: LLMProvider,
   messages: ChatMessage[],
-  options: { temperature?: number; maxTokens?: number; signal?: AbortSignal; extraTools?: AgentTool[] } = {},
+  options: LLMChatOptions & { extraTools?: AgentTool[] } = {},
 ): Promise<AgentRunResult> {
   const res = await runToolLoop(provider, messages, [SHELL_AGENT_TOOL, ...(options.extraTools ?? [])], options);
   return {
