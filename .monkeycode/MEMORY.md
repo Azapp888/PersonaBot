@@ -100,3 +100,13 @@ This file records user instructions, preferences, and teachings for reference in
 - Instructions:
   - models.dev 模型元数据目录地址：https://models.dev/api.json（可用环境变量 MODELS_DEV_URL 覆盖），模型带 `attachment` 与 `modalities.input` 字段，是判定「读图能力」的权威依据。
   - 提供商分类的事实单元是归一化后的 apiBase（host+path），不是固定枚举 provider；同地址不同密钥视为同一提供商的多个凭据。
+
+[Project Knowledge Summary]
+- Date: 2026-10-28
+- Context: Discovered by Agent while implementing P0 latency and streaming fixes
+- Category: Environment Configuration
+- Instructions:
+  - 闲聊思考默认关闭；`CHAT_THINKING=on` 恢复上游思考，`CHAT_THINKING_PARAM=thinking_budget` 适配旧版 GLM 的关闭参数。
+  - 场景路由默认关闭；`CHAT_MODEL_ROUTING=on` 且配置 `CHAT_LOW_LATENCY_MODEL_ID` / `CHAT_REASONING_MODEL_ID` 时，按场景把指定模型提到候选链首位。
+  - 模型熔断阈值与冷却可用 `LLM_CIRCUIT_FAILURES` / `LLM_CIRCUIT_COOLDOWN_MS` 调整。
+  - 后台模拟流式接口：`POST /api/personas/:id/simulate/stream`（SSE，事件 delta / first-bubble / done / stop）。
