@@ -93,7 +93,8 @@ test("本轮上下文：承载相关记忆/当前状态/当前时间，并挂在
     timezone: "Asia/Shanghai",
     now: Date.parse("2026-01-01T00:00:00Z"),
   });
-  assert.ok(turn.includes("与当前话题相关的记忆片段"));
+  assert.ok(turn.includes("- 相关片段"));
+  assert.ok(turn.includes("background"), "相关记忆应标注为背景记忆");
   assert.ok(turn.includes("当前状态"));
   assert.ok(turn.includes("当前时间"));
   const timeIdx = turn.lastIndexOf("当前时间");

@@ -220,6 +220,26 @@ export interface UserProfile {
   dailyCountDate: string | null;
 }
 
+/**
+ * 用户层身份：与「角色层」严格隔离，按 (personaId, userId) 存储。
+ * 昵称、称呼权限、关系定义与个人边界只能来自这里，任何角色级提示词都不得写死具体用户。
+ */
+export interface UserIdentity {
+  personaId: string;
+  userId: string;
+  /** 角色对该用户的称呼，例如「阿泽」。 */
+  nickname: string;
+  /** 用户真名（可选）。 */
+  realName: string;
+  /** 关系定义，例如「朋友」「异地恋男友」。 */
+  relationship: string;
+  /** 称呼权限：谁可以叫什么、哪些称呼禁用。 */
+  addressPreference: string;
+  /** 个人边界与禁忌。 */
+  boundaries: string;
+  updatedAt: number;
+}
+
 export interface DailyStats {
   date: string;
   personaId: string;

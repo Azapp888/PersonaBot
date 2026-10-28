@@ -2,6 +2,7 @@ import { config, ensureRuntimeDirs, securityIssues } from "./config";
 import { getDb, closeDb } from "./db";
 import { runMigrations } from "./db/migrate";
 import { seed } from "./db/seed";
+import { scrubPersonaRoleLayers } from "./persona/scrub";
 import { buildApp } from "./app";
 import { botManager } from "./qq/manager";
 import { messagePipeline } from "./pipeline/message-pipeline";
@@ -26,6 +27,10 @@ async function main(): Promise<void> {
   const db = getDb();
   runMigrations(db);
   await seed();
+
+  // 清洗历史 system_prompt 中写死的「只对某用户有效」补丁句与用户名，
+  // 这些内容必须迁移到 user_identities 用户层，不能留在角色层影响其他用户。
+  scrubPersonaRoleLayers();
 
   // 统一进程时区为用户配置（默认 Asia/Shanghai），保证日切、cron、日期格式化一致。
   // 必须解析成真实 IANA 名：别名 "server"/"system" 直接赋给 process.env.TZ 会无效或出错。

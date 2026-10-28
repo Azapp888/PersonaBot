@@ -312,6 +312,22 @@ ALTER TABLE bots ADD COLUMN search_enabled INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE bots ADD COLUMN search_provider_id TEXT;
 `,
   },
+  {
+    id: "017_user_identity",
+    sql: `
+CREATE TABLE IF NOT EXISTS user_identities (
+  persona_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  nickname TEXT NOT NULL DEFAULT '',
+  real_name TEXT NOT NULL DEFAULT '',
+  relationship TEXT NOT NULL DEFAULT '',
+  address_preference TEXT NOT NULL DEFAULT '',
+  boundaries TEXT NOT NULL DEFAULT '',
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (persona_id, user_id)
+);
+`,
+  },
 ];
 
 export function runMigrations(database?: Database.Database): void {

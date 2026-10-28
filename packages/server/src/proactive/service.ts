@@ -1,11 +1,12 @@
 import { botRepo } from "../db/repos/bots";
 import { personaRepo } from "../db/repos/personas";
 import { profileRepo } from "../db/repos/profiles";
+import { userIdentityRepo } from "../db/repos/user-identities";
 import { conversationRepo } from "../db/repos/conversations";
 import { logRepo } from "../db/repos/logs";
 import { statsRepo } from "../db/repos/stats";
 import { resolveProviderForBot } from "../llm/factory";
-import { assembleSystemPrompt, buildTurnContext } from "../persona/prompt";
+import { assembleSystemPrompt, buildMemoryContextBlock, buildTimeLine } from "../persona/prompt";
 import { buildMemoryInjection } from "../memory/service";
 import { buildScheduleContext } from "../memory/schedule";
 import { QQApiClient } from "../qq/client";
@@ -110,20 +111,34 @@ async function generateProactive(persona: Persona, userId: string, instruction: 
   const { files, relevant, core } = buildMemoryInjection(persona, userId);
   const now = systemClock.now();
   const schedule = buildScheduleContext(persona, userId, settings.timezone, now);
+  const identity = userIdentityRepo.find(persona.id, userId);
+  const redactNames = userIdentityRepo
+    .listByPersona(persona.id)
+    .flatMap((i) => [i.nickname, i.realName])
+    .filter((n) => n && n.trim().length >= 2);
   const { full } = assembleSystemPrompt(persona, {
+    userId,
+    userIdentity: identity,
+    redactNames,
     memoryFiles: files,
     coreMemories: core,
     schedule,
   });
   const conv = conversationRepo.ensure(persona.id, userId);
   const history = conv.messages.slice(-10);
-  const turnContext = buildTurnContext({ relevant, timezone: settings.timezone, now });
-  const instructionWithTime = `${turnContext}\n${instruction}`;
+  const memoryBlock = buildMemoryContextBlock({ relevant });
+  const timeLine = buildTimeLine({ timezone: settings.timezone, now });
+  const instructionWithTime = [timeLine, instruction].filter(Boolean).join("\n");
 
   try {
     const { provider, model } = resolveProviderForBot(bot, persona);
     const result = await provider.chat(
-      [{ role: "system", content: full }, ...history, { role: "user", content: instructionWithTime }],
+      [
+        { role: "system", content: full },
+        ...(memoryBlock ? [{ role: "system" as const, content: memoryBlock }] : []),
+        ...history,
+        { role: "user", content: instructionWithTime },
+      ],
       { temperature: model?.temperature, maxTokens: model?.maxTokens },
     );
     return result.content.trim();

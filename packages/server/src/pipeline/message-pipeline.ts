@@ -10,7 +10,7 @@ import { contentToText } from "../llm/provider";
 import { isVisionRejection } from "../llm/vision";
 import { imageLimitFor } from "../llm/multimodal";
 import { describeImagesWithFallback } from "../llm/vision-describe";
-import { assembleSystemPrompt, buildTurnContext } from "../persona/prompt";
+import { buildReplyMessages } from "./prompt-build";
 import { buildMemoryInjection, syncMemoryFiles } from "../memory/service";
 import { extractUserHabits } from "../memory/profile";
 import { captureRealtimeFacts } from "../memory/realtime";
@@ -80,31 +80,6 @@ export interface GenerateOptions {
   signal?: AbortSignal;
 }
 
-function buildUserContent(
-  fileContext: string | undefined,
-  imageContext: string | undefined,
-  processed: string,
-  imageParts: ImageContentPart[] | undefined,
-  hasFaces: boolean | undefined,
-  turnContext: string | undefined,
-): ChatMessage["content"] {
-  const textBlocks: string[] = [];
-  if (turnContext?.trim()) textBlocks.push(turnContext.trim());
-  if (fileContext) textBlocks.push(fileContext);
-  if (imageContext) textBlocks.push(`【用户发来的图片内容（视觉模型转述，供你理解）】\n${imageContext}`);
-  let main = processed;
-  if (hasFaces) main = main ? `${main}\n（用户还发了一个表情包，权重很低，通常无需专门回应）` : "（用户发了一个表情包，权重很低，通常无需专门回应）";
-  if (main) textBlocks.push(main);
-  const text = textBlocks.join("\n\n");
-  if (imageParts?.length) {
-    const parts: ContentPart[] = [];
-    if (text) parts.push({ type: "text", text });
-    parts.push(...imageParts);
-    return parts;
-  }
-  return text;
-}
-
 /** 把最近一条用户消息里的图片替换为视觉模型转述，供不支持读图的上游重试。 */
 function injectImageDescription(messages: ChatMessage[], description: string): ChatMessage[] {
   const index = messages.map((m) => m.role).lastIndexOf("user");
@@ -160,38 +135,29 @@ export async function generateReply(
   // 强制状态校验指令（作业未完成时禁止催睡）
   const guardrail = settings.guardrailEnabled ? buildGuardrail(context.state, persona.name) : null;
 
-  const { full } = assembleSystemPrompt(persona, {
+  const processed = applyCommands(persona, userText);
+  // 三层提示词由统一构建器组装：角色层 / 用户层（按 userId 隔离）/ 记忆层（按 userId 隔离），
+  // 记忆层组装时断言 userId 一致，从代码层面阻断跨用户串号。
+  const messages = buildReplyMessages({
+    persona,
+    userId,
+    processed,
+    history: context.history,
     memoryFiles,
     coreMemories: core,
     schedule,
     contextSummary: context.summary,
-    agentEnabled: opts.agentEnabled,
-  });
-
-  // 每轮可能变化的内容（相关记忆 / 当前状态 / 当前时间）注入用户消息一侧，
-  // 让上方 system prompt 在整段会话内保持字节级稳定，提升 prompt cache 命中率。
-  const turnContext = buildTurnContext({
     relevant,
+    state: context.state,
+    guardrail,
+    agentEnabled: opts.agentEnabled,
+    fileContext: opts.fileContext,
+    imageContext: opts.imageContext,
+    imageParts: opts.imageParts,
+    hasFaces: opts.hasFaces,
     timezone: settings.timezone,
     now,
-    conversationState: context.state,
   });
-
-  const processed = applyCommands(persona, userText);
-  const userContent = buildUserContent(
-    opts.fileContext,
-    opts.imageContext,
-    processed,
-    opts.imageParts,
-    opts.hasFaces,
-    turnContext,
-  );
-  const messages: ChatMessage[] = [
-    { role: "system", content: full },
-    ...context.history,
-    { role: "user", content: userContent },
-  ];
-  if (guardrail) messages.push({ role: "system", content: guardrail });
 
   let reply: string;
   let usage: LLMUsage;

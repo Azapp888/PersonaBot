@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { personaRepo } from "../db/repos/personas";
+import { userIdentityRepo } from "../db/repos/user-identities";
 import { scheduleRepo } from "../db/repos/schedules";
 import { messagePipeline } from "../pipeline/message-pipeline";
 import { buildStablePrefix } from "../persona/prompt";
@@ -82,6 +83,40 @@ export async function personaRoutes(app: FastifyInstance): Promise<void> {
   app.delete("/api/personas/:id", { preHandler: [app.authenticate] }, async (request) => {
     const { id } = request.params as { id: string };
     personaRepo.remove(id);
+    return { ok: true };
+  });
+
+  // 用户层身份：昵称/真名/关系/称呼权限/边界，按 (personaId, userId) 隔离。
+  app.get("/api/personas/:id/users", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    if (!personaRepo.find(id)) return reply.code(404).send({ error: "not_found" });
+    return userIdentityRepo.listByPersona(id);
+  });
+
+  app.get("/api/personas/:id/users/:userId/identity", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const { id, userId } = request.params as { id: string; userId: string };
+    if (!personaRepo.find(id)) return reply.code(404).send({ error: "not_found" });
+    return userIdentityRepo.find(id, userId) ?? null;
+  });
+
+  app.put("/api/personas/:id/users/:userId/identity", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const { id, userId } = request.params as { id: string; userId: string };
+    if (!personaRepo.find(id)) return reply.code(404).send({ error: "not_found" });
+    const body = request.body as Partial<{
+      nickname: string;
+      realName: string;
+      relationship: string;
+      addressPreference: string;
+      boundaries: string;
+    }> | undefined;
+    if (!body) return reply.code(400).send({ error: "bad_request", message: "body 必填" });
+    return userIdentityRepo.upsert({ personaId: id, userId, ...body });
+  });
+
+  app.delete("/api/personas/:id/users/:userId/identity", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const { id, userId } = request.params as { id: string; userId: string };
+    if (!personaRepo.find(id)) return reply.code(404).send({ error: "not_found" });
+    userIdentityRepo.remove(id, userId);
     return { ok: true };
   });
 
