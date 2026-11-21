@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { config } from "./config";
 import { logger } from "./logger";
 import { registerAuth } from "./auth/plugin";
+import { registerApiKeyAuth } from "./auth/api-key";
 import { authRoutes } from "./routes/auth";
 import { botRoutes } from "./routes/bots";
 import { personaRoutes } from "./routes/personas";
@@ -17,6 +18,8 @@ import { skillRoutes } from "./routes/skills";
 import { systemRoutes } from "./routes/system";
 import { logRoutes } from "./routes/logs";
 import { conversationRoutes } from "./routes/conversations";
+import { openApiRoutes } from "./routes/open-api";
+import { openApiAdminRoutes } from "./routes/open-api-admin";
 
 function findAdminDist(): string | null {
   const candidates = [
@@ -74,8 +77,11 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   await registerAuth(app);
+  await registerApiKeyAuth(app);
 
   await app.register(authRoutes);
+  await app.register(openApiRoutes);
+  await app.register(openApiAdminRoutes);
   await app.register(botRoutes);
   await app.register(personaRoutes);
   await app.register(modelRoutes);

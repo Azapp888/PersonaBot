@@ -16,6 +16,7 @@ const ConversationsPage = lazy(() =>
 );
 const StatsPage = lazy(() => import("@/pages/Stats").then((m) => ({ default: m.StatsPage })));
 const LogsPage = lazy(() => import("@/pages/Logs").then((m) => ({ default: m.LogsPage })));
+const OpenApiPage = lazy(() => import("@/pages/OpenApi").then((m) => ({ default: m.OpenApiPage })));
 const SkillsPage = lazy(() => import("@/pages/Skills").then((m) => ({ default: m.SkillsPage })));
 const SettingsPage = lazy(() => import("@/pages/Settings").then((m) => ({ default: m.SettingsPage })));
 
@@ -54,6 +55,7 @@ export default function App() {
               <Route path="/conversations" element={<ConversationsPage />} />
               <Route path="/stats" element={<StatsPage />} />
               <Route path="/logs" element={<LogsPage />} />
+              <Route path="/open-api" element={<OpenApiPage />} />
               <Route path="/skills" element={<SkillsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />

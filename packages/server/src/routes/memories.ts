@@ -11,7 +11,9 @@ import {
 import { listMemoryFiles, readMemoryFile, resetMemoryFile, setMemoryFileAppendEnabled, syncMemoryFiles, writeMemoryFile } from "../memory/service";
 import { memoryFileRepo } from "../db/repos/memoryFiles";
 import { analyzeImportedText, persistImported } from "../memory/importer";
+import { MEMORY_TEMPLATE, reorganizeMemoryWithTemplate } from "../memory/template";
 import type { MemoryKind, MemoryType } from "../types";
+import { addDays, formatDate } from "../utils/id";
 
 export async function memoryRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/memories", { preHandler: [app.authenticate] }, async (request, reply) => {
@@ -27,6 +29,52 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
     const set = new Set<string>(memoryRepo.distinctUsers(personaId));
     for (const conv of conversationRepo.listByPersona(personaId)) set.add(conv.userId);
     return [...set];
+  });
+
+  /**
+   * 记忆时间线：按日期分组返回，支持类型 / 类别 / 来源 / 重要性 / 仅永久保留 / 最近天数筛选。
+   * 供后台时间线视图与人工修正（编辑内容、重要性、置顶、类别）使用。
+   */
+  app.get("/api/memories/timeline", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const query = request.query as {
+      personaId?: string;
+      userId?: string;
+      type?: string;
+      kind?: string;
+      origin?: string;
+      minImportance?: string;
+      pinned?: string;
+      days?: string;
+      limit?: string;
+    };
+    if (!query.personaId) return reply.code(400).send({ error: "bad_request", message: "personaId 必填" });
+
+    const split = (value?: string) =>
+      (value ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+    const types = split(query.type) as MemoryType[];
+    const kinds = split(query.kind) as MemoryKind[];
+    const origins = split(query.origin).filter((o) => o === "daily" || o === "realtime") as ("daily" | "realtime")[];
+    const days = query.days ? Number(query.days) : 0;
+    const since = Number.isFinite(days) && days > 0 ? formatDate(addDays(new Date(), -(days - 1))) : undefined;
+    const minImportance = query.minImportance ? Number(query.minImportance) : undefined;
+    const limit = query.limit ? Number(query.limit) : 1000;
+
+    const result = memoryRepo.timeline({
+      personaId: query.personaId,
+      userId: query.userId || undefined,
+      types: types.length ? types : undefined,
+      kinds: kinds.length ? kinds : undefined,
+      origins: origins.length ? origins : undefined,
+      minImportance: Number.isFinite(minImportance as number) ? (minImportance as number) : undefined,
+      pinnedOnly: query.pinned === "1" || query.pinned === "true",
+      since,
+      limit: Number.isFinite(limit) ? limit : 1000,
+    });
+    return { ...result, filters: { since: since ?? null, days: days > 0 ? days : null } };
   });
 
   app.post("/api/memories/trigger", { preHandler: [app.authenticate] }, async (request, reply) => {
@@ -47,8 +95,32 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true, type, content };
   });
 
-  app.post("/api/memories/import", { preHandler: [app.authenticate] }, async (request, reply) => {
-    const body = request.body as { personaId?: string; userId?: string; filename?: string; content?: string } | undefined;
+  /** 固定记忆模板：所有角色共用的一套记忆档案骨架。 */
+  app.get("/api/memories/template", { preHandler: [app.authenticate] }, async () => ({
+    name: "MEMORY.md",
+    template: MEMORY_TEMPLATE,
+  }));
+
+  /**
+   * 用 AI 按固定模板整理记忆文件。
+   * preview 默认 true：只返回整理结果供预览，用户确认后再写盘。
+   */
+  app.post("/api/memories/template/apply", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const body = request.body as { personaId?: string; userId?: string; preview?: boolean } | undefined;
+    if (!body?.personaId || !body?.userId) {
+      return reply.code(400).send({ error: "bad_request", message: "personaId / userId 必填" });
+    }
+    const persona = personaRepo.find(body.personaId);
+    if (!persona) return reply.code(404).send({ error: "not_found", message: "角色不存在" });
+    try {
+      const result = await reorganizeMemoryWithTemplate(persona, body.userId, { preview: body.preview !== false });
+      return { ok: true, ...result };
+    } catch (err) {
+      return reply.code(502).send({ error: "upstream_error", message: (err as Error).message });
+    }
+  });
+
+  app.post("/api/memories/import", { preHandler: [app.authenticate] }, async (request, reply) => {    const body = request.body as { personaId?: string; userId?: string; filename?: string; content?: string } | undefined;
     if (!body?.personaId || !body?.userId || !body?.content?.trim()) {
       return reply.code(400).send({ error: "bad_request", message: "personaId / userId / content 必填" });
     }

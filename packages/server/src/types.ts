@@ -267,6 +267,34 @@ export interface SettingRecord {
   value: string;
 }
 
+/**
+ * 外部应用通过开放 API 接入的用户。
+ * externalId 即会话 / 记忆系统中使用的 userId，保证与 QQ 侧用户互相隔离。
+ */
+export interface AppUser {
+  id: string;
+  externalId: string;
+  displayName: string;
+  note: string;
+  enabled: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** 开放 API 密钥：绑定一个角色与一个用户，密钥明文只在创建时返回一次。 */
+export interface ApiKey {
+  id: string;
+  name: string;
+  /** 明文密钥的前缀（如 pb_ab12），用于在列表里辨识，不泄露完整密钥。 */
+  keyPrefix: string;
+  personaId: string;
+  userId: string;
+  enabled: boolean;
+  createdAt: number;
+  lastUsedAt: number | null;
+  usageCount: number;
+}
+
 export interface AppSettings {
   adminPort: number;
   botServiceNote: string;
@@ -331,6 +359,12 @@ export interface AppSettings {
   updateBranch: string;
   /** 主模型不支持读图时，用于把图片转述为文本的视觉副模型（models 表 id）。留空则自动选择首个支持读图的模型。 */
   visionFallbackModelId: string;
+  /** 每日 token 预算：0 表示不限制；超限后按 tokenBudgetAction 处理。 */
+  tokenDailyBudget: number;
+  /** 超预算策略：block=本地拒答，degrade=切换到 tokenBudgetFallbackModelId 指定的模型。 */
+  tokenBudgetAction: string;
+  /** 超预算降级时使用的模型（models 表 id），留空则降级不可用、按 block 处理。 */
+  tokenBudgetFallbackModelId: string;
 }
 
 // LLM 相关

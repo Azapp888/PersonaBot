@@ -1,6 +1,9 @@
 import type {
+  ApiKey,
   AppSettings,
+  AppUser,
   Bot,
+  BudgetStatus,
   ConsistencyReport,
   ConversationDetail,
   ConversationOverviewItem,
@@ -10,6 +13,7 @@ import type {
   LogFilterParams,
   LogPage,
   Memory,
+  MemoryTimeline,
   ModelRecord,
   Persona,
   PersonaSchedule,
@@ -105,6 +109,7 @@ export const api = {
 
   // dashboard / stats
   dashboard: () => request<DashboardData>("GET", "/api/stats/dashboard"),
+  budget: () => request<BudgetStatus>("GET", "/api/stats/budget"),
   trends: (days = 14) => request<TrendPoint[]>("GET", `/api/stats/trends?days=${days}`),
   personaTrends: (id: string, days = 14) => request<TrendPoint[]>("GET", `/api/stats/persona/${id}?days=${days}`),
   recentMessages: (limit = 50) => request<any[]>("GET", `/api/stats/messages?limit=${limit}`),
@@ -325,6 +330,17 @@ export const api = {
   memories: (personaId: string, userId?: string) =>
     request<Memory[]>("GET", `/api/memories?personaId=${personaId}${userId ? `&userId=${encodeURIComponent(userId)}` : ""}`),
   memoryUsers: (personaId: string) => request<string[]>("GET", `/api/memories/users?personaId=${personaId}`),
+  memoryTimeline: (params: {
+    personaId: string;
+    userId?: string;
+    type?: string;
+    kind?: string;
+    origin?: string;
+    minImportance?: number;
+    pinned?: boolean;
+    days?: number;
+    limit?: number;
+  }) => request<MemoryTimeline>("GET", `/api/memories/timeline?${toQuery(params)}`),
   triggerMemory: (personaId: string, userId: string, type: string) =>
     request<{ ok: boolean; content?: string; message?: string }>("POST", "/api/memories/trigger", { personaId, userId, type }),
   updateMemory: (id: string, content: string) => request<{ ok: boolean }>("PUT", `/api/memories/${id}`, { content }),
@@ -364,11 +380,31 @@ export const api = {
       "/api/memories/import",
       { personaId, userId, filename, content },
     ),
+  memoryTemplate: () => request<{ name: string; template: string }>("GET", "/api/memories/template"),
+  applyMemoryTemplate: (personaId: string, userId: string, preview = true) =>
+    request<{ ok: boolean; name: string; content: string; preview: boolean; sources: string[] }>(
+      "POST",
+      "/api/memories/template/apply",
+      { personaId, userId, preview },
+    ),
 
   // settings
   settings: () => request<AppSettings>("GET", "/api/settings"),
   updateSettings: (data: Partial<AppSettings>) => request<AppSettings>("PUT", "/api/settings", data),
-  systemInfo: () => request<any>("GET", "/api/system/info"),
+
+  // open api（外部应用接入）
+  appUsers: () => request<AppUser[]>("GET", "/api/app-users"),
+  createAppUser: (data: { externalId: string; displayName?: string; note?: string; enabled?: boolean }) =>
+    request<AppUser>("POST", "/api/app-users", data),
+  updateAppUser: (id: string, data: { displayName?: string; note?: string; enabled?: boolean }) =>
+    request<AppUser>("PUT", `/api/app-users/${id}`, data),
+  deleteAppUser: (id: string) => request<{ ok: boolean }>("DELETE", `/api/app-users/${id}`),
+  apiKeys: () => request<ApiKey[]>("GET", "/api/api-keys"),
+  createApiKey: (data: { name: string; personaId: string; userId: string; enabled?: boolean }) =>
+    request<{ key: ApiKey; plaintext: string }>("POST", "/api/api-keys", data),
+  updateApiKey: (id: string, data: { name?: string; personaId?: string; userId?: string; enabled?: boolean }) =>
+    request<ApiKey>("PUT", `/api/api-keys/${id}`, data),
+  deleteApiKey: (id: string) => request<{ ok: boolean }>("DELETE", `/api/api-keys/${id}`),  systemInfo: () => request<any>("GET", "/api/system/info"),
   systemTime: () => request<SystemTime>("GET", "/api/system/time"),
 
   // skills

@@ -552,6 +552,51 @@ export function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>成本预算</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <Field
+            label="每日 Token 预算"
+            hint="按本地自然日累计输入 + 输出 token。填 0 表示不限制；超限后按下方策略处理，避免异常流量打爆账单。"
+          >
+            <Input
+              type="number"
+              min={0}
+              value={settings.tokenDailyBudget}
+              onChange={(e) => set({ tokenDailyBudget: Number(e.target.value) })}
+            />
+          </Field>
+          <Field label="超限策略" hint="本地拒答：不调用模型，直接用兜底文案回复；降级：切换到指定模型继续对话。">
+            <Select value={settings.tokenBudgetAction} onChange={(e) => set({ tokenBudgetAction: e.target.value })}>
+              <option value="block">本地拒答</option>
+              <option value="degrade">切换到降级模型</option>
+            </Select>
+          </Field>
+          <div className="md:col-span-2">
+            <Field
+              label="降级模型"
+              hint="仅在策略为「切换到降级模型」时生效。留空或该模型被停用时，降级不可用，将回退为本地拒答。"
+            >
+              <Select
+                value={settings.tokenBudgetFallbackModelId}
+                onChange={(e) => set({ tokenBudgetFallbackModelId: e.target.value })}
+              >
+                <option value="">不启用降级</option>
+                {models
+                  .filter((m) => m.enabled)
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}（{m.modelId}）
+                    </option>
+                  ))}
+              </Select>
+            </Field>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>AI 绘画</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">

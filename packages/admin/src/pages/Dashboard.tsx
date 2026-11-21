@@ -12,7 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "@/lib/api";
-import type { DashboardData, TrendPoint } from "@/lib/types";
+import type { BudgetStatus, DashboardData, TrendPoint } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/primitives";
 import { formatNumber } from "@/lib/utils";
 
@@ -61,10 +61,12 @@ function ChartTip({ active, payload, label }: any) {
 export function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [trends, setTrends] = useState<TrendPoint[]>([]);
+  const [budget, setBudget] = useState<BudgetStatus | null>(null);
 
   useEffect(() => {
     api.dashboard().then(setData).catch(() => undefined);
     api.trends(14).then(setTrends).catch(() => undefined);
+    api.budget().then(setBudget).catch(() => undefined);
   }, []);
 
   return (
@@ -88,6 +90,43 @@ export function DashboardPage() {
         <Figure value={formatNumber(data?.imagesGenerated ?? 0)} label="今日图片" sub="按角色限额" />
         <Figure value={`${data?.activeBots ?? 0} / ${data?.totalBots ?? 0}`} label="活跃 Bot" sub={`角色 ${data?.totalPersonas ?? 0} 个`} />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>今日成本预算</CardTitle>
+          <span className="font-mono text-[11px] text-muted">
+            {budget?.enabled
+              ? `${formatNumber(budget.used)} / ${formatNumber(budget.limit)} token`
+              : "未启用预算限制"}
+          </span>
+        </CardHeader>
+        <CardContent className="pt-2">
+          {budget?.enabled ? (
+            <>
+              <div className="h-2 w-full border border-rule bg-field">
+                <div
+                  className={`h-full transition-all ${budget.exceeded ? "bg-ink" : "bg-stamp"}`}
+                  style={{ width: `${Math.min(100, Math.round(budget.ratio * 100))}%` }}
+                />
+              </div>
+              <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
+                <p className="font-mono text-[11px] text-muted">
+                  已用 {Math.round(budget.ratio * 100)}% · 剩余 {formatNumber(budget.remaining)} token
+                </p>
+                <p className={`font-mono text-[11px] ${budget.exceeded ? "text-ink" : "text-muted"}`}>
+                  {budget.exceeded
+                    ? budget.action === "degrade"
+                      ? `已超限：切换到降级模型${budget.fallbackAvailable ? "" : "（未配置可用降级模型，将本地拒答）"}`
+                      : "已超限：本地拒答，不再调用模型"
+                    : `策略：${budget.action === "degrade" ? "切换降级模型" : "本地拒答"}`}
+                </p>
+              </div>
+            </>
+          ) : (
+            <p className="font-mono text-[12px] text-muted">在「设置 → 成本预算」中填写每日 token 上限后生效，当前不限制消耗。</p>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <Card className="lg:col-span-2">

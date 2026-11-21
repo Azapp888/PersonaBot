@@ -46,6 +46,35 @@ export interface MemoryMetaPatch {
   kind?: MemoryKind;
 }
 
+export interface MemoryTimelineQuery {
+  personaId: string;
+  userId?: string;
+  types?: MemoryType[];
+  kinds?: MemoryKind[];
+  origins?: ("daily" | "realtime")[];
+  /** 重要性下限（含）。 */
+  minImportance?: number;
+  pinnedOnly?: boolean;
+  /** 只返回 source_date >= since 的记录（YYYY-MM-DD）。 */
+  since?: string;
+  limit?: number;
+}
+
+export interface MemoryTimelineDay {
+  date: string;
+  total: number;
+  facts: number;
+  pinned: number;
+  avgImportance: number;
+  byType: Record<string, number>;
+  entries: Memory[];
+}
+
+export interface MemoryTimeline {
+  total: number;
+  days: MemoryTimelineDay[];
+}
+
 export const memoryRepo = {
   db(): Database.Database {
     return getDb();
@@ -208,5 +237,68 @@ export const memoryRepo = {
       .prepare(`SELECT DISTINCT user_id FROM memories WHERE persona_id = ?`)
       .all(personaId)
       .map((r: any) => r.user_id as string);
+  },
+  /**
+   * 记忆时间线：按条件筛选后按 source_date 倒序分组，供后台「时间线」视图与人工修正使用。
+   * 每条记录保留完整字段（含 origin / kind / importance / pinned），编辑走 updateMeta。
+   */
+  timeline(query: MemoryTimelineQuery): MemoryTimeline {
+    const where: string[] = ["persona_id = ?"];
+    const params: any[] = [query.personaId];
+    if (query.userId) {
+      where.push("user_id = ?");
+      params.push(query.userId);
+    }
+    if (query.types?.length) {
+      where.push(`type IN (${query.types.map(() => "?").join(", ")})`);
+      params.push(...query.types);
+    }
+    if (query.kinds?.length) {
+      where.push(`kind IN (${query.kinds.map(() => "?").join(", ")})`);
+      params.push(...query.kinds);
+    }
+    if (query.origins?.length) {
+      where.push(`origin IN (${query.origins.map(() => "?").join(", ")})`);
+      params.push(...query.origins);
+    }
+    if (typeof query.minImportance === "number" && Number.isFinite(query.minImportance)) {
+      where.push("importance >= ?");
+      params.push(Math.max(1, Math.min(10, Math.round(query.minImportance))));
+    }
+    if (query.pinnedOnly) where.push("pinned = 1");
+    if (query.since) {
+      where.push("source_date >= ?");
+      params.push(query.since);
+    }
+    const limit = Math.max(1, Math.min(2000, Math.round(query.limit ?? 1000)));
+
+    const rows = this.db()
+      .prepare(
+        `SELECT * FROM memories WHERE ${where.join(" AND ")}
+         ORDER BY source_date DESC, importance DESC, created_at DESC
+         LIMIT ?`,
+      )
+      .all(...params, limit)
+      .map(map);
+
+    const days = new Map<string, MemoryTimelineDay>();
+    for (const memory of rows) {
+      let day = days.get(memory.sourceDate);
+      if (!day) {
+        day = { date: memory.sourceDate, total: 0, facts: 0, pinned: 0, avgImportance: 0, byType: {}, entries: [] };
+        days.set(memory.sourceDate, day);
+      }
+      day.total += 1;
+      if (memory.type === "fact") day.facts += 1;
+      if (memory.pinned) day.pinned += 1;
+      day.byType[memory.type] = (day.byType[memory.type] ?? 0) + 1;
+      day.avgImportance += memory.importance;
+      day.entries.push(memory);
+    }
+    const grouped = [...days.values()].map((day) => ({
+      ...day,
+      avgImportance: day.total ? Number((day.avgImportance / day.total).toFixed(1)) : 0,
+    }));
+    return { total: rows.length, days: grouped };
   },
 };

@@ -135,6 +135,10 @@ export const config = {
     sessionTimeoutMinutes: num("SESSION_TIMEOUT_MINUTES", 30),
     // 主模型不支持读图时，用该视觉副模型把图片转述为文本（models 表 id）；留空自动选择
     visionFallbackModelId: str("VISION_FALLBACK_MODEL_ID", ""),
+    // 每日 token 预算（0 表示不限制），以及超限策略 block|degrade
+    tokenDailyBudget: num("TOKEN_DAILY_BUDGET", 0),
+    tokenBudgetAction: str("TOKEN_BUDGET_ACTION", "block"),
+    tokenBudgetFallbackModelId: str("TOKEN_BUDGET_FALLBACK_MODEL_ID", ""),
   },
 };
 

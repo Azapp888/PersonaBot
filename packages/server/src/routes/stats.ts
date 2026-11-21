@@ -1,8 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import { statsService } from "../stats/service";
+import { budgetStatus } from "../stats/budget";
 
 export async function statsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/stats/dashboard", { preHandler: [app.authenticate] }, async () => statsService.dashboard());
+
+  app.get("/api/stats/budget", { preHandler: [app.authenticate] }, async () => budgetStatus());
 
   app.get("/api/stats/trends", { preHandler: [app.authenticate] }, async (request) => {
     const { days } = request.query as { days?: string };

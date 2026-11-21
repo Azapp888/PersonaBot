@@ -49,3 +49,8 @@ export function generateToken(prefix = ""): string {
 export function hmac(value: string): string {
   return createHmac("sha256", config.admin.jwtSecret).update(value).digest("hex");
 }
+
+/** 开放 API 密钥的散列存储形式（密钥本身是高熵随机串，直接 sha256 即可）。 */
+export function sha256Hex(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}

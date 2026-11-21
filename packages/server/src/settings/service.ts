@@ -65,6 +65,9 @@ function defaultSettings(): AppSettings {
     updateRepoUrl: config.defaults.updateRepoUrl,
     updateBranch: config.defaults.updateBranch,
     visionFallbackModelId: config.defaults.visionFallbackModelId,
+    tokenDailyBudget: config.defaults.tokenDailyBudget,
+    tokenBudgetAction: config.defaults.tokenBudgetAction,
+    tokenBudgetFallbackModelId: config.defaults.tokenBudgetFallbackModelId,
   };
 }
 

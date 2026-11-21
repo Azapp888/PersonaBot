@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { FileText, Pin, RefreshCw, Save, Upload, Wand2 } from "lucide-react";
+import { Clock, FileText, List, Pin, RefreshCw, Save, Trash2, Upload, Wand2 } from "lucide-react";
 import { api } from "@/lib/api";
-import type { Memory, MemoryKind, MemoryType, Persona } from "@/lib/types";
+import type { Memory, MemoryKind, MemoryTimeline, MemoryType, Persona } from "@/lib/types";
 import {
   Badge,
   Button,
@@ -56,6 +56,19 @@ export function MemoriesPage() {
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 时间线视图：按日期分组 + 类型 / 类别 / 来源 / 重要性 / 置顶 / 天数筛选
+  const [view, setView] = useState<"list" | "timeline">("list");
+  const [timeline, setTimeline] = useState<MemoryTimeline | null>(null);
+  const [tlType, setTlType] = useState("");
+  const [tlKind, setTlKind] = useState("");
+  const [tlOrigin, setTlOrigin] = useState("");
+  const [tlMinImportance, setTlMinImportance] = useState(0);
+  const [tlPinned, setTlPinned] = useState(false);
+  const [tlDays, setTlDays] = useState(30);
+  const [tlLoading, setTlLoading] = useState(false);
+  const [importanceDraft, setImportanceDraft] = useState<Record<string, number>>({});
+  const [templating, setTemplating] = useState(false);
+
   useEffect(() => {
     if (userId) setImportUserId(userId);
   }, [userId]);
@@ -80,6 +93,34 @@ export function MemoriesPage() {
     setMemories(await api.memories(personaId, userId || undefined));
     if (userId) setFiles(await api.memoryFiles(personaId, userId));
   };
+
+  const reloadTimeline = async () => {
+    if (!personaId) return;
+    setTlLoading(true);
+    try {
+      setTimeline(
+        await api.memoryTimeline({
+          personaId,
+          userId: userId || undefined,
+          type: tlType || undefined,
+          kind: tlKind || undefined,
+          origin: tlOrigin || undefined,
+          minImportance: tlMinImportance || undefined,
+          pinned: tlPinned || undefined,
+          days: tlDays || undefined,
+        }),
+      );
+    } catch (err) {
+      push((err as Error).message, "error");
+    } finally {
+      setTlLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (view === "timeline") reloadTimeline().catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, personaId, userId, tlType, tlKind, tlOrigin, tlMinImportance, tlPinned, tlDays]);
 
   useEffect(() => {
     reload().catch(() => undefined);
@@ -134,8 +175,27 @@ export function MemoriesPage() {
     }
   };
 
-  const runImport = async () => {
-    if (!personaId) return push("请先选择角色", "error");
+  const applyTemplate = async (write: boolean) => {
+    if (!personaId || !userId) return push("请先选择角色和用户", "error");
+    setTemplating(true);
+    try {
+      const res = await api.applyMemoryTemplate(personaId, userId, !write);
+      setFileContent({ name: res.name, content: res.content, userEdited: true, appendEnabled: false });
+      setFileDraft(res.content);
+      if (write) {
+        push("已按模板整理并写入记忆文件", "success");
+        setFiles(await api.memoryFiles(personaId, userId));
+      } else {
+        push("已生成整理结果，请在右侧「记忆文件」预览确认后保存", "success");
+      }
+    } catch (err) {
+      push((err as Error).message, "error");
+    } finally {
+      setTemplating(false);
+    }
+  };
+
+  const runImport = async () => {    if (!personaId) return push("请先选择角色", "error");
     const uid = importUserId.trim() || userId;
     if (!uid) return push("请填写归属用户 ID", "error");
 
@@ -203,9 +263,17 @@ export function MemoriesPage() {
             </Select>
           </div>
           <div className="flex items-end gap-2">
-            <Button variant="outline" onClick={() => reload()}>
+            <Button variant="outline" onClick={() => (view === "timeline" ? reloadTimeline() : reload())}>
               <RefreshCw className="h-3.5 w-3.5" /> 刷新
             </Button>
+            <div className="ml-auto flex items-center gap-2">
+              <Button size="sm" variant={view === "list" ? "default" : "outline"} onClick={() => setView("list")}>
+                <List className="h-3.5 w-3.5" /> 列表
+              </Button>
+              <Button size="sm" variant={view === "timeline" ? "default" : "outline"} onClick={() => setView("timeline")}>
+                <Clock className="h-3.5 w-3.5" /> 时间线
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -266,15 +334,199 @@ export function MemoriesPage() {
         <CardHeader>
           <CardTitle>手动触发总结</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          {(["daily", "three_day", "biweekly", "monthly"] as MemoryType[]).map((t) => (
-            <Button key={t} variant="outline" size="sm" onClick={() => trigger(t)}>
-              <Wand2 className="h-3.5 w-3.5" /> 生成{typeLabels[t]}
-            </Button>
-          ))}
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {(["daily", "three_day", "biweekly", "monthly"] as MemoryType[]).map((t) => (
+              <Button key={t} variant="outline" size="sm" onClick={() => trigger(t)}>
+                <Wand2 className="h-3.5 w-3.5" /> 生成{typeLabels[t]}
+              </Button>
+            ))}
+          </div>
+          <div className="border-t border-rule pt-3">
+            <p className="mb-2 text-[12px] leading-relaxed text-muted">
+              「按模板整理」会让 AI 把现有记忆文件与原子事实归位到固定记忆模板（基本资料 / 关系 / 约定 / 偏好 / 时间线 / 待办 / 注意事项），
+              只整理已有信息，不新增栏目。建议先预览，确认无误后再写入。
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" disabled={templating} onClick={() => applyTemplate(false)}>
+                <FileText className="h-3.5 w-3.5" /> {templating ? "AI 整理中…" : "按模板整理（预览）"}
+              </Button>
+              <Button size="sm" disabled={templating} onClick={() => applyTemplate(true)}>
+                <Save className="h-3.5 w-3.5" /> 按模板整理并写入
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
+      {view === "timeline" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>记忆时间线</CardTitle>
+            <span className="font-mono text-[11px] text-muted">
+              {tlLoading ? "加载中…" : `共 ${timeline?.total ?? 0} 条`}
+            </span>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
+              <div>
+                <Label>类型</Label>
+                <Select value={tlType} onChange={(e) => setTlType(e.target.value)}>
+                  <option value="">全部</option>
+                  {(Object.keys(typeLabels) as MemoryType[]).map((t) => (
+                    <option key={t} value={t}>
+                      {typeLabels[t]}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Label>类别</Label>
+                <Select value={tlKind} onChange={(e) => setTlKind(e.target.value)}>
+                  <option value="">全部</option>
+                  {(Object.keys(kindLabels) as MemoryKind[]).map((k) => (
+                    <option key={k} value={k}>
+                      {kindLabels[k]}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Label>来源</Label>
+                <Select value={tlOrigin} onChange={(e) => setTlOrigin(e.target.value)}>
+                  <option value="">全部</option>
+                  <option value="daily">每日整理</option>
+                  <option value="realtime">实时提炼</option>
+                </Select>
+              </div>
+              <div>
+                <Label>重要性 ≥</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={10}
+                  value={tlMinImportance}
+                  onChange={(e) => setTlMinImportance(Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <Label>时间范围</Label>
+                <Select value={String(tlDays)} onChange={(e) => setTlDays(Number(e.target.value))}>
+                  <option value="7">最近 7 天</option>
+                  <option value="30">最近 30 天</option>
+                  <option value="90">最近 90 天</option>
+                  <option value="0">全部</option>
+                </Select>
+              </div>
+              <label className="flex cursor-pointer items-end gap-2 pb-2 text-[13px] text-ink">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-stamp"
+                  checked={tlPinned}
+                  onChange={(e) => setTlPinned(e.target.checked)}
+                />
+                仅永久保留
+              </label>
+            </div>
+
+            {(timeline?.days ?? []).length === 0 && !tlLoading && (
+              <p className="font-mono text-[12px] text-muted">当前筛选条件下没有记忆。</p>
+            )}
+
+            {(timeline?.days ?? []).map((day) => (
+              <div key={day.date} className="border border-rule">
+                <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-rule bg-ink/[0.02] px-3 py-2">
+                  <span className="font-mono text-[12px] font-medium tracking-[0.04em] text-ink">{day.date}</span>
+                  <span className="font-mono text-[10.5px] text-muted">
+                    {day.total} 条 · 事实 {day.facts} · 置顶 {day.pinned} · 平均重要性 {day.avgImportance}
+                  </span>
+                </div>
+                <div className="divide-y divide-rule">
+                  {day.entries.map((m) => (
+                    <div key={m.id} className="space-y-2 px-3 py-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="default">{typeLabels[m.type]}</Badge>
+                        {m.type === "fact" && <Badge variant="secondary">{kindLabels[m.kind]}</Badge>}
+                        <Badge variant={m.origin === "realtime" ? "warning" : "secondary"}>
+                          {m.origin === "realtime" ? "实时提炼" : "每日整理"}
+                        </Badge>
+                        {m.pinned && <Badge variant="warning">永久保留</Badge>}
+                        <span className="font-mono text-[10.5px] text-muted">
+                          {m.userId} · 重要性 {m.importance} · {formatDateTime(m.createdAt)}
+                        </span>
+                      </div>
+                      <Textarea
+                        className="min-h-[80px]"
+                        value={editing[m.id] ?? m.content}
+                        onChange={(e) => setEditing({ ...editing, [m.id]: e.target.value })}
+                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={async () => {
+                            await api.updateMemoryMeta(m.id, { content: editing[m.id] ?? m.content });
+                            push("已保存", "success");
+                            await reloadTimeline();
+                          }}
+                        >
+                          <Save className="h-3.5 w-3.5" /> 保存内容
+                        </Button>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={10}
+                          className="w-20"
+                          value={importanceDraft[m.id] ?? m.importance}
+                          onChange={(e) => setImportanceDraft({ ...importanceDraft, [m.id]: Number(e.target.value) })}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={async () => {
+                            await api.updateMemoryMeta(m.id, { importance: importanceDraft[m.id] ?? m.importance });
+                            push("已更新重要性", "success");
+                            await reloadTimeline();
+                          }}
+                        >
+                          保存重要性
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={m.pinned ? "default" : "outline"}
+                          title={m.pinned ? "取消永久保留" : "设为永久保留（核心记忆）"}
+                          onClick={async () => {
+                            await api.updateMemoryMeta(m.id, { pinned: !m.pinned });
+                            push(m.pinned ? "已取消永久保留" : "已设为永久保留", "success");
+                            await reloadTimeline();
+                          }}
+                        >
+                          <Pin className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          title="删除这条记忆"
+                          onClick={async () => {
+                            if (!confirm("确认删除这条记忆？此操作不可撤销。")) return;
+                            await api.deleteMemory(m.id);
+                            push("已删除", "success");
+                            await reloadTimeline();
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {view === "list" && (
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           {memories.map((m) => (
@@ -392,6 +644,7 @@ export function MemoriesPage() {
           </CardContent>
         </Card>
       </div>
+      )}
     </div>
   );
 }

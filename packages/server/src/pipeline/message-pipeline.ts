@@ -39,6 +39,7 @@ import { clearAbort, abortActive, registerAbort } from "./abort-store";
 import { inspectReply, qualityRetryInstruction } from "./reply-quality";
 import { searchProviderRepo } from "../db/repos/search-providers";
 import { WEB_SEARCH_TOOL, formatSearchResults, runWebSearch } from "../search/service";
+import { budgetDecision } from "../stats/budget";
 
 const PAINT_KEYWORDS = ["画一张", "画个", "画幅", "画画", "画一下", "帮我画", "给我画", "作画", "绘一张", "来张图"];
 
@@ -117,7 +118,7 @@ export async function generateReply(
     /剧情|长篇|写作|分析|推理|代码|debug|重构/i.test(userText);
 
   // 模型候选链：Bot 绑定模型优先，其余已启用模型按顺序兜底；熔断中的模型会被跳过。
-  const chain = resolveProviderChain(boundBot, persona, reasoningScene ? "reasoning" : "chat");
+  const baseChain = resolveProviderChain(boundBot, persona, reasoningScene ? "reasoning" : "chat");
 
   // 联网搜索：仅当 Bot 开启且配置了可用的搜索提供商时，才向模型暴露 web_search 工具。
   const searchProvider = (() => {
@@ -198,6 +199,37 @@ export async function generateReply(
     opts.onEvent?.({ type: "done", reply });
     return { reply, usage, modelId, painting };
   }
+
+  // 成本闸门：每日 token 超预算后按策略降级或本地拒答，避免异常流量打爆账单。
+  const budget = budgetDecision();
+  if (budget.kind === "block") {
+    const reply = budget.message;
+    conversationRepo.append(persona.id, userId, [
+      { role: "user", content: processed, timestamp: Date.now() },
+      { role: "assistant", content: reply, timestamp: Date.now() },
+    ]);
+    profileRepo.touchInteraction(persona.id, userId);
+    logRepo.message({ personaId: persona.id, botId, userId, direction: "in", content: userText });
+    logRepo.message({ personaId: persona.id, botId, userId, direction: "out", content: reply });
+    statsRepo.increment(formatDate(), persona.id, { messages: 2 });
+    syncMemoryFiles(persona, userId);
+    sysLog.warn(
+      "system",
+      "今日 token 预算已用尽，跳过模型调用并返回本地兜底回复",
+      { personaId: persona.id, botId, userId, modelId: null, stage: "budget" },
+      { limit: budget.status.limit, used: budget.status.used, action: budget.status.action },
+    );
+    opts.onEvent?.({ type: "done", reply });
+    return {
+      reply,
+      usage: { inputTokens: 0, outputTokens: 0, cacheHitTokens: 0, cacheMissTokens: 0 },
+      modelId: null,
+    };
+  }
+  const chain =
+    budget.kind === "degrade"
+      ? [budget.fallback, ...baseChain.filter((c) => c.model?.id !== budget.fallback.model?.id)]
+      : baseChain;
 
   try {
     const signal = opts.signal;

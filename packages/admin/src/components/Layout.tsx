@@ -14,6 +14,7 @@ import {
   Boxes,
   BarChart3,
   Brain,
+  KeyRound,
   MessagesSquare,
   ScrollText,
 } from "lucide-react";
@@ -29,8 +30,9 @@ const navItems = [
   { to: "/conversations", label: "会话管理", icon: MessagesSquare, code: "06" },
   { to: "/stats", label: "统计", icon: BarChart3, code: "07" },
   { to: "/logs", label: "日志", icon: ScrollText, code: "08" },
-  { to: "/skills", label: "技能", icon: Sparkles, code: "09" },
-  { to: "/settings", label: "系统设置", icon: Settings, code: "10" },
+  { to: "/open-api", label: "开放 API", icon: KeyRound, code: "09" },
+  { to: "/skills", label: "技能", icon: Sparkles, code: "10" },
+  { to: "/settings", label: "系统设置", icon: Settings, code: "11" },
 ];
 
 function Brand() {

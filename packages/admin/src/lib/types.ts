@@ -355,6 +355,68 @@ export interface AppSettings {
   updateRepoUrl: string;
   updateBranch: string;
   visionFallbackModelId: string;
+  /** 每日 token 预算：0 表示不限制。 */
+  tokenDailyBudget: number;
+  /** 超预算策略：block=本地拒答，degrade=切换到降级模型。 */
+  tokenBudgetAction: string;
+  /** 超预算降级使用的模型 id，留空则降级不可用。 */
+  tokenBudgetFallbackModelId: string;
+}
+
+export interface BudgetStatus {
+  enabled: boolean;
+  limit: number;
+  used: number;
+  remaining: number;
+  ratio: number;
+  exceeded: boolean;
+  action: "block" | "degrade";
+  fallbackModelId: string | null;
+  fallbackAvailable: boolean;
+}
+
+export interface MemoryTimelineDay {
+  date: string;
+  total: number;
+  facts: number;
+  pinned: number;
+  avgImportance: number;
+  byType: Record<string, number>;
+  entries: Memory[];
+}
+
+export interface MemoryTimeline {
+  total: number;
+  days: MemoryTimelineDay[];
+  filters: { since: string | null; days: number | null };
+}
+
+/** 开放 API 的外部用户（externalId 即会话 / 记忆中的 userId）。 */
+export interface AppUser {
+  id: string;
+  externalId: string;
+  displayName: string;
+  note: string;
+  enabled: boolean;
+  createdAt: number;
+  updatedAt: number;
+  keyCount?: number;
+  activeKeyCount?: number;
+}
+
+/** 开放 API 密钥；明文只在创建响应中出现一次。 */
+export interface ApiKey {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  personaId: string;
+  userId: string;
+  enabled: boolean;
+  createdAt: number;
+  lastUsedAt: number | null;
+  usageCount: number;
+  personaName?: string;
+  userDisplayName?: string;
 }
 
 export interface UpdateInfo {
