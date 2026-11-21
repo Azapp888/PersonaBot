@@ -16,8 +16,8 @@ export interface ClockSnapshot {
 const DATE_TIME_FMT = (timeZone?: string) =>
   new Intl.DateTimeFormat("en-CA", {
     timeZone,
+    // 注意：不要同时设置 hour12:false，部分 ICU 版本组合后午夜会返回 "24"
     hourCycle: "h23",
-    hour12: false,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

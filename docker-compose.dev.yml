@@ -1,0 +1,25 @@
+# 开发环境：源码挂载 + 热重载（需本地 node_modules，适合不想装 Node 的场景）
+services:
+  personabot-dev:
+    build:
+      context: .
+      target: build
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-dev}
+    container_name: personabot-dev
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${PORT:-3001}:3000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - NODE_ENV=development
+      - HOST=0.0.0.0
+      - PORT=3000
+      - DATA_DIR=/app/data
+      - LOG_DIR=/app/logs
+      - PERSONABOT_DEPLOY=docker-dev
+    command: ["pnpm", "--filter", "@personabot/server", "dev"]

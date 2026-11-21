@@ -10,7 +10,7 @@
     "migrate": "tsx src/scripts/migrate.ts",
     "backup": "tsx src/scripts/backup.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test test/*.test.ts",
+    "test": "node scripts/run-tests.mjs",
     "lint": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

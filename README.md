@@ -1,6 +1,6 @@
 # PersonaBot
 
-[简体中文](README.md) | [English](README.en.md) | [繁體中文](README.zh-TW.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Français](README.fr.md) | [Deutsch](README.de.md) | [Português (Brasil)](README.pt-BR.md)
+[简体中文](README.md) | [English](docs/readme/README.en.md) | [繁體中文](docs/readme/README.zh-TW.md) | [日本語](docs/readme/README.ja.md) | [한국어](docs/readme/README.ko.md) | [Español](docs/readme/README.es.md) | [Français](docs/readme/README.fr.md) | [Deutsch](docs/readme/README.de.md) | [Português (Brasil)](docs/readme/README.pt-BR.md)
 
 轻量级角色扮演 QQ Bot 管理系统。每个 QQ Bot 绑定一个角色人格（Persona），每次对话都以该角色的身份运行；人格提示词、技能插件、命令池、绘画配置全部可在管理后台配置；记忆系统采用分层总结 + 时间感知架构；支持多 Bot 独立运行。
 

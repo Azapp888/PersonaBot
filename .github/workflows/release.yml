@@ -1,0 +1,88 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Package server distribution
+        run: |
+          mkdir -p dist-release
+          cp package.json pnpm-workspace.yaml pnpm-lock.yaml README.md Dockerfile docker-compose.yml dist-release/
+          cp -r packages/server/dist dist-release/server-dist
+          cp -r packages/admin/dist dist-release/admin-dist
+          tar -czf personabot-${GITHUB_REF_NAME}-linux-amd64.tar.gz -C dist-release .
+          sha256sum personabot-${GITHUB_REF_NAME}-linux-amd64.tar.gz > personabot-${GITHUB_REF_NAME}-linux-amd64.tar.gz.sha256
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            personabot-*-linux-amd64.tar.gz
+            personabot-*-linux-amd64.tar.gz.sha256
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build multi-arch image (load for amd64 verification)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: personabot:${{ github.ref_name }}
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+
+      - name: Smoke test container
+        run: |
+          docker run -d --name smoke -p 3000:3000 \
+            -e NODE_ENV=production -e HOST=0.0.0.0 \
+            personabot:${{ github.ref_name }}
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/api/health >/dev/null 2>&1; then
+              echo "container healthy"; break
+            fi
+            sleep 2
+          done
+          docker logs smoke || true
+          docker rm -f smoke
