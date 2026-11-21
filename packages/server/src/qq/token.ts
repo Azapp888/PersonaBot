@@ -45,18 +45,20 @@ async function refreshToken(bot: Bot): Promise<CacheEntry> {
   });
   const text = await res.text();
   if (!res.ok) {
-    logger.error({ botId: bot.id, status: res.status, body: text }, "failed to obtain QQ access token");
-    throw new Error(`获取 QQ access_token 失败: ${res.status} ${text}`);
+    // 响应体可能包含 access_token，不得写入日志；仅记录状态码。
+    logger.error({ botId: bot.id, status: res.status }, "failed to obtain QQ access token");
+    throw new Error(`获取 QQ access_token 失败: ${res.status}`);
   }
   let data: any;
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Error(`QQ token 响应解析失败: ${text}`);
+    // 响应体可能包含 access_token，不得进入错误信息。
+    throw new Error(`QQ token 响应解析失败（status ${res.status}）`);
   }
   const accessToken: string | undefined = data.access_token;
   if (!accessToken) {
-    throw new Error(`QQ token 响应缺少 access_token: ${text}`);
+    throw new Error(`QQ token 响应缺少 access_token（status ${res.status}）`);
   }
   const expiresIn = Number(data.expires_in ?? 7200);
   const entry: CacheEntry = { token: accessToken, expiresAt: Date.now() + expiresIn * 1000 };

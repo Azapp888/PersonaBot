@@ -456,7 +456,8 @@ export async function modelRoutes(app: FastifyInstance): Promise<void> {
     const body = request.body as any;
     const model = modelRepo.update(id, {
       ...body,
-      apiKey: body.apiKey || undefined,
+      // 空字符串 = 显式清空密钥；未提供 = 保持不变
+      apiKey: body.apiKey === "" ? "" : body.apiKey || undefined,
     });
     if (!model) return reply.code(404).send({ error: "not_found" });
     return present(model);

@@ -75,10 +75,13 @@ export const modelRepo = {
   update(id: string, input: Partial<ModelInput>): ModelRecord | null {
     const current = this.find(id);
     if (!current) return null;
+    // 空字符串表示显式清空密钥；undefined/null 表示不修改；其他值重新加密。
     const nextKey =
-      input.apiKey !== undefined && input.apiKey !== null && input.apiKey !== current.apiKey
-        ? encryptSecret(input.apiKey)
-        : current.apiKey;
+      input.apiKey === ""
+        ? ""
+        : input.apiKey !== undefined && input.apiKey !== null && input.apiKey !== current.apiKey
+          ? encryptSecret(input.apiKey)
+          : current.apiKey;
     this.db()
       .prepare(
         `UPDATE models SET name = ?, provider = ?, api_key = ?, api_base = ?, model_id = ?, temperature = ?, max_tokens = ?, enabled = ?, supports_vision = ?, updated_at = ? WHERE id = ?`,

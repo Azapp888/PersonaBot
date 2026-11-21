@@ -62,6 +62,8 @@ export function SkillsPage() {
       const res = await api.syncSkills(repoUrl || undefined, token || undefined);
       push(res.updated > 0 ? `同步完成，更新 ${res.updated} 个技能` : `未更新，错误：${res.errors.join("; ")}`, res.updated > 0 ? "success" : "error");
       await load();
+    } catch (err) {
+      push((err as Error).message || "同步失败", "error");
     } finally {
       setSyncing(false);
     }

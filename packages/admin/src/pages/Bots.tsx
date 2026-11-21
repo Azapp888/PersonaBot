@@ -24,6 +24,7 @@ const stateMap: Record<string, { label: string; variant: any }> = {
   reconnecting: { label: "重连中", variant: "warning" },
   error: { label: "异常", variant: "destructive" },
   stopped: { label: "停止", variant: "secondary" },
+  disabled: { label: "已停用", variant: "secondary" },
 };
 
 const emptyForm = {
@@ -334,7 +335,11 @@ export function BotsPage() {
                 min={1}
                 max={10}
                 value={form.proactiveMaxMessages}
-                onChange={(e) => setForm({ ...form, proactiveMaxMessages: Number(e.target.value) })}
+                onChange={(e) => {
+                  // 输入清空时 Number("") === 0，需夹紧到 1-10，避免保存出 0/NaN
+                  const n = Math.round(Number(e.target.value));
+                  setForm({ ...form, proactiveMaxMessages: Number.isFinite(n) ? Math.min(10, Math.max(1, n)) : 3 });
+                }}
               />
               <p className="mt-1 text-[12px] leading-relaxed text-muted">
                 用户回复后计数重置；范围 1-10，默认 3。

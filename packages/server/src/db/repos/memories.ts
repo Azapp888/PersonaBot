@@ -103,6 +103,8 @@ export const memoryRepo = {
       .map(map);
   },
   upsert(input: MemoryInput): Memory {
+    // 原子事实（fact）允许同日多条，不能按 (persona,user,type,source_date) 合并覆盖
+    if (input.type === "fact") return this.create(input);
     const existing = this.db()
       .prepare(
         `SELECT * FROM memories WHERE persona_id = ? AND user_id = ? AND type = ? AND source_date = ?`,
@@ -141,6 +143,10 @@ export const memoryRepo = {
   },
   updateContent(id: string, content: string): void {
     this.db().prepare(`UPDATE memories SET content = ? WHERE id = ?`).run(content, id);
+  },
+  find(id: string): Memory | null {
+    const row = this.db().prepare(`SELECT * FROM memories WHERE id = ?`).get(id) as any;
+    return row ? map(row) : null;
   },
   updateMeta(id: string, patch: MemoryMetaPatch): void {
     const sets: string[] = [];

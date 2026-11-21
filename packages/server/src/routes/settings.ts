@@ -21,7 +21,12 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     // 空字符串表示不修改敏感字段
     if (!patch.paintingApiKey) delete patch.paintingApiKey;
     if (!patch.githubToken) delete patch.githubToken;
-    if (patch.skillUpdateCron) rescheduleSkillUpdate();
+    if (patch.skillUpdateCron) {
+      // 先落库再重排定时器，否则重排读到的仍是旧值，本次修改的 cron 不生效。
+      const updated = settingsService.update(patch);
+      rescheduleSkillUpdate();
+      return present(updated);
+    }
     const updated = settingsService.update(patch);
     return present(updated);
   });

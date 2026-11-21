@@ -1,5 +1,12 @@
-import { createHash, createHmac, createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import {
+  createHash,
+  createHmac,
+  createCipheriv,
+  createDecipheriv,
+  randomBytes,
+} from "node:crypto";
 import { config } from "../config";
+import { logger } from "../logger";
 
 const KEY = createHash("sha256").update(config.encryptionKey).digest();
 
@@ -28,7 +35,9 @@ export function decryptSecret(payload: string): string {
     decipher.setAuthTag(tag);
     const dec = Buffer.concat([decipher.update(data), decipher.final()]);
     return dec.toString("utf8");
-  } catch {
+  } catch (err) {
+    // 解密失败说明密文损坏或 ENCRYPTION_KEY 变更过，不能默默把密文当明文返回
+    logger.warn({ err: (err as Error).message }, "secret decryption failed, returning payload as-is (key changed?)");
     return payload;
   }
 }

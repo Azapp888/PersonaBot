@@ -13,6 +13,21 @@ export interface SendResult {
   timestamp?: number;
 }
 
+/** 按文件头判断图片类型，上传时使用真实的 MIME，避免 QQ 端转码异常。 */
+function imageMimeOf(buf: Buffer): { mime: string; filename: string } {
+  if (buf.length > 3 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+    return { mime: "image/png", filename: "image.png" };
+  }
+  if (buf[0] === 0xff && buf[1] === 0xd8) return { mime: "image/jpeg", filename: "image.jpg" };
+  if (buf.length > 12 && buf.subarray(0, 4).toString("ascii") === "RIFF" && buf.subarray(8, 12).toString("ascii") === "WEBP") {
+    return { mime: "image/webp", filename: "image.webp" };
+  }
+  if (buf.length > 6 && buf.subarray(0, 3).toString("ascii") === "GIF") {
+    return { mime: "image/gif", filename: "image.gif" };
+  }
+  return { mime: "image/png", filename: "image.png" };
+}
+
 /**
  * QQ 官方机器人 API v2 (HTTPS OpenAPI) 客户端。
  * 负责发送消息、获取 WebSocket 网关地址。
@@ -101,6 +116,7 @@ export class QQApiClient {
     scope: { type: "c2c"; openid: string } | { type: "group"; groupOpenid: string },
     file: { url?: string; base64?: string },
     fileType = 1,
+    retry = true,
   ): Promise<string | null> {
     const token = await getAccessToken(this.bot);
     const path =
@@ -112,7 +128,8 @@ export class QQApiClient {
       form.append("url", file.url);
     } else if (file.base64) {
       const buf = Buffer.from(file.base64, "base64");
-      form.append("file_data", new Blob([buf], { type: "image/png" }), "image.png");
+      const { mime, filename } = imageMimeOf(buf);
+      form.append("file_data", new Blob([buf], { type: mime }), filename);
     } else {
       return null;
     }
@@ -122,6 +139,11 @@ export class QQApiClient {
       body: form as any,
       timeoutMs: 30000,
     });
+    if (res.status === 401 && retry) {
+      // 与 request() 一致：token 过期时重取一次再试
+      invalidateToken(this.bot.id);
+      return this.uploadFile(scope, file, fileType, false);
+    }
     const text = await res.text();
     if (!res.ok) {
       logger.warn({ botId: this.bot.id, path, status: res.status, body: text }, "QQ media upload error");

@@ -40,7 +40,7 @@ export async function botRoutes(app: FastifyInstance): Promise<void> {
       const status = statuses.get(bot.id);
       return {
         ...present(bot),
-        gatewayState: status?.state ?? (bot.enabled ? "stopped" : "stopped"),
+        gatewayState: status?.state ?? (bot.enabled ? "stopped" : "disabled"),
         lastError: status?.lastError ?? null,
         connectedAt: status?.connectedAt ?? null,
       };

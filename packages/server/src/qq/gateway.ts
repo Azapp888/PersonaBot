@@ -86,7 +86,6 @@ export class QQGateway {
       this.setState("connecting");
       const gateway = await this.client.getGateway();
       const url = gateway.url;
-      const token = await getAccessToken(this.bot);
       const ws = new WebSocket(url);
       this.ws = ws;
 
@@ -94,7 +93,7 @@ export class QQGateway {
         logger.info({ botId: this.bot.id }, "QQ gateway websocket opened");
       });
 
-      ws.on("message", (raw) => this.handleMessage(raw.toString(), token));
+      ws.on("message", (raw) => this.handleMessage(raw.toString()));
 
       ws.on("close", (code, reason) => {
         logger.warn({ botId: this.bot.id, code, reason: reason.toString() }, "QQ gateway closed");
@@ -125,7 +124,7 @@ export class QQGateway {
     }, delay);
   }
 
-  private handleMessage(raw: string, token: string): void {
+  private handleMessage(raw: string): void {
     let payload: QQGatewayPayload;
     try {
       payload = JSON.parse(raw);
@@ -137,7 +136,8 @@ export class QQGateway {
     switch (payload.op) {
       case QQ_OP.HELLO: {
         this.heartbeatInterval = payload.d?.heartbeat_interval ?? 41250;
-        this.identify(token);
+        // 实时取 token：长连接存活可能超过 token 有效期，复用连接时的旧 token 会被拒绝
+        void this.identifyWithFreshToken();
         this.startHeartbeat();
         break;
       }
@@ -167,6 +167,16 @@ export class QQGateway {
         break;
       default:
         break;
+    }
+  }
+
+  private async identifyWithFreshToken(): Promise<void> {
+    try {
+      const token = await getAccessToken(this.bot);
+      this.identify(token);
+    } catch (err) {
+      logger.error({ botId: this.bot.id, err: (err as Error).message }, "gateway identify failed: token fetch");
+      this.setState("error", (err as Error).message);
     }
   }
 

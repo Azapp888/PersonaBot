@@ -143,6 +143,7 @@ export function LogsPage() {
     setPersonaId("");
     setUserId("");
     setDirection("");
+    setValidity("");
     setLevel("");
     setCategory("");
     setQ("");

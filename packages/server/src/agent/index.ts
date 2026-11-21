@@ -46,6 +46,8 @@ export interface ToolLoopResult {
   content: string;
   usage: LLMUsage;
   toolRuns: ToolRunRecord[];
+  /** 工具循环次数耗尽仍未得到文本回复 */
+  exhausted?: boolean;
 }
 
 function emptyUsage(): LLMUsage {
@@ -143,7 +145,23 @@ export async function runToolLoop(
       convo.push({ role: "tool", content: output, toolCallId: call.id });
     }
   }
-  return { content: "", usage, toolRuns };
+  // 循环耗尽：不让对话静默失败，去掉工具后再要一次纯文本回复作为兜底。
+  try {
+    const final = await provider.chat(
+      [...convo, { role: "user", content: "（工具调用次数已达上限，请基于以上工具输出直接给出最终回答，不要再调用工具。）" }],
+      { temperature: options.temperature, maxTokens: options.maxTokens, signal: options.signal, thinking: options.thinking },
+    );
+    addUsage(usage, final.usage ?? emptyUsage());
+    if (final.content?.trim()) return { content: final.content, usage, toolRuns };
+  } catch (err) {
+    if (options.signal?.aborted || (err as Error)?.name === "AbortError") throw err;
+  }
+  return {
+    content: "",
+    usage,
+    toolRuns,
+    exhausted: true,
+  };
 }
 
 /** 内置 shell 工具。 */

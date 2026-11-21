@@ -82,7 +82,14 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   }
 
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  let data: any = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    // 网关/代理可能返回 HTML 错误页，避免把 SyntaxError 直接抛给用户
+    if (!res.ok) throw new ApiError(res.status, `请求失败 (${res.status})`);
+    throw new ApiError(res.status, "响应不是有效的 JSON");
+  }
   if (!res.ok) {
     throw new ApiError(res.status, data?.message || data?.error || `请求失败 (${res.status})`);
   }

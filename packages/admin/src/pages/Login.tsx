@@ -73,9 +73,6 @@ export function LoginPage() {
               </Button>
             </form>
           </div>
-          <p className="border-t border-rule px-5 py-3 font-mono text-[10.5px] leading-relaxed text-muted">
-            默认账号见 .env 中的 ADMIN_USERNAME / ADMIN_PASSWORD
-          </p>
         </div>
       </div>
     </div>

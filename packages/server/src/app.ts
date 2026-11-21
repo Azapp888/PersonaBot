@@ -34,7 +34,8 @@ function findAdminDist(): string | null {
 export async function buildApp(): Promise<FastifyInstance> {
   const app: FastifyInstance = Fastify({
     loggerInstance: logger,
-    trustProxy: true,
+    // 仅在显式配置 TRUST_PROXY=1 时信任反向代理头，避免伪造 X-Forwarded-For 绕过登录限流。
+    trustProxy: config.trustProxy,
     bodyLimit: 10 * 1024 * 1024,
   } as any) as unknown as FastifyInstance;
 

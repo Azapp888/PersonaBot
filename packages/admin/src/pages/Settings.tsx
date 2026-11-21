@@ -125,7 +125,7 @@ export function SettingsPage() {
   const [paintingApiKey, setPaintingApiKey] = useState("");
   const [githubToken, setGithubToken] = useState("");
   const [snapshot, setSnapshot] = useState("");
-  const [serverOffset, setServerOffset] = useState(0);
+  const [serverOffset, setServerOffset] = useState<number | null>(null);
   const [tick, setTick] = useState(Date.now());
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -292,16 +292,16 @@ export function SettingsPage() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="call-label">
-                  当前系统时间{tick + serverOffset ? `（${tzLabel(settings.timezone)} · ${offsetLabel(tick + serverOffset, settings.timezone)}）` : ""}
+                  当前系统时间{serverOffset !== null ? `（${tzLabel(settings.timezone)} · ${offsetLabel(tick + serverOffset, settings.timezone)}）` : "（未校准，按本地时钟显示）"}
                 </div>
                 <div className="mt-1 font-mono text-[20px] font-medium tabular-nums text-ink">
-                  {formatClock(tick + serverOffset, settings.timezone)}
+                  {formatClock(tick + (serverOffset ?? 0), settings.timezone)}
                 </div>
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => refreshServerTime().then(() => push("已按服务器时间校准"))}
+                onClick={() => refreshServerTime().then(() => push("已按服务器时间校准")).catch(() => push("校准失败", "error"))}
               >
                 <RefreshCw className="h-3.5 w-3.5" /> 重新校准
               </Button>

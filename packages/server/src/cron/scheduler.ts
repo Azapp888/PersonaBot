@@ -78,14 +78,22 @@ async function runThreeDayMemories(): Promise<void> {
 
 async function runBiweeklyMemories(): Promise<void> {
   for (const persona of personaRepo.listEnabled()) {
-    await forEachUser(persona.id, (pid, uid) => generateBiweeklyMemory(personaRepo.find(pid)!, uid).then(() => undefined));
+    await forEachUser(persona.id, async (pid, uid) => {
+      const p = personaRepo.find(pid);
+      if (!p) return;
+      await generateBiweeklyMemory(p, uid);
+    });
   }
   logger.info("biweekly memory task finished");
 }
 
 async function runMonthlyMemories(): Promise<void> {
   for (const persona of personaRepo.listEnabled()) {
-    await forEachUser(persona.id, (pid, uid) => generateMonthlyMemory(personaRepo.find(pid)!, uid).then(() => undefined));
+    await forEachUser(persona.id, async (pid, uid) => {
+      const p = personaRepo.find(pid);
+      if (!p) return;
+      await generateMonthlyMemory(p, uid);
+    });
   }
   logger.info("monthly memory task finished");
 }
@@ -126,10 +134,20 @@ export function startScheduler(): void {
       logger.info("stats reset for new day");
     }),
   );
-  // 三日记忆：每 3 天 01:00（生成后剪掉已浓缩的旧日记忆）
-  tasks.push(schedule("0 1 */3 * *", () => void runThreeDayMemories()));
-  // 精简记忆：每 2 周 02:00
-  tasks.push(schedule("0 2 */14 * *", () => void runBiweeklyMemories()));
+  // 三日记忆：每 3 天 01:00（按固定天数间隔判断，避免 cron 的 day-of-month 跨月间隔漂移）
+  tasks.push(
+    schedule("0 1 * * *", () => {
+      if (Math.floor(Date.now() / 86400000) % 3 !== 0) return;
+      void runThreeDayMemories();
+    }),
+  );
+  // 精简记忆：每 14 天 02:00
+  tasks.push(
+    schedule("0 2 * * *", () => {
+      if (Math.floor(Date.now() / 86400000) % 14 !== 0) return;
+      void runBiweeklyMemories();
+    }),
+  );
   // 月记忆：每月 1 日 03:00
   tasks.push(schedule("0 3 1 * *", () => void runMonthlyMemories()));
   // Token 刷新：每天 04:00

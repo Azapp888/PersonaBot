@@ -89,7 +89,10 @@ export async function syncSkillsFromGithub(repoUrl?: string, token?: string): Pr
   for (const file of mdFiles) {
     try {
       const rawUrl = `https://raw.githubusercontent.com/${parsed.owner}/${parsed.repo}/${parsed.branch}/${file.path}`;
-      const res = await fetchWithTimeout(rawUrl, { headers: { "User-Agent": "PersonaBot" }, timeoutMs: 20000 });
+      // 私有仓库的 raw 下载同样需要带 token，否则同步必失败
+      const rawHeaders: Record<string, string> = { "User-Agent": "PersonaBot" };
+      if (authToken) rawHeaders.Authorization = `Bearer ${authToken}`;
+      const res = await fetchWithTimeout(rawUrl, { headers: rawHeaders, timeoutMs: 20000 });
       if (!res.ok) {
         errors.push(`${file.path}: ${res.status}`);
         continue;

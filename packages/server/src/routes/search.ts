@@ -39,7 +39,8 @@ export async function searchRoutes(app: FastifyInstance): Promise<void> {
         apiKey: body.apiKey,
         apiBase: body.apiBase ?? existing.apiBase,
         model: body.model ?? existing.model,
-        enabled: body.enabled ?? true,
+        // 未显式传 enabled 时保持原状态，避免更新密钥时把已禁用的配置重新启用
+        enabled: body.enabled ?? existing.enabled,
       })!;
       return present(updated);
     }

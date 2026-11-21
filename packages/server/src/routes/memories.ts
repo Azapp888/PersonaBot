@@ -68,6 +68,7 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
     if (body?.content === undefined && body?.importance === undefined && body?.pinned === undefined && body?.kind === undefined) {
       return reply.code(400).send({ error: "bad_request", message: "至少需要提供 content / importance / pinned / kind 之一" });
     }
+    if (!memoryRepo.find(id)) return reply.code(404).send({ error: "not_found" });
     memoryRepo.updateMeta(id, {
       content: body?.content,
       importance: body?.importance,
@@ -77,8 +78,9 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
-  app.delete("/api/memories/:id", { preHandler: [app.authenticate] }, async (request) => {
+  app.delete("/api/memories/:id", { preHandler: [app.authenticate] }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    if (!memoryRepo.find(id)) return reply.code(404).send({ error: "not_found" });
     memoryRepo.remove(id);
     return { ok: true };
   });

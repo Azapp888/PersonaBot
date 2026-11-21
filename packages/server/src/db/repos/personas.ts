@@ -134,6 +134,15 @@ export const personaRepo = {
       db.prepare(`DELETE FROM conversations WHERE persona_id = ?`).run(id);
       db.prepare(`DELETE FROM user_profiles WHERE persona_id = ?`).run(id);
       db.prepare(`DELETE FROM persona_schedules WHERE persona_id = ?`).run(id);
+      // schema 未定义外键，以下表需一并清理，否则删除角色后残留孤儿数据
+      db.prepare(`DELETE FROM stats WHERE persona_id = ?`).run(id);
+      db.prepare(`DELETE FROM message_logs WHERE persona_id = ?`).run(id);
+      db.prepare(`DELETE FROM token_usage WHERE persona_id = ?`).run(id);
+      db.prepare(`DELETE FROM painting_logs WHERE persona_id = ?`).run(id);
+      db.prepare(`DELETE FROM conversation_context WHERE persona_id = ?`).run(id);
+      db.prepare(`DELETE FROM memory_files WHERE persona_id = ?`).run(id);
+      db.prepare(`DELETE FROM user_identities WHERE persona_id = ?`).run(id);
+      db.prepare(`DELETE FROM system_logs WHERE persona_id = ?`).run(id);
       db.prepare(`UPDATE bots SET persona_id = NULL WHERE persona_id = ?`).run(id);
     });
     tx();

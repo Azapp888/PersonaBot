@@ -63,12 +63,14 @@ async function main(): Promise<void> {
   process.on("SIGINT", () => void shutdown("SIGINT"));
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
-  // 兜底：未捕获异常 / 未处理的 Promise 拒绝不应让进程静默退出或崩溃在未知状态
+  // 兜底：未处理的 Promise 拒绝只记录；未捕获异常记录后必须退出，
+  // 否则进程继续运行在未定义状态，后续 SQLite 写入可能损坏数据。
   process.on("unhandledRejection", (reason) => {
     logger.error({ reason: reason instanceof Error ? reason.message : String(reason) }, "unhandled promise rejection");
   });
   process.on("uncaughtException", (err) => {
     logger.fatal({ err: err.message, stack: err.stack }, "uncaught exception");
+    process.exit(1);
   });
 }
 

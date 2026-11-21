@@ -185,7 +185,9 @@ export async function checkUpdate(): Promise<UpdateInfo> {
     base.remoteCommit = remote.sha;
     base.remoteCommitDate = remote.date;
     base.remoteMessage = remote.message;
-    if (local && local.length >= 7) {
+    if (local && /^[0-9a-f]{7,40}$/i.test(local)) {
+      // 本地是 commit sha（构建时注入），可与远端 sha 直接对比；
+      // semver 版本号（npm_package_version 回退）与 sha 无可比性，不能按 sha 判断。
       const shortLocal = local.slice(0, 7);
       base.available = remote.sha.slice(0, 7) !== shortLocal;
       base.message = base.available
@@ -207,8 +209,20 @@ export async function checkUpdate(): Promise<UpdateInfo> {
   }
 }
 
+/** branch 由后台设置写入，拼进 git 命令前必须校验，防命令注入。 */
+function assertSafeBranch(branch: string): void {
+  if (!/^[A-Za-z0-9._\/-]+$/.test(branch)) {
+    throw new Error(`非法的分支名：${branch}`);
+  }
+}
+
 /** git 部署的检查逻辑：git fetch + 对比本地 HEAD 与远端。 */
 async function checkUpdateViaGit(root: string, branch: string, base: UpdateInfo): Promise<UpdateInfo> {
+  try {
+    assertSafeBranch(branch);
+  } catch (err) {
+    return { ...base, message: (err as Error).message };
+  }
   const inGit = await run("git rev-parse --is-inside-work-tree", root, 10000);
   if (!inGit.ok || inGit.stdout !== "true") {
     return { ...base, message: "当前目录不是 Git 工作区，无法检查更新。" };
@@ -315,6 +329,11 @@ export async function applyUpdate(): Promise<UpdateResult> {
 
   const settings = settingsService.get() as any;
   const branch = settings.updateBranch || "main";
+  try {
+    assertSafeBranch(branch);
+  } catch (err) {
+    return { ok: false, mode, steps, message: (err as Error).message, previousCommit: null, newCommit: null, restartRequired: false, guidance: null };
+  }
 
   const previousRes = await run("git rev-parse HEAD", root, 10000);
   const previousCommit = previousRes.ok ? previousRes.stdout : null;

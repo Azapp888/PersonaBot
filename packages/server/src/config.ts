@@ -64,6 +64,10 @@ export const config = {
     .map((s) => s.trim())
     .filter(Boolean),
 
+  // 仅当服务部署在可信反向代理之后时才设置（如 "1" 或可信网段，参考 Fastify trustProxy）。
+  // 默认关闭：全开会让客户端伪造 X-Forwarded-For 绕过基于 IP 的登录限流。
+  trustProxy: str("TRUST_PROXY", "") === "1",
+
   dataDir: resolveDir(str("DATA_DIR", "./data")),
   logDir: resolveDir(str("LOG_DIR", "./logs")),
 

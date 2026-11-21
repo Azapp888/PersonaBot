@@ -1,4 +1,6 @@
 import { extname } from "node:path";
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import type { ImageContentPart, QQAttachment } from "../types";
 import { logger } from "../logger";
 import { settingsService } from "../settings/service";
@@ -65,6 +67,79 @@ function looksBinary(buf: Buffer): boolean {
   return nulls > sample.length * 0.1;
 }
 
+/** IPv4 是否落在私网/环回/链路本地等保留段。 */
+function isPrivateIPv4(host: string): boolean {
+  const parts = host.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((p) => !Number.isInteger(p) || p < 0 || p > 255)) return false;
+  const [a, b] = parts;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) || // CGNAT 100.64/10
+    (a === 169 && b === 254) || // 链路本地（含云元数据 169.254.169.254）
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168)
+  );
+}
+
+function isPrivateIPv6(host: string): boolean {
+  const h = host.toLowerCase();
+  return (
+    h === "::" ||
+    h === "::1" ||
+    h.startsWith("fe80") || // 链路本地
+    h.startsWith("fc") ||
+    h.startsWith("fd") || // ULA fc00::/7
+    h.startsWith("::ffff:127.") ||
+    h.startsWith("::ffff:10.") ||
+    h.startsWith("::ffff:192.168.")
+  );
+}
+
+/**
+ * SSRF 防护：校验下载目标为公网 http(s) 地址。
+ * 主机名先经 DNS 解析，再对解析出的每个地址做私网判定，防止 DNS rebinding 绕过。
+ */
+async function assertPublicHttpUrl(raw: string): Promise<void> {
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error("非法的下载地址");
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("仅允许 http(s) 下载地址");
+  }
+  const host = parsed.hostname.replace(/^\[|\]$/g, "");
+  if (/^(localhost|.*\.localhost|.*\.local|.*\.internal)$/i.test(host)) {
+    throw new Error("不允许访问内网地址");
+  }
+  const literal = isIP(host);
+  if (literal === 4) {
+    if (isPrivateIPv4(host)) throw new Error("不允许访问内网地址");
+    return;
+  }
+  if (literal === 6) {
+    if (isPrivateIPv6(host)) throw new Error("不允许访问内网地址");
+    return;
+  }
+  let resolved: { address: string }[];
+  try {
+    resolved = await lookup(host, { all: true, verbatim: true });
+  } catch {
+    throw new Error("下载地址无法解析");
+  }
+  for (const { address } of resolved) {
+    if (
+      (isIP(address) === 4 && isPrivateIPv4(address)) ||
+      (isIP(address) === 6 && isPrivateIPv6(address))
+    ) {
+      throw new Error("不允许访问内网地址");
+    }
+  }
+}
+
 /** 下载图片并转为 data:URL（base64），供多模态模型读取。 */
 export async function downloadImageAsDataUrl(
   url: string,
@@ -72,6 +147,7 @@ export async function downloadImageAsDataUrl(
 ): Promise<{ dataUrl: string; mediaType: SupportedImageMime }> {
   const target = normalizeMediaUrl(url);
   if (!target) throw new Error("缺少下载地址");
+  await assertPublicHttpUrl(target);
   const res = await fetchWithTimeout(target, { timeoutMs: 15000 });
   if (!res.ok) throw new Error(`下载失败 ${res.status}`);
   const lenHeader = Number(res.headers.get("content-length") ?? "0");
@@ -116,6 +192,7 @@ export async function buildImageParts(
 async function download(url: string, maxBytes: number): Promise<Buffer> {
   const target = normalizeMediaUrl(url);
   if (!target) throw new Error("缺少下载地址");
+  await assertPublicHttpUrl(target);
   const res = await fetchWithTimeout(target, { timeoutMs: 15000 });
   if (!res.ok) throw new Error(`下载失败 ${res.status}`);
   const lenHeader = Number(res.headers.get("content-length") ?? "0");

@@ -124,8 +124,9 @@ export const logRepo = {
     return rows.map((r) => r.user_id as string).sort();
   },
   /**
-   * 把与被删除会话消息最近的一条流水标记为无效。
+   * 把与被删除会话消息对应的流水标记为无效。
    * 记忆整理任务只读取 invalid = 0 的记录，因此错误回复不会再次进入日记忆。
+   * 时间窗内做精确或前缀匹配（入库时 content 可能被规范化），命中多条时全部失效。
    */
   invalidateByContent(
     personaId: string,
@@ -134,14 +135,23 @@ export const logRepo = {
     content: string,
     nearMs: number,
   ): number {
-    const row = this.db()
+    const windowMs = 5 * 60 * 1000;
+    const rows = this.db()
       .prepare(
-        `SELECT id FROM message_logs WHERE persona_id = ? AND user_id = ? AND direction = ? AND content = ? AND invalid = 0 ORDER BY ABS(created_at - ?) ASC LIMIT 1`,
+        `SELECT id, content FROM message_logs WHERE persona_id = ? AND user_id = ? AND direction = ? AND invalid = 0 AND created_at >= ? AND created_at <= ?`,
       )
-      .get(personaId, userId, direction, content, nearMs) as { id: string } | undefined;
-    if (!row) return 0;
-    this.db().prepare(`UPDATE message_logs SET invalid = 1 WHERE id = ?`).run(row.id);
-    return 1;
+      .all(personaId, userId, direction, nearMs - windowMs, nearMs + windowMs) as { id: string; content: string }[];
+    const matched = rows.filter(
+      (r) => r.content === content || content.startsWith(r.content) || r.content.startsWith(content),
+    );
+    if (!matched.length) return 0;
+    const tx = this.db().transaction(() => {
+      for (const r of matched) {
+        this.db().prepare(`UPDATE message_logs SET invalid = 1 WHERE id = ?`).run(r.id);
+      }
+    });
+    tx();
+    return matched.length;
   },
   /** 将某个时间区间内的流水全部标记为无效（用于清空会话/重置上下文）。 */
   invalidateBetween(personaId: string, userId: string, since: number, until: number): number {
