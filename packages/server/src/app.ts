@@ -24,7 +24,12 @@ import { openApiAdminRoutes } from "./routes/open-api-admin";
 function findAdminDist(): string | null {
   const candidates = [
     process.env.ADMIN_DIST,
+    // 从仓库根启动（docker / 手动 node packages/server/dist/index.js）
     resolve(process.cwd(), "packages", "admin", "dist"),
+    // 从 packages/server 启动（pnpm --filter start）：dist/app.js 与 src/app.ts 两种层级
+    resolve(__dirname, "..", "..", "admin", "dist"),
+    resolve(__dirname, "..", "..", "..", "packages", "admin", "dist"),
+    // 生产镜像：构建产物被复制到 server 的 public 目录
     resolve(__dirname, "..", "public"),
     resolve(__dirname, "public"),
   ].filter(Boolean) as string[];
